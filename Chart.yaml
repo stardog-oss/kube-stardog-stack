@@ -49,4 +49,4 @@ maintainers:
   name: Stardog Union
   url: https://www.stardog.com
 name: kube-stardog-stack
-version: 1.0.0
+version: 1.0.1

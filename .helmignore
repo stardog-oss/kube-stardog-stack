@@ -25,10 +25,5 @@ node_modules
 venv
 .env*
 
-# Ignore top-level docs in the chart package
-README*.md
-CHANGELOG.md
-LICENSE
-HELM_QUICK_REFERENCE.md
-KUBECTL_QUICK_REFERENCE.md
+# Keep top-level docs in the chart package, except hook notes
 README_hook.md

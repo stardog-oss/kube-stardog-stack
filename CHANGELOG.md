@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+- Include README/CHANGELOG/LICENSE in packaged chart (.helmignore).
+- Keep README_hook excluded from the package.
+
 ## 1.0.0
 - Initial umbrella release.
 - Subchart versions:
