@@ -260,7 +260,9 @@ jobs:
               cp -f "$DIST_DIR/$pkg" "$pages_dir/"
             done < "$NEW_PACKAGES_FILE"
           fi
-          if [[ -f "$GITHUB_WORKSPACE/stardog_open_source.png" ]]; then
+          if [[ -f "$GITHUB_WORKSPACE/docs/assets/stardog_open_source.png" ]]; then
+            cp -f "$GITHUB_WORKSPACE/docs/assets/stardog_open_source.png" "$pages_dir/"
+          elif [[ -f "$GITHUB_WORKSPACE/stardog_open_source.png" ]]; then
             cp -f "$GITHUB_WORKSPACE/stardog_open_source.png" "$pages_dir/"
           fi
 

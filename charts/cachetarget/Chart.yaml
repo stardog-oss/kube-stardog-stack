@@ -1,13 +1,13 @@
 apiVersion: v2
 name: cachetarget
 description: Helm chart to deploy Stardog Cache Targets
-version: 1.0.0
+version: 1.0.1
 appVersion: latest
 home: https://stardog-union.github.io/kube-stardog-stack/
 icon: https://s3.amazonaws.com/stardog-logos.public/stardog-logo.png
 maintainers:
-- email: tech@stardog.com
-  name: Stardog Union
+- email: oss@stardog.com
+  name: Stardog Open-Source Community
   url: https://www.stardog.com
 dependencies:
 - name: common

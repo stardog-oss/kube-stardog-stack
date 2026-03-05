@@ -1,8 +1,11 @@
 # Pre-commit hook for Helm charts (two‑phase, emoji/ASCII toggle)
 
-This merged pre-commit runs in **two phases** across **all charts** it finds (umbrella + subcharts):
+This merged pre-commit runs **version/changelog checks**, then two phases across **all charts** it finds (umbrella + subcharts):
 
 
+0. **Version + CHANGELOG** – Ensures each chart version appears in its `CHANGELOG.md`. Version bump checks compare your
+   staged changes against the **latest release tag** when available. If there are no release tags yet, the hook falls
+   back to checking staged version line changes only.
 1. **Sync locks** – `helm dependency build` for each chart; if a lock is out of sync, it runs
    `helm dependency update` and rebuilds, then **stages the updated `Chart.lock`**.
 2. **Quality checks** – `helm lint` and `helm unittest --strict .` for each chart (only after Phase 1 succeeds).

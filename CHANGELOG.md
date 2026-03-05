@@ -1,7 +1,11 @@
 # Changelog
 
+## 1.0.3
+- Fully Documented Public Release
+- Maintenance: update maintainer information and documentation assets.
+
 ## 1.0.2
-- Public Release
+- Interim Public Release
 
 ## 1.0.1
 - Include README/CHANGELOG/LICENSE in packaged chart (.helmignore).

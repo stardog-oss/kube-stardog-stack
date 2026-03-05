@@ -1,5 +1,8 @@
 # Changelog
 
+## 4.0.1
+- Maintenance: update maintainer information.
+
 ## 4.0.0
 - Refactor:
   - Launchpad, Voicebox, and Zookeeper moved to their respective subcharts.

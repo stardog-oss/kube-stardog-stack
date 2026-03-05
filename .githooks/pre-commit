@@ -11,6 +11,15 @@
 #   USE_EMOJI=0           → plain ASCII
 set -euo pipefail
 
+# Optional debug tracing
+DEBUG_HOOK=${DEBUG_HOOK:-0}
+if [[ "${DEBUG_HOOK}" == "1" ]]; then
+  set -x
+fi
+
+# Surface failures that otherwise exit silently under -e
+trap 'say "❌" "ERR" "Pre-commit failed at line ${LINENO}: ${BASH_COMMAND}"' ERR
+
 # -------- Output helpers (emoji/ASCII) --------
 USE_EMOJI=${USE_EMOJI:-1}
 say() {
@@ -66,6 +75,166 @@ if [[ ${#charts[@]} -eq 0 ]]; then
 fi
 
 say "🔎" "--" "Found ${#charts[@]} chart(s): ${charts[*]}"
+
+# -------- Version bump + CHANGELOG checks --------
+say "🧭" "CHK" "Version/changelog checks"
+
+version_line_changed() {
+  # returns 0 if the version line changed in the staged diff
+  if git diff --cached -- "$1" | grep -E '^[+-][[:space:]]*version:' >/dev/null 2>&1; then
+    return 0
+  fi
+  return 1
+}
+
+changelog_has_version() {
+  # $1=changelog file, $2=version
+  if grep -Eq "^##[[:space:]]+\\[?${2}\\]?([[:space:]]|$)" "$1"; then
+    return 0
+  fi
+  return 1
+}
+
+# Returns 0 if relpath is ignored by chart_dir/.helmignore
+is_ignored_by_helmignore() {
+  local chart_dir="$1"
+  local relpath="$2"
+  local ignore_file="$chart_dir/.helmignore"
+  [[ -f "$ignore_file" ]] || return 1
+  if (cd "$chart_dir" && printf '%s\n' "$relpath" | GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git -c core.excludesFile="$ignore_file" check-ignore -q --no-index --stdin); then
+    return 0
+  fi
+  return 1
+}
+
+add_unique() {
+  # $1=array name, $2=value
+  local arr_name="$1"
+  local value="$2"
+  local found=0
+  eval "for v in \"\${${arr_name}[@]}\"; do if [[ \"\$v\" == \"${value}\" ]]; then found=1; fi; done" || true
+  if [[ $found -eq 0 ]]; then
+    eval "${arr_name}+=(\"${value}\")"
+  fi
+}
+
+# Ensure each chart version exists in its CHANGELOG
+for c in "${charts[@]}"; do
+  chart_yaml="${c}/Chart.yaml"
+  chart_version="$(awk '/^version:/{print $2; exit}' "$chart_yaml" | sed -E 's/^v//')"
+  if [[ "$c" == "." ]]; then
+    changelog="CHANGELOG.md"
+  else
+    changelog="${c}/CHANGELOG.md"
+  fi
+  if [[ ! -f "$changelog" ]]; then
+    say "❌" "ERR" "Missing CHANGELOG: $changelog"
+    exit 1
+  fi
+  if ! changelog_has_version "$changelog" "$chart_version"; then
+    say "❌" "ERR" "CHANGELOG entry missing for ${c}: ${chart_version}"
+    exit 1
+  fi
+done
+
+# Enforce version bumps for changed charts (staged)
+staged_files="$(git diff --cached --name-only --diff-filter=ACMRTD)"
+if [[ -n "$staged_files" ]]; then
+  # Compare against latest release tag when available
+  latest_tag="$(git tag --list 'v*' --sort=-version:refname | head -n1)"
+  if [[ -z "${latest_tag}" ]]; then
+    latest_tag="$(git tag --list '[0-9]*' --sort=-version:refname | head -n1)"
+  fi
+
+  if [[ -n "${latest_tag}" ]]; then
+    say "ℹ️" "INFO" "Checking version bumps against latest release tag: ${latest_tag}"
+
+    tag_files="$(git diff --name-only --cached "${latest_tag}" --diff-filter=ACMRTD)"
+    changed_subcharts=()
+    umbrella_changed=0
+
+    while IFS= read -r f; do
+      if [[ "$f" == charts/*/* ]]; then
+        name="${f#charts/}"
+        name="${name%%/*}"
+        rel="${f#charts/${name}/}"
+        if ! is_ignored_by_helmignore "charts/${name}" "$rel"; then
+          add_unique changed_subcharts "$name"
+        fi
+      else
+        if ! is_ignored_by_helmignore "." "$f"; then
+          umbrella_changed=1
+        fi
+      fi
+    done <<< "$tag_files"
+
+    get_version_from_index() {
+      local path="$1"
+      if git cat-file -e ":${path}" 2>/dev/null; then
+        git show ":${path}" | awk '/^version:/{print $2; exit}' | sed -E 's/^v//'
+      else
+        awk '/^version:/{print $2; exit}' "$path" | sed -E 's/^v//'
+      fi
+    }
+
+    get_version_from_tag() {
+      local path="$1"
+      if git cat-file -e "${latest_tag}:${path}" 2>/dev/null; then
+        git show "${latest_tag}:${path}" | awk '/^version:/{print $2; exit}' | sed -E 's/^v//'
+      else
+        echo ""
+      fi
+    }
+
+    # Require version bumps when package content changed since last release tag
+    for name in "${changed_subcharts[@]}"; do
+      prev_ver="$(get_version_from_tag "charts/${name}/Chart.yaml")"
+      curr_ver="$(get_version_from_index "charts/${name}/Chart.yaml")"
+      if [[ -n "${prev_ver}" && -n "${curr_ver}" && "${prev_ver}" == "${curr_ver}" ]]; then
+        say "❌" "ERR" "Subchart content changed since ${latest_tag} but version not bumped: charts/${name}/Chart.yaml"
+        exit 1
+      fi
+    done
+
+    if [[ $umbrella_changed -eq 1 ]]; then
+      prev_ver="$(get_version_from_tag "Chart.yaml")"
+      curr_ver="$(get_version_from_index "Chart.yaml")"
+      if [[ -n "${prev_ver}" && -n "${curr_ver}" && "${prev_ver}" == "${curr_ver}" ]]; then
+        say "❌" "ERR" "Umbrella content changed since ${latest_tag} but version not bumped: Chart.yaml"
+        exit 1
+      fi
+    fi
+
+    # If any subchart version differs from last tag, umbrella must also differ
+    subchart_ver_diff=0
+    for c in "${charts[@]}"; do
+      [[ "$c" == "." ]] && continue
+      prev_ver="$(get_version_from_tag "${c}/Chart.yaml")"
+      curr_ver="$(get_version_from_index "${c}/Chart.yaml")"
+      if [[ -n "${prev_ver}" && -n "${curr_ver}" && "${prev_ver}" != "${curr_ver}" ]]; then
+        subchart_ver_diff=1
+      fi
+    done
+    if [[ $subchart_ver_diff -eq 1 ]]; then
+      prev_ver="$(get_version_from_tag "Chart.yaml")"
+      curr_ver="$(get_version_from_index "Chart.yaml")"
+      if [[ -n "${prev_ver}" && -n "${curr_ver}" && "${prev_ver}" == "${curr_ver}" ]]; then
+        say "❌" "ERR" "Umbrella Chart.yaml version must be bumped when any subchart version changes."
+        exit 1
+      fi
+    fi
+  else
+    # Fallback: only enforce umbrella bump when any subchart version changes in the staged diff
+    if git diff --cached -- charts/*/Chart.yaml | grep -E '^[+-][[:space:]]*version:' >/dev/null 2>&1; then
+      if ! version_line_changed "Chart.yaml"; then
+        say "❌" "ERR" "Umbrella Chart.yaml version must be bumped when any subchart version changes."
+        exit 1
+      fi
+    fi
+  fi
+else
+  say "ℹ️" "INFO" "No staged changes; skipping version bump checks."
+fi
 
 # -------- Phase 1: Sync locks --------
 locks_updated=0

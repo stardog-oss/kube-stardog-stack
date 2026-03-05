@@ -1,6 +1,6 @@
 # Kube Stardog Stack
 
-![Stardog Open Source](stardog_open_source.png)
+![Stardog Open Source](docs/assets/stardog_open_source.png)
 
 An umbrella Helm chart that manages the complete Stardog ecosystem including Stardog, Launchpad, and Voicebox components.
 
@@ -22,6 +22,12 @@ This chart provides a unified way to deploy and manage the entire Stardog stack 
 - **Cache target**: Optional cache nodes that register against a Stardog cluster
 - **Launchpad**: Web-based UI to access Stardog applications (Designer, Explorer, Studio)
 - **Voicebox**: Natural language interface for Stardog
+
+## Target Architecture
+
+Architecture is not one-size-fits-all, but this target architecture has worked well in practice. It protects your most expensive database resources while preserving deployment flexibility.
+
+![Target Architecture](docs/assets/target-architecture.png)
 
 ## Components
 
@@ -309,10 +315,13 @@ helm template my-stardog-stack ./kube-stardog-stack -f values.skip-secret-valida
 
 For detailed configuration options for each component, see:
 
-- [Stardog Chart](../charts/stardog/README.md)
-- [Cache Target Chart](../charts/cachetarget/README.md)
-- [Launchpad Chart](../charts/launchpad/README.md)
-- [Voicebox Chart](../charts/voicebox/README.md)
+- [Stardog Chart](./charts/stardog/README.md)
+- [Cache Target Chart](./charts/cachetarget/README.md)
+- [Launchpad Chart](./charts/launchpad/README.md)
+- [Voicebox Chart](./charts/voicebox/README.md)
+- [Gateway Chart](./charts/gateway/README.md)
+- [Zookeeper Chart](./charts/zookeeper/README.md)
+- [Common Chart](./charts/common/README.md)
 
 ## Benefits of the Umbrella Chart
 
@@ -360,3 +369,27 @@ kubectl logs -l app=my-stardog-stack-launchpad
 # Voicebox logs
 kubectl logs -l app=my-stardog-stack-voicebox
 ```
+
+## Contributing
+
+We welcome contributions from the community. Please follow the workflow below:
+
+Requirements:
+
+- Helm installed: <https://helm.sh/docs/intro/install/>
+- `helm-unittest` plugin:
+  ```bash
+  helm plugin install https://github.com/helm-unittest/helm-unittest
+  ```
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/stardog-oss/kube-stardog-stack
+   ```
+2. Enable the pre-commit hook:
+   ```bash
+   git config core.hooksPath .githooks
+   ```
+3. Create a branch and open a pull request.
+
+Maintainers may reach out to move your PR to a release branch depending on timing and release planning.
