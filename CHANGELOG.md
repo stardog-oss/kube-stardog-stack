@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.2
+- Public Release
+
 ## 1.0.1
 - Include README/CHANGELOG/LICENSE in packaged chart (.helmignore).
 - Keep README_hook excluded from the package.

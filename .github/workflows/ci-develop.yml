@@ -1,14 +1,15 @@
-name: CI (develop)
+name: CI (release branches)
 
 on:
   push:
-    branches: [ develop ]
+    branches:
+      - 'SAT-*-RELEASE-*'
 
 jobs:
   validate:
     uses: ./.github/workflows/helm-validate-reusable.yml
     with:
-      charts: '["charts/stardog", "charts/zookeeper","charts/launchpad","charts/voicebox","charts/cachetarget","."]'
+      charts: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/gateway","charts/voicebox","charts/cachetarget","."]'
 
   # smoke:
   #   needs: validate
@@ -20,7 +21,7 @@ jobs:
     uses: ./.github/workflows/helm-package-reusable.yml
     secrets: inherit
     with:
-      charts: '["charts/stardog", "charts/zookeeper","charts/launchpad","charts/voicebox","charts/cachetarget","."]'
+      charts: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/gateway","charts/voicebox","charts/cachetarget","."]'
       oci_repo: 'oci://stardog-example-helm-chart.jfrog.io/'
       versioning_mode: 'rc'
       prerelease_label: 'rc'

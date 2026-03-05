@@ -1,0 +1,205 @@
+name: Helm Release (GitHub)
+
+on:
+  workflow_call:
+    inputs:
+      charts:
+        description: 'JSON array of chart paths'
+        required: true
+        type: string
+        default: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/gateway","charts/voicebox","charts/cachetarget","."]'
+      helm_version:
+        required: false
+        type: string
+        default: 'v3.19.4'
+      release_tag:
+        description: 'Optional tag to use (v<umbrella-version>). If empty, one is generated.'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: ${{ inputs.helm_version }}
+
+      - name: Compute release tag
+        id: meta
+        shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          umbrella_ver=$(awk '/^version:/{print $2; exit}' Chart.yaml | sed -E 's/^v//')
+          [[ "$umbrella_ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "Umbrella chart version must be X.Y.Z (got: $umbrella_ver)"
+            exit 1
+          }
+          expected_tag="v${umbrella_ver}"
+          if [[ -n "$INPUT_TAG" ]]; then
+            tag="$INPUT_TAG"
+          else
+            tag="$expected_tag"
+          fi
+          [[ "$tag" == "$expected_tag" ]] || {
+            echo "Release tag must match umbrella version: expected $expected_tag (got: $tag)"
+            exit 1
+          }
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "Invalid release tag: $tag"
+            exit 1
+          }
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "umbrella_version=$umbrella_ver" >> "$GITHUB_OUTPUT"
+
+      - name: Package charts and build manifest
+        id: package
+        shell: bash
+        env:
+          CHARTS_JSON: ${{ inputs.charts }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          EXPECTED_UMBRELLA_VERSION: ${{ steps.meta.outputs.umbrella_version }}
+        run: |
+          set -euo pipefail
+
+          dist="$GITHUB_WORKSPACE/dist"
+          rm -rf "$dist"
+          mkdir -p "$dist"
+
+          declare -A versions
+          umbrella_name=""
+          umbrella_version=""
+          bundle_version=""
+
+          while read -r chart; do
+            [ -z "$chart" ] && continue
+            helm dependency build "$chart"
+
+            chart_name=$(helm show chart "$chart" | awk '/^name:/{print $2}')
+            chart_version=$(helm show chart "$chart" | awk '/^version:/{print $2}' | sed -E 's/^v//')
+
+            helm package "$chart" --dependency-update -d "$dist"
+
+            if [[ "$chart" == "." ]]; then
+              umbrella_name="$chart_name"
+              umbrella_version="$chart_version"
+            elif [[ "$chart_name" == "kube-stardog-stack-bundle" ]]; then
+              bundle_version="$chart_version"
+            else
+              versions["$chart_name"]="$chart_version"
+            fi
+          done < <(python -c 'import json, os; print("\n".join(json.loads(os.environ["CHARTS_JSON"])))')
+
+          missing=0
+          for c in stardog launchpad gateway zookeeper voicebox cachetarget; do
+            if [[ -z "${versions[$c]:-}" ]]; then
+              echo "Missing chart version for $c"
+              missing=1
+            fi
+          done
+          if [[ -z "$umbrella_version" ]]; then
+            echo "Missing umbrella chart version"
+            missing=1
+          fi
+          if [[ -n "$EXPECTED_UMBRELLA_VERSION" && "$umbrella_version" != "$EXPECTED_UMBRELLA_VERSION" ]]; then
+            echo "Umbrella version mismatch: expected $EXPECTED_UMBRELLA_VERSION (got: $umbrella_version)"
+            missing=1
+          fi
+          [[ "$missing" -eq 0 ]] || exit 1
+
+          manifest="$GITHUB_WORKSPACE/release-manifest.yaml"
+          notes="$GITHUB_WORKSPACE/release-notes.md"
+
+          printf 'release: %s\n\ncomponents:\n  stardog: %s\n  launchpad: %s\n  gateway: %s\n  zookeeper: %s\n  voicebox: %s\n  cachetarget: %s\n\numbrella:\n  %s: %s\n' \
+            "$RELEASE_TAG" \
+            "${versions[stardog]}" \
+            "${versions[launchpad]}" \
+            "${versions[gateway]}" \
+            "${versions[zookeeper]}" \
+            "${versions[voicebox]}" \
+            "${versions[cachetarget]}" \
+            "$umbrella_name" \
+            "$umbrella_version" \
+            > "$manifest"
+
+          if [[ -n "$bundle_version" ]]; then
+            printf '  kube-stardog-stack-bundle: %s\n' "$bundle_version" >> "$manifest"
+          fi
+
+          printf 'Release set: %s\n\nComponents:\n- stardog: %s\n- launchpad: %s\n- gateway: %s\n- zookeeper: %s\n- voicebox: %s\n- cachetarget: %s\n\nUmbrella:\n- %s: %s\n' \
+            "$RELEASE_TAG" \
+            "${versions[stardog]}" \
+            "${versions[launchpad]}" \
+            "${versions[gateway]}" \
+            "${versions[zookeeper]}" \
+            "${versions[voicebox]}" \
+            "${versions[cachetarget]}" \
+            "$umbrella_name" \
+            "$umbrella_version" \
+            > "$notes"
+
+          if [[ -n "$bundle_version" ]]; then
+            printf '- kube-stardog-stack-bundle: %s\n' "$bundle_version" >> "$notes"
+          fi
+
+          echo "dist_dir=$dist" >> "$GITHUB_OUTPUT"
+
+      - name: Publish Helm repo (gh-pages)
+        shell: bash
+        env:
+          DIST_DIR: ${{ steps.package.outputs.dist_dir }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          PAGES_URL: https://stardog-oss.github.io/kube-stardog-stack
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git fetch origin gh-pages
+            git worktree add gh-pages origin/gh-pages
+          else
+            mkdir gh-pages
+            git -C gh-pages init
+            git -C gh-pages checkout -b gh-pages
+          fi
+
+          touch gh-pages/.nojekyll
+          cp -f "$DIST_DIR"/*.tgz gh-pages/
+          if [[ -f "$GITHUB_WORKSPACE/stardog_open_source.png" ]]; then
+            cp -f "$GITHUB_WORKSPACE/stardog_open_source.png" gh-pages/
+          fi
+
+          if [[ -f gh-pages/index.yaml ]]; then
+            helm repo index gh-pages --url "$PAGES_URL" --merge gh-pages/index.yaml
+          else
+            helm repo index gh-pages --url "$PAGES_URL"
+          fi
+
+          git -C gh-pages add .
+          if git -C gh-pages status --porcelain | grep -q .; then
+            git -C gh-pages commit -m "Publish Helm repo ${RELEASE_TAG}"
+          else
+            echo "No changes to commit"
+          fi
+          git -C gh-pages push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.tag }}
+          body_path: release-notes.md
+          fail_on_unmatched_files: true
+          files: |
+            ${{ steps.package.outputs.dist_dir }}/*.tgz
+            release-manifest.yaml
