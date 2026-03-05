@@ -1,6 +1,18 @@
 # Kube Stardog Stack
 
+![Stardog Open Source](stardog_open_source.png)
+
 An umbrella Helm chart that manages the complete Stardog ecosystem including Stardog, Launchpad, and Voicebox components.
+
+## Disclaimer & Support Model
+
+The kube-stardog-stack Helm chart and all subcharts are released under the Apache 2.0 License and are provided without express warranty or commercial support.
+
+It will be supported in the same manner as other community-driven open-source projects—through collaborative contributions, issue tracking, and community engagement. As active maintainers and contributors, we will continue to participate in and support the project within the open-source framework alongside the broader user community.
+
+Important: This Helm chart is provided as an open-source artifact, and users should not establish production runtime dependencies on the public Helm repository. For production environments, organizations are strongly advised to pull, version, and store the chart in their own internal artifact repository (e.g., JFrog, Nexus, OCI registry, etc.) to ensure stability, repeatability, and controlled lifecycle management.
+
+This transition ensures a more modern, consolidated, and forward-looking deployment approach while aligning with open-source best practices and enterprise governance standards
 
 ## Overview
 
@@ -19,7 +31,7 @@ The core graph database component. Enable with `global.stardog.enabled: true`
 ### Cache Target
 Installs cache target nodes and runs a post-install job that registers them against the primary Stardog cluster or an external endpoint. Enable with `global.cachetarget.enabled: true`.
 
-### Launchpad  
+### Launchpad
 Web-based UI to access Stardog applications (Designer, Explorer, Studio). Enable with `global.launchpad.enabled: true`
 
 ### Voicebox
@@ -34,6 +46,62 @@ Coordination service for clustered Stardog deployments. Enable with `global.zook
 The ClusterIssuer resource for certificate management is managed by this umbrella chart and will be created if either Stardog or Launchpad has certificate management enabled. This ensures that both components can share the same certificate issuer without conflicts.
 
 ## Installation
+
+### Distribution & Support
+
+This chart package is **fully vendored (air-gap ready)**. The umbrella chart includes all subcharts in the release artifact, so installs do not require external chart repositories at install time.
+
+We do **not** provide an SLA for retrieving Helm charts directly from GitHub or the public Helm repository. For production, mirror the chart into your own internal Helm repository or artifact store and install from there.
+
+Public Helm repo (no SLA):
+
+```text
+https://stardog-oss.github.io/kube-stardog-stack
+```
+
+The public Helm repo is unauthenticated; no credentials are required.
+
+Release assets:
+
+```text
+https://github.com/stardog-oss/kube-stardog-stack/releases
+```
+
+Each component chart maintains its own version. The release tag matches the umbrella chart version, and component versions may or may not change in a given release.
+
+**POC / DEV (Public Helm Repo)**
+It is fine to use the public Helm repo for evaluation environments, but no SLA is offered.
+
+```bash
+export VERSION=${VERSION}
+helm repo add stardog https://stardog-oss.github.io/kube-stardog-stack
+helm repo update
+helm install my-stardog-stack stardog/kube-stardog-stack --version ${VERSION}
+```
+
+**Production (Recommended)**
+Download the release artifact and publish it to your internal Helm repo or artifact store. `helm repo add` only registers a URL; it does not remove the upstream dependency. To avoid reliance on GitHub, import the chart into your internal registry.
+
+```bash
+export VERSION=${VERSION}
+helm repo add stardog https://stardog-oss.github.io/kube-stardog-stack
+helm repo update
+helm pull stardog/kube-stardog-stack --version ${VERSION}
+helm install my-stardog-stack ./kube-stardog-stack-${VERSION}.tgz
+```
+
+If you run a local Helm repo, add it and install from there:
+
+```bash
+export VERSION=${VERSION}
+helm repo add internal ${INTERNAL_HELM_REPO_URL}
+helm repo update
+helm install my-stardog-stack internal/kube-stardog-stack --version ${VERSION}
+```
+
+### Installing Individual Components
+
+Each subchart can be installed on its own using its corresponding chart package (for example `stardog`, `launchpad`, `voicebox`, `gateway`, `zookeeper`, `cachetarget`). In production, mirror these into your internal Helm repo or OCI registry the same way you do for the umbrella chart.
 
 ### Basic Installation (Stardog Only)
 

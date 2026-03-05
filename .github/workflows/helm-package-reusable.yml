@@ -7,7 +7,7 @@ on:
         description: 'JSON array of chart paths'
         required: true
         type: string
-        default: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/voicebox","charts/cachetarget","."]'
+        default: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/gateway","charts/voicebox","charts/cachetarget","."]'
       oci_repo:
         description: 'OCI repo URL, e.g. oci://example.jfrog.io/'
         required: true

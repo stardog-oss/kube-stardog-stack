@@ -2,6 +2,7 @@
 
 This merged pre-commit runs in **two phases** across **all charts** it finds (umbrella + subcharts):
 
+
 1. **Sync locks** – `helm dependency build` for each chart; if a lock is out of sync, it runs
    `helm dependency update` and rebuilds, then **stages the updated `Chart.lock`**.
 2. **Quality checks** – `helm lint` and `helm unittest --strict .` for each chart (only after Phase 1 succeeds).

@@ -7,7 +7,7 @@ on:
         description: 'JSON array of chart paths'
         required: true
         type: string
-        default: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/voicebox","charts/cachetarget","."]'
+        default: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/gateway","charts/voicebox","charts/cachetarget","."]'
       helm_version:
         required: false
         type: string
@@ -31,9 +31,99 @@ jobs:
         chart: ${{ fromJSON(inputs.charts) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: azure/setup-helm@v4
         with:
           version: ${{ inputs.helm_version }}
+      - name: Validate changelog entries and umbrella bump
+        shell: bash
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          echo "Checking CHANGELOG entries for all charts..."
+          while read -r chart_yaml; do
+            chart_dir="$(dirname "$chart_yaml")"
+            if [[ "$chart_dir" == "." ]]; then
+              changelog="CHANGELOG.md"
+            else
+              changelog="${chart_dir}/CHANGELOG.md"
+            fi
+
+            if [[ ! -f "$changelog" ]]; then
+              echo "Missing CHANGELOG: $changelog"
+              exit 1
+            fi
+
+            version="$(awk '/^version:/{print $2; exit}' "$chart_yaml" | sed -E 's/^v//')"
+            if [[ -z "$version" ]]; then
+              echo "Missing version in $chart_yaml"
+              exit 1
+            fi
+
+            if ! grep -Eq "^##[[:space:]]+\\[?${version}\\]?([[:space:]]|$)" "$changelog"; then
+              echo "CHANGELOG entry missing: $changelog (version ${version})"
+              exit 1
+            fi
+          done < <(find . -maxdepth 2 -name Chart.yaml -print | sort)
+
+          if [[ -z "${BEFORE:-}" || "$BEFORE" == "0000000000000000000000000000000000000000" ]]; then
+            echo "Skipping umbrella bump check (no BEFORE SHA)."
+            exit 0
+          fi
+          if ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            echo "Skipping umbrella bump check (BEFORE commit not available)."
+            exit 0
+          fi
+
+          echo "Checking umbrella version bump when subcharts change..."
+          prev_umbrella="$(git show "${BEFORE}:Chart.yaml" 2>/dev/null | awk '/^version:/{print $2; exit}' | sed -E 's/^v//' || true)"
+          curr_umbrella="$(awk '/^version:/{print $2; exit}' Chart.yaml | sed -E 's/^v//')"
+
+          umbrella_changed=false
+          if [[ -n "$prev_umbrella" && "$prev_umbrella" != "$curr_umbrella" ]]; then
+            umbrella_changed=true
+          fi
+
+          changed_subcharts="$(git diff --name-only "${BEFORE}" "${AFTER}" -- charts/*/Chart.yaml || true)"
+          if [[ -z "$changed_subcharts" ]]; then
+            echo "No subchart Chart.yaml changes detected."
+            exit 0
+          fi
+
+          subchart_bumped=false
+          while read -r chart_yaml; do
+            [[ -z "$chart_yaml" ]] && continue
+            if [[ ! -f "$chart_yaml" ]]; then
+              subchart_bumped=true
+              echo "Detected removed subchart: $chart_yaml"
+              break
+            fi
+
+            curr_ver="$(awk '/^version:/{print $2; exit}' "$chart_yaml" | sed -E 's/^v//')"
+            prev_ver="$(git show "${BEFORE}:${chart_yaml}" 2>/dev/null | awk '/^version:/{print $2; exit}' | sed -E 's/^v//' || true)"
+
+            if [[ -z "$prev_ver" ]]; then
+              subchart_bumped=true
+              echo "Detected new subchart or missing previous version: $chart_yaml"
+              break
+            fi
+
+            if [[ "$prev_ver" != "$curr_ver" ]]; then
+              subchart_bumped=true
+              echo "Detected subchart version bump: $chart_yaml (${prev_ver} -> ${curr_ver})"
+              break
+            fi
+          done <<< "$changed_subcharts"
+
+          if [[ "$subchart_bumped" == "true" && "$umbrella_changed" != "true" ]]; then
+            echo "Umbrella Chart.yaml version must be bumped when any subchart version changes."
+            echo "Umbrella version stayed at ${curr_umbrella}."
+            exit 1
+          fi
       - name: Install helm-unittest
         run: helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.0.3
       - name: Add extra Helm repos (optional)
