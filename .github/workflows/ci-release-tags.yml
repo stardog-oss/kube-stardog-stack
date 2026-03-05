@@ -3,24 +3,22 @@ name: Release (tags)
 on:
   push:
     tags:
-      - '*'
+      - 'v*'
+
+permissions:
+  contents: write
 
 jobs:
   validate:
+    if: ${{ github.actor != 'github-actions[bot]' }}
     uses: ./.github/workflows/helm-validate-reusable.yml
     with:
-      charts: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/voicebox","charts/cachetarget","."]'
+      charts: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/gateway","charts/voicebox","charts/cachetarget","."]'
 
-  smoke:
+  release:
+    if: ${{ github.actor != 'github-actions[bot]' }}
     needs: validate
-    uses: ./.github/workflows/minikube-smoke.yml
-    secrets: inherit
-
-  ci:
-    needs: smoke
-    uses: ./.github/workflows/helm-package-reusable.yml
-    secrets: inherit
+    uses: ./.github/workflows/helm-github-release.yml
     with:
-      charts: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/voicebox","charts/cachetarget","."]'
-      oci_repo: 'oci://stardog-example-helm-chart.jfrog.io/'
-      versioning_mode: 'release'
+      charts: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/gateway","charts/voicebox","charts/cachetarget","."]'
+      release_tag: ${{ github.ref_name }}
