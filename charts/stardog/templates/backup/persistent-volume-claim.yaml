@@ -1,0 +1,22 @@
+{{- if and .Values.backup.enabled .Values.backup.location.azure.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "sdcommon.pvcName" (dict "context" . "chart" "stardog" "id" "backup-azure") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+spec:
+  accessModes:
+    {{ toYaml .Values.backup.location.azure.persistentVolumeClaim.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.backup.location.azure.persistentVolumeClaim.capacity }}
+  volumeName: {{ include "sdcommon.fullname" . }}-backup-pv
+  storageClassName: {{ include "sdcommon.fullname" . }}-backup-sc
+
+{{- end }}

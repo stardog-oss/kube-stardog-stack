@@ -1,0 +1,67 @@
+name: Helm Validate (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      charts:
+        description: 'JSON array of chart paths'
+        required: true
+        type: string
+        default: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/voicebox","charts/cachetarget","."]'
+      helm_version:
+        required: false
+        type: string
+        default: 'v3.19.4'
+      unittest_flags:
+        required: false
+        type: string
+        default: '--strict'
+      add_repos:
+        description: 'Optional newline-separated "name url" pairs'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJSON(inputs.charts) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: ${{ inputs.helm_version }}
+      - name: Install helm-unittest
+        run: helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.0.3
+      - name: Add extra Helm repos (optional)
+        if: ${{ inputs.add_repos != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          while read -r line; do
+            [ -z "$line" ] && continue
+            name=$(echo "$line" | awk '{print $1}')
+            url=$(echo "$line" | awk '{print $2}')
+            helm repo add "$name" "$url"
+          done <<< "${{ inputs.add_repos }}"
+          helm repo update
+      - name: Build dependencies
+        working-directory: ${{ matrix.chart }}
+        run: helm dependency build
+      - name: Lint
+        working-directory: ${{ matrix.chart }}
+        run: helm lint . -f "$GITHUB_WORKSPACE/values.skip-secret-validation.yaml"
+      - name: Template dry-run
+        working-directory: ${{ matrix.chart }}
+        run: helm template unittest "$PWD" --dry-run -f "$GITHUB_WORKSPACE/values.skip-secret-validation.yaml"
+      - name: Run unit tests
+        if: ${{ matrix.chart != '.' }}
+        working-directory: ${{ matrix.chart }}
+        run: helm unittest ${{ inputs.unittest_flags }} .
+      - name: Run unit tests (skip subcharts)
+        if: ${{ matrix.chart == '.' }}
+        working-directory: ${{ matrix.chart }}
+        run: helm unittest --with-subchart=false ${{ inputs.unittest_flags }} .

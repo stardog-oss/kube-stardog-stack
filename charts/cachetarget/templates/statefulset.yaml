@@ -1,0 +1,110 @@
+{{- $tmpDirPath := (include "sdcommon.tmpDirPath" .) | trim -}}
+{{- $tmpDirLocal := eq ((include "sdcommon.tmpDirLocal" .) | trim) "true" -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "cachetarget.fullname" . }}
+  namespace: {{ include "cachetarget.namespace" . }}
+  labels:
+    {{- include "sdcommon.labels.standard" . | nindent 4 }}
+    app: {{ include "cachetarget.fullname" . }}
+    app.kubernetes.io/component: cache
+spec:
+  replicas: 1
+  serviceName: {{ include "cachetarget.fullname" . }}
+  selector:
+    matchLabels:
+      {{- include "sdcommon.labels.selector" . | nindent 6 }}
+      app: {{ include "cachetarget.fullname" . }}
+  template:
+    metadata:
+      labels:
+        {{- include "sdcommon.labels.standard" . | nindent 8 }}
+        app: {{ include "cachetarget.fullname" . }}
+    spec:
+      {{- $saName := include "sdcommon.serviceAccountName" (dict "config" .Values.serviceAccount "defaultName" (include "cachetarget.fullname" .) "defaultDisabled" "") }}
+      {{- if $saName }}
+      serviceAccountName: {{ $saName }}
+      {{- end }}
+      {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" "stardog-license" "namespace" (include "cachetarget.namespace" .)) }}
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      containers:
+      - name: {{ include "cachetarget.fullname" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        securityContext:
+{{- toYaml .Values.containerSecurityContext | nindent 10 }}
+        env:
+          - name: PORT
+            value: "{{ .Values.ports.server }}"
+          - name: STARDOG_HOME
+            value: "{{ .Values.stardogHome }}"
+          - name: STARDOG_LICENSE_PATH
+            value: "/etc/stardog-license/stardog-license-key.bin"
+          - name: STARDOG_PROPERTIES
+            value: '{{ include "sdcommon.stardogPropertiesPath" . }}'
+          - name: STARDOG_SERVER_JAVA_ARGS
+            value: |
+              -Djava.io.tmpdir={{ $tmpDirPath }}
+              -XX:+HeapDumpOnOutOfMemoryError
+              -Xms{{ .Values.jvm.minHeap }}
+              -Xmx{{ .Values.jvm.maxHeap }}
+              -XX:MaxDirectMemorySize={{ .Values.jvm.directMem }}
+              {{ .Values.javaArgs }}
+          - name: STARDOG_TMP_PATH
+            value: "{{ $tmpDirPath }}"
+          - name: PATH
+            value: "/opt/stardog/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        ports:
+        - containerPort: {{ .Values.ports.server }}
+          name: server
+        volumeMounts:
+{{ include "sdcommon.stardogBaseVolumeMounts" (dict "home" .Values.stardogHome "fullname" (include "cachetarget.fullname" .) "pvcName" (include "sdcommon.pvcName" (dict "context" . "chart" "cachetarget" "withRelease" false)) "tmpDirLocal" $tmpDirLocal "tmpDirPath" $tmpDirPath) | indent 8 }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -ex
+          {{ .Files.Get "files/utils.sh" | indent 10 }}
+          make_temp ${STARDOG_TMP_PATH}
+          /opt/stardog/bin/stardog-admin server start --foreground --port ${PORT} --home ${STARDOG_HOME}
+{{ include "sdcommon.stardogProbes" . | indent 8 }}
+      {{- if and .Values.image.username .Values.image.password }}
+      imagePullSecrets:
+        - name: {{ include "cachetarget.fullname" . }}-image-pull-secret
+      {{- end }}
+      {{ with include "sdcommon.podScheduling" . }}
+{{ . | nindent 6 }}
+      {{ end }}
+      volumes:
+{{ include "sdcommon.stardogBaseVolumes" (dict "fullname" (include "cachetarget.fullname" .) "tmpDirLocal" $tmpDirLocal) | indent 6 }}
+      - name: {{ include "cachetarget.fullname" . }}-password
+        secret:
+{{- if .Values.admin.passwordSecretRef }}
+          secretName: {{ .Values.admin.passwordSecretRef }}
+{{ else }}
+          secretName: {{ include "cachetarget.fullname" . }}-password
+{{- end}}
+          items:
+            - key: password
+              path: adminpw
+              mode: 444
+
+  volumeClaimTemplates:
+  - metadata:
+      name: {{ include "sdcommon.pvcName" (dict "context" . "chart" "cachetarget" "withRelease" false) }}
+      {{- with .Values.persistence.annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      {{- with include "sdcommon.storageClassBlock" (dict "value" .Values.persistence.storageClass "context" $) }}
+      {{ . | nindent 6 }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.persistence.size }}

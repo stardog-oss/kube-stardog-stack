@@ -1,0 +1,83 @@
+name: CI (minikube-smoke)
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    secrets:
+      STARDOG_LICENSE:
+        required: true
+
+env:
+  HELM_VERSION: v3.14.4
+  MINIKUBE_VERSION: v1.33.1
+  K8S_VERSION: v1.29.4
+
+jobs:
+  smoke:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      MINIKUBE_HOME: ${{ github.workspace }}/.minikube
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: ${{ env.K8S_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y conntrack socat unzip
+
+      - name: Install minikube
+        run: |
+          curl -Lo minikube https://storage.googleapis.com/minikube/releases/${MINIKUBE_VERSION}/minikube-linux-amd64
+          chmod +x minikube
+          sudo mv minikube /usr/local/bin/minikube
+
+      - name: Start minikube
+        env:
+          CHANGE_MINIKUBE_NONE_USER: "true"
+          MINIKUBE_HOME: ${{ github.workspace }}/.minikube
+          KUBECONFIG: ${{ github.workspace }}/.kube/config
+        run: |
+          mkdir -p "$MINIKUBE_HOME"
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          touch "$KUBECONFIG"
+          sudo chown -R $USER "$MINIKUBE_HOME" "$(dirname "$KUBECONFIG")"
+          minikube start --driver=docker --cpus=2 --memory=4096 --kubernetes-version=${K8S_VERSION}
+
+      - name: Write Stardog license
+        env:
+          STARDOG_LICENSE: ${{ secrets.STARDOG_LICENSE }}
+        run: |
+          if [ -z "$STARDOG_LICENSE" ]; then
+            echo "STARDOG_LICENSE secret is not configured." >&2
+            exit 1
+          fi
+          echo "$STARDOG_LICENSE" | base64 --decode > "$HOME/stardog-license-key.bin"
+
+      - name: Run smoke tests
+        env:
+          KUBECONFIG: ${{ github.workspace }}/.kube/config
+        run: |
+          chmod +x tests/infra-test/smoke.sh
+          tests/infra-test/smoke.sh
+
+      - name: Dump cluster state
+        if: always()
+        env:
+          KUBECONFIG: ${{ github.workspace }}/.kube/config
+        run: |
+          kubectl get pods -A || true
+          kubectl get svc -A || true
+          kubectl describe pods -A | head -n 200 || true
+          dmesg -T | tail -n 200 || true

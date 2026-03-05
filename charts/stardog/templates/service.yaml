@@ -1,0 +1,57 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sdcommon.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "sdcommon.fullname" . }}
+    {{ include "sdcommon.labels.standard" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ports:
+    - port: {{ .Values.ports.server }}
+      name: server
+    {{- if eq (include "stardog.effectiveBiEnabled" .) "true" }}
+    - port: {{ .Values.ports.sql }}
+      name: sql
+    {{- end }}
+  type: {{ .Values.service.type }}
+{{- if .Values.service.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.service.loadBalancerIP }}
+{{- end }}
+  selector:
+    app: {{ include "sdcommon.fullname" . }}
+
+
+{{- if and (eq (include "stardog.effectiveBiEnabled" .) "true") .Values.bi.service.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sdcommon.fullname" . }}-sql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "sdcommon.fullname" . }}
+    {{ include "sdcommon.labels.standard" . | nindent 4 }}
+  {{- with .Values.bi.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ports:
+  - port: {{ .Values.ports.sql }}
+    name: sql
+    targetPort: {{ .Values.ports.sql }}
+    protocol: TCP
+  type: {{ .Values.bi.service.type }}
+  loadBalancerSourceRanges:
+    {{- range .Values.bi.service.loadBalancerSourceRanges }}
+    - {{ . }}
+    {{- end }}
+  selector:
+    app: {{ include "sdcommon.fullname" . }}
+{{- end }}

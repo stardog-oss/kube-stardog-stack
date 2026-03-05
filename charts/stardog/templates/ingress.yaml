@@ -1,0 +1,44 @@
+{{- if .Values.ingress.enabled }}
+{{- printf "# WARNING: ingress.* is deprecated and will be removed in a future release. Use gateway.* instead.\n" }}
+{{- if eq (include "stardog.effectiveBiEnabled" .) "true" }}
+{{- printf "# WARNING: ingress exposure does not publish the BI/SQL port. Enable gateway.* to expose BI traffic.\n" }}
+{{- end }}
+{{- end }}
+
+{{- $issuer := (include "sdcommon.effectiveCertIssuer" . | fromYaml) -}}
+{{- if and .Values.ingress.enabled .Values.ingress.tls.enabled (not $issuer.enabled) }}
+  {{- if eq (default "" .Values.ingress.tls.secretName) "" }}
+    {{- fail "ingress.tls.secretName must be set when certIssuer is disabled." -}}
+  {{- else }}
+    {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" .Values.ingress.tls.secretName "namespace" .Release.Namespace) }}
+  {{- end }}
+{{- end }}
+
+{{- if .Values.ingress.enabled }}
+  {{- $sparqlHost := printf "%s.%s" (.Values.ingress.sparqlSubdomain | default "sparql") .Values.ingress.url }}
+  {{- $ciAnnotations := dict }}
+  {{- if $issuer.enabled }}
+    {{- if eq (include "certIssuer.kind" .) "ClusterIssuer" }}
+      {{- $_ := set $ciAnnotations "cert-manager.io/cluster-issuer" (include "certIssuer.name" .) -}}
+    {{- else }}
+      {{- $_ := set $ciAnnotations "cert-manager.io/issuer" (include "certIssuer.name" .) -}}
+    {{- end }}
+  {{- end }}
+  {{- $mergedAnnotations := merge $ciAnnotations (default dict .Values.ingress.annotations) }}
+  {{- $sparqlTls := list }}
+  {{- if .Values.ingress.tls.enabled }}
+    {{- $hosts := list $sparqlHost }}
+    {{- $sparqlTls = list (dict "hosts" $hosts "secretName" (include "certIssuer.secretName" .)) }}
+  {{- end }}
+  {{- $sparqlPaths := list (dict "path" .Values.ingress.path "pathType" .Values.ingress.pathType "backend" (dict "service" (dict "name" (include "sdcommon.fullname" .) "port" (dict "number" .Values.ports.server)))) }}
+  {{- $sparqlRules := list (dict "host" $sparqlHost "http" (dict "paths" $sparqlPaths)) }}
+{{- printf "%s\n" (include "sdcommon.ingressResource" (dict
+      "context" .
+      "name" (printf "sparql-%s" (include "sdcommon.fullname" .))
+      "className" .Values.ingress.className
+      "annotations" $mergedAnnotations
+      "extraLabels" (dict "app" (include "stardog.fullname" .))
+      "rules" $sparqlRules
+      "tls" $sparqlTls
+  )) }}
+{{- end }}

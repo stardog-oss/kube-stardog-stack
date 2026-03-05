@@ -1,0 +1,181 @@
+suite: Validate Stardog StatefulSet
+values:
+- values/values-stardog.yaml
+templates:
+- statefulset.yaml
+tests:
+# Test for Stardog StatefulSet Configuration
+- it: should correctly configure the Stardog StatefulSet
+  set:
+    bi:
+      enabled: true
+    cluster:
+      replicaCount: 3
+    podManagementPolicy: Parallel
+    securityContext:
+      fsGroup: 1000
+    tolerations:
+    - key: "key"
+      operator: "Equal"
+      value: "value"
+      effect: "NoSchedule"
+    service:
+      annotations:
+        "service.beta.kubernetes.io/aws-load-balancer-backend-protocol": "http"
+    ports:
+      server: "5820"
+      sql: "5821"
+    image:
+      pullPolicy: Always
+      registry: docker.io
+      repository: stardog/stardog
+      tag: latest
+      pullSecrets:
+      - name: my-custom-pull-secret
+    persistence:
+      size: "10Gi"
+      storageClass: standard
+    antiAffinity: soft
+    jwtConfig:
+      enabled: true
+      azureClientId: "test-client-id"
+      azureTenantId: "test-tenant-id"
+  asserts:
+  - isKind:
+      of: StatefulSet
+  - equal:
+      path: spec.replicas
+      value: 3
+  - equal:
+      path: spec.podManagementPolicy
+      value: Parallel
+  - equal:
+      path: spec.template.spec.securityContext.fsGroup
+      value: 1000
+  - equal:
+      path: spec.template.spec.tolerations[0].key
+      value: "key"
+  - equal:
+      path: spec.template.spec.containers[0].imagePullPolicy
+      value: Always
+  - equal:
+      path: spec.template.spec.containers[0].image
+      value: "docker.io/stardog/stardog:latest"
+  - equal:
+      path: spec.template.spec.containers[0].ports[0].containerPort
+      value: 5820
+  - equal:
+      path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+      value: "10Gi"
+- it: matches PVC name with data volume mount
+  asserts:
+  - equal:
+      path: spec.volumeClaimTemplates[0].metadata.name
+      value: stardog-data
+  - contains:
+      path: spec.template.spec.containers[0].volumeMounts
+      content:
+        name: stardog-data
+        mountPath: /var/opt/stardog
+        readOnly: false
+- it: template labels match the selector labels
+  asserts:
+    - equal:
+        path: spec.selector.matchLabels["app.kubernetes.io/name"]
+        value: "stardog"
+    - equal:
+        path: spec.template.metadata.labels["app.kubernetes.io/name"]
+        value: "stardog"
+    - equal:
+        path: metadata.labels["app.kubernetes.io/instance"]
+        value: "RELEASE-NAME"
+
+- it: enables SPARQL TLS when configured
+  set:
+    tls:
+      sparql:
+        enabled: true
+        required: true
+        secretName: sparql-custom
+    ports:
+      serverssl: 5821
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: '--enable-ssl.*--require-ssl'
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: SSLPORT
+        value: "5821"
+  - contains:
+      path: spec.template.spec.containers[0].volumeMounts
+      content:
+        name: stardog-tls
+        mountPath: /var/opt/stardog/ssl
+        readOnly: true
+  - contains:
+      path: spec.template.spec.volumes
+      content:
+        name: stardog-tls
+        secret:
+          optional: true
+          secretName: sparql-custom
+
+- it: does not auto-enable TLS when global gateway and BI enabled
+  set:
+    global:
+      gateway:
+        enabled: true
+      bi:
+        enabled: true
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: '--port [^\\n-]+ --home'
+
+- it: adds BI TLS JVM properties when configured
+  set:
+    tls:
+      bi:
+        enabled: true
+        secretName: bi-custom
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: '--port [^\\n-]+ --home'
+  - contains:
+      path: spec.template.spec.volumes
+      content:
+        name: stardog-tls
+        secret:
+          optional: true
+          secretName: bi-custom
+
+- it: uses custom service account name when provided
+  set:
+    serviceAccount:
+      create: false
+      name: custom-sa
+  documentSelector:
+    path: metadata.name
+    value: stardog-RELEASE-NAME
+  asserts:
+    - equal:
+        path: spec.template.spec.serviceAccountName
+        value: custom-sa
+        suite: probes
+- it: has liveness and readiness probes
+  asserts:
+    - equal:
+        path: spec.template.spec.containers[0].livenessProbe.initialDelaySeconds
+        value: 10
+    - equal:
+        path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+        value: "/admin/alive"
+    - equal:
+        path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
+        value: 20
+    - equal:
+        path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+        value: "/admin/healthcheck"

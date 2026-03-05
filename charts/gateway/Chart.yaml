@@ -1,0 +1,15 @@
+apiVersion: v2
+appVersion: latest
+description: Shared Gateway resources for the Stardog stack
+home: https://stardog-union.github.io/kube-stardog-stack/
+icon: https://s3.amazonaws.com/stardog-logos.public/stardog-logo.png
+maintainers:
+- email: tech@stardog.com
+  name: Stardog Union
+  url: https://www.stardog.com
+name: gateway
+version: 1.0.0
+dependencies:
+- name: common
+  version: 0.1.5
+  repository: file://../common

@@ -1,0 +1,129 @@
+suite: Cache Target StatefulSet
+values:
+  - values/values-cachetarget.yaml
+templates:
+  - statefulset.yaml
+
+tests:
+  - it: renders StatefulSet with default configuration
+    set:
+      global:
+        __storageClassFixtures:
+          - metadata:
+              name: default-sc
+              annotations:
+                storageclass.kubernetes.io/is-default-class: "true"
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - matchRegex:
+          path: metadata.name
+          pattern: "^cachetarget-.+-cache$"
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "stardog/stardog:latest"
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 5820
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 5Gi
+
+  - it: matches PVC name with data mount
+    set:
+      global:
+        __storageClassFixtures:
+          - metadata:
+              name: default-sc
+              annotations:
+                storageclass.kubernetes.io/is-default-class: "true"
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: cachetarget-data
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[1].name
+          value: cachetarget-data
+
+  - it: allows overriding image and resources
+    set:
+      image:
+        repository: custom/stardog
+        tag: v1.2.3
+        pullPolicy: Always
+      resources:
+        requests:
+          cpu: 2
+          memory: 4Gi
+        limits:
+          cpu: 4
+          memory: 8Gi
+      global:
+        __storageClassFixtures:
+          - metadata:
+              name: default-sc
+              annotations:
+                storageclass.kubernetes.io/is-default-class: "true"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "custom/stardog:v1.2.3"
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 4
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 8Gi
+
+  - it: configures storage class and annotations when provided
+    set:
+      persistence:
+        storageClass: fast-ssd
+        annotations:
+          volume.beta.kubernetes.io/storage-class: fast-ssd
+      global:
+        __storageClassFixtures:
+          - metadata:
+              name: default-sc
+              annotations:
+                storageclass.kubernetes.io/is-default-class: "true"
+          - metadata:
+              name: fast-ssd
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.annotations["volume.beta.kubernetes.io/storage-class"]
+          value: fast-ssd
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: fast-ssd
+  - it: applies node selectors and tolerations
+    set:
+      nodeSelector:
+        disktype: ssd
+      tolerations:
+        - key: "key1"
+          operator: "Equal"
+          value: "value1"
+          effect: "NoSchedule"
+      global:
+        __storageClassFixtures:
+          - metadata:
+              name: default-sc
+              annotations:
+                storageclass.kubernetes.io/is-default-class: "true"
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.disktype
+          value: ssd
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: key1

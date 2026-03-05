@@ -1,0 +1,171 @@
+suite: Launchpad Gateway Certificate
+release:
+  name: sd-stack
+values:
+  - values/values-launchpad.yaml
+templates:
+  - gateway-certificate.yaml
+
+tests:
+  - it: renders certificate when certIssuer enabled
+    set:
+      certIssuer:
+        enabled: true
+      ingress:
+        enabled: false
+        tls:
+          secretName: launchpad-custom
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          skipApiValidation: true
+          tls:
+            enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - documentIndex: 0
+        equal:
+          path: spec.secretName
+          value: launchpad-custom
+      - documentIndex: 0
+        equal:
+          path: spec.dnsNames[0]
+          value: launchpad.example.com
+
+  - it: skips certificate when shared global secret is used with stardog enabled
+    set:
+      global:
+        stardog:
+          enabled: true
+        certIssuer:
+          enabled: true
+          secretName: shared-gateway-tls
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          skipApiValidation: true
+          tls:
+            enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: uses wildcard certificate when shared global secret is set and stardog disabled
+    set:
+      global:
+        stardog:
+          enabled: false
+        certIssuer:
+          enabled: true
+          secretName: shared-gateway-tls
+          acme:
+            solvers:
+              - dns01:
+                  cloudflare:
+                    apiTokenSecretRef:
+                      name: cf-token
+                      key: token
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          skipApiValidation: true
+          tls:
+            enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - documentIndex: 0
+        equal:
+          path: spec.secretName
+          value: shared-gateway-tls
+      - documentIndex: 0
+        equal:
+          path: spec.dnsNames[0]
+          value: "*.example.com"
+      - documentIndex: 0
+        equal:
+          path: spec.dnsNames[1]
+          value: example.com
+
+  - it: uses per-service secretNameTpl when global template is set
+    set:
+      global:
+        certIssuer:
+          enabled: true
+          secretNameTpl: tls
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          skipApiValidation: true
+          tls:
+            enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - documentIndex: 0
+        equal:
+          path: spec.secretName
+          value: launchpad-tls
+      - documentIndex: 0
+        equal:
+          path: spec.dnsNames[0]
+          value: launchpad.example.com
+
+  - it: does not render without TLS
+    set:
+      certIssuer:
+        enabled: true
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          skipApiValidation: true
+          tls:
+            enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders certificate in overridden namespace when cluster-scoped
+    set:
+      certIssuer:
+        enabled: true
+        clusterScoped: true
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          skipApiValidation: true
+          createGateway: false
+          tls:
+            enabled: true
+            secretNamespace: envoy-gateway
+            secretName: launchpad-shared-tls
+    asserts:
+      - documentIndex: 0
+        equal:
+          path: metadata.namespace
+          value: envoy-gateway
+
+  - it: fails when overriding namespace without cluster issuer
+    set:
+      certIssuer:
+        enabled: true
+        clusterScoped: false
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          skipApiValidation: true
+          createGateway: false
+          tls:
+            enabled: true
+            secretNamespace: envoy-gateway
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.http.tls.secretNamespace outside the release namespace requires certIssuer.clusterScoped=true."

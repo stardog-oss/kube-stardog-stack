@@ -1,0 +1,135 @@
+suite: Launchpad Gateway Support
+values:
+  - values/values-launchpad.yaml
+templates:
+  - gateway.yaml
+
+tests:
+  - it: renders Gateway and HTTPRoute when enabled
+    set:
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          className: traefik
+          skipApiValidation: true
+          tls:
+            enabled: true
+            secretName: gateway-cert
+      global:
+        __secretFixtures:
+          - metadata:
+              name: gateway-cert
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        equal:
+          path: spec.listeners[0].hostname
+          value: launchpad.example.com
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 80
+
+  - it: enforces TLS secret when enabled
+    set:
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          className: traefik
+          skipApiValidation: true
+          tls:
+            enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.http.tls.secretName must be set when TLS is enabled."
+
+  - it: prevents simultaneous ingress and gateway
+    set:
+      ingress:
+        enabled: true
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          className: traefik
+          skipApiValidation: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "Disable ingress when enabling gateway support; only one exposure mechanism can be active."
+
+  - it: uses certIssuer secret when tls secret omitted
+    set:
+      certIssuer:
+        enabled: true
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          className: traefik
+          skipApiValidation: true
+          tls:
+            enabled: true
+      ingress:
+        enabled: false
+        tls:
+          secretName: launchpad-custom
+      global:
+        __secretFixtures:
+          - metadata:
+              name: launchpad-custom
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: adds HTTP redirect route when configured
+    set:
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          className: traefik
+          skipApiValidation: true
+          tls:
+            enabled: true
+            secretName: gateway-cert
+          redirect:
+            enabled: true
+            port: 8080
+            statusCode: 302
+      global:
+        __secretFixtures:
+          - metadata:
+              name: gateway-cert
+    asserts:
+      - hasDocuments:
+          count: 3
+      - documentIndex: 1
+        equal:
+          path: spec.parentRefs[0].sectionName
+          value: launchpad
+      - documentIndex: 2
+        equal:
+          path: spec.parentRefs[0].sectionName
+          value: launchpad-http
+      - documentIndex: 2
+        equal:
+          path: spec.rules[0].filters[0].requestRedirect.statusCode
+          value: 302
+  - it: gateway backend port follows Service port 80
+    set:
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          className: traefik
+          skipApiValidation: true
+      service:
+        port: 9090
+    asserts:
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 80

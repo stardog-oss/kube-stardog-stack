@@ -1,0 +1,107 @@
+{{- if eq (include "stardog.gatewayEnabled" .) "true" }}
+  {{- $redirectCfg := (include "stardog.launchpadRedirectConfig" . | fromYaml) }}
+  {{- if and $redirectCfg.enabled (eq (default "proxy" $redirectCfg.mode) "backend") }}
+    {{- $backend := default dict $redirectCfg.backend }}
+    {{- $backendImage := default dict $backend.image }}
+    {{- $imageRegistry := default "docker.io" $backendImage.registry }}
+    {{- $imageRepo := default "stardog/launchpad" $backendImage.repository }}
+    {{- $imageTag := default "latest" $backendImage.tag }}
+    {{- $imagePullPolicy := default "IfNotPresent" $backendImage.pullPolicy }}
+    {{- $imagePullSecrets := default (list) $backendImage.pullSecrets }}
+    {{- $redirectHost := default "" $redirectCfg.hostname }}
+    {{- $redirectScheme := default "https" $redirectCfg.scheme }}
+    {{- $redirectPort := int (default 443 $redirectCfg.port) }}
+    {{- $redirectUrl := "" }}
+    {{- if and (hasKey $redirectCfg "externalUrl") (ne (trim $redirectCfg.externalUrl) "") }}
+      {{- $redirectUrl = $redirectCfg.externalUrl }}
+    {{- else }}
+      {{- if and (ne $redirectHost "") (or (eq $redirectPort 443) (eq $redirectPort 80)) }}
+        {{- $redirectUrl = printf "%s://%s" $redirectScheme $redirectHost }}
+      {{- else if ne $redirectHost "" }}
+        {{- $redirectUrl = printf "%s://%s:%d" $redirectScheme $redirectHost $redirectPort }}
+      {{- end }}
+    {{- end }}
+    {{- if eq (trim $redirectUrl) "" }}
+      {{- fail "gateway.http.redirectToLaunchpad backend mode requires a redirect hostname or externalUrl." -}}
+    {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $redirectCfg.serviceName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ $redirectCfg.serviceName }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $redirectCfg.serviceName }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $redirectCfg.serviceName }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- if $imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml $imagePullSecrets | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: redirect
+          image: {{ printf "%s/%s:%s" $imageRegistry $imageRepo $imageTag }}
+          imagePullPolicy: {{ $imagePullPolicy }}
+          env:
+            - name: REDIRECT_TARGET
+              value: {{ $redirectUrl | quote }}
+            - name: PORT
+              value: "8080"
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          ports:
+            - name: http
+              containerPort: 8080
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              python3 - <<'PY'
+              import os
+              from http.server import BaseHTTPRequestHandler, HTTPServer
+
+              target = os.environ.get("REDIRECT_TARGET", "https://example.com")
+              port = int(os.environ.get("PORT", "8080"))
+
+              class Handler(BaseHTTPRequestHandler):
+                  def _redirect(self):
+                      self.send_response(301)
+                      self.send_header("Location", target)
+                      self.end_headers()
+                  def do_GET(self): self._redirect()
+                  def do_HEAD(self): self._redirect()
+                  def do_POST(self): self._redirect()
+                  def log_message(self, *_): pass
+
+              HTTPServer(("", port), Handler).serve_forever()
+              PY
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $redirectCfg.serviceName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ $redirectCfg.serviceName }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ $redirectCfg.serviceName }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: {{ $redirectCfg.servicePort }}
+      targetPort: http
+  {{- end }}
+{{- end }}

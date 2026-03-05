@@ -1,0 +1,173 @@
+suite: Test Voicebox Deployment
+values:
+  - values/values-voicebox.yaml
+templates:
+  - deployment.yaml
+
+tests:
+  # Test 1: Ensure the Deployment is created with basic configuration
+  - it: should create a Voicebox Deployment with basic configuration
+    values:
+      - values/values-voicebox.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - matchRegex:
+          path: metadata.name
+          pattern: "^voicebox-.+"
+      - equal:
+          path: spec.replicas
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: stardog.azurecr.io/sa-lab-stardog/voicebox:latest
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].name
+          value: http
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].protocol
+          value: TCP
+
+  # Test 2: Validate environment variables
+  - it: should set required environment variables
+    values:
+      - values/values-voicebox.yaml
+    set:
+      environmentVariables:
+        AZURE_API_KEY: "azure-api-key"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].name
+          value: VBX_CONFIG_FILE
+      - equal:
+          path: spec.template.spec.containers[0].env[0].value
+          value: /voicebox-config/vbx_config.json
+      - equal:
+          path: spec.template.spec.containers[0].env[1].name
+          value: AZURE_API_KEY
+      - equal:
+          path: spec.template.spec.containers[0].env[1].value
+          value: "azure-api-key"
+      - equal:
+          path: spec.template.spec.containers[0].env[2].name
+          value: PRODUCTION
+      - equal:
+          path: spec.template.spec.containers[0].env[2].value
+          value: "1"
+
+  # Test 3: Validate resources
+  - it: should set correct resource limits and requests
+    values:
+      - values/values-voicebox.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: "256Mi"
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: "250m"
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: "512Mi"
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: "500m"
+
+  # Test 4: Validate volume mounts
+  - it: should mount config file volume
+    values:
+      - values/values-voicebox.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].name
+          value: voicebox-RELEASE-NAME
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /voicebox-config/vbx_config.json
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].subPath
+          value: vbx_config.json
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].readOnly
+          value: true
+
+  # Test 5: Validate volumes
+  - it: should create config volume
+    values:
+      - values/values-voicebox.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].name
+          value: voicebox-RELEASE-NAME
+      - equal:
+          path: spec.template.spec.volumes[0].configMap.name
+          value: voicebox-RELEASE-NAME
+      - equal:
+          path: spec.template.spec.volumes[0].configMap.items[0].key
+          value: vbx_config.json
+      - equal:
+          path: spec.template.spec.volumes[0].configMap.items[0].path
+          value: vbx_config.json
+
+  # Test 6: Validate security context
+  - it: should set security context
+    values:
+      - values/values-voicebox.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.runAsGroup
+          value: 1000
+
+  # Test 7: Validate nodeSelector, affinity, and tolerations
+  - it: should include nodeSelector, affinity, and tolerations when configured
+    values:
+      - values/values-voicebox.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.disktype
+          value: ssd
+      - equal:
+          path: spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key
+          value: disktype
+      - equal:
+          path: spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator
+          value: In
+      - equal:
+          path: spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]
+          value: ssd
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: key1
+      - equal:
+          path: spec.template.spec.tolerations[0].operator
+          value: Equal
+      - equal:
+          path: spec.template.spec.tolerations[0].value
+          value: value1
+      - equal:
+          path: spec.template.spec.tolerations[0].effect
+          value: NoSchedule
+
+  - it: template labels match the selector labels
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: "voicebox"
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/name"]
+          value: "voicebox"
+      - exists:
+          path: metadata.labels["app.kubernetes.io/instance"]
+          value: "RELEASE-NAME"

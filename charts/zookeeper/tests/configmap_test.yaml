@@ -1,0 +1,138 @@
+suite: Validate ConfigMap
+values:
+  - values/values-zookeeper.yaml
+templates:
+  - configmap.yaml
+
+tests:
+  # ConfigMap not created by default
+  - it: should not create ConfigMap when no custom config is enabled
+    set:
+      config:
+        zooCfg:
+          enabled: false
+        logback:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # Custom zoo.cfg tests
+  - it: should create ConfigMap with custom zoo.cfg when enabled
+    set:
+      config:
+        zooCfg:
+          enabled: true
+          inline: |
+            tickTime=2000
+            initLimit=10
+            syncLimit=5
+            dataDir=/data
+            clientPort=2181
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: zookeeper-RELEASE-NAME-config
+      - exists:
+          path: data["zoo.cfg"]
+      - matchRegex:
+          path: data["zoo.cfg"]
+          pattern: "tickTime=2000"
+
+  - it: should not create zoo.cfg when using existing ConfigMap
+    set:
+      config:
+        zooCfg:
+          enabled: true
+          existingConfigMap: "my-existing-config"
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # Custom logback.xml tests
+  - it: should create ConfigMap with custom logback.xml when enabled
+    set:
+      config:
+        logback:
+          enabled: true
+          inline: |
+            <configuration>
+              <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+                <encoder>
+                  <pattern>%d{ISO8601} - %msg%n</pattern>
+                </encoder>
+              </appender>
+              <root level="INFO">
+                <appender-ref ref="STDOUT" />
+              </root>
+            </configuration>
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: zookeeper-RELEASE-NAME-config
+      - exists:
+          path: data["logback.xml"]
+      - matchRegex:
+          path: data["logback.xml"]
+          pattern: "<configuration>"
+
+  - it: should not create logback.xml when using existing ConfigMap
+    set:
+      config:
+        logback:
+          enabled: true
+          existingConfigMap: "my-existing-logback"
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # Both zoo.cfg and logback.xml
+  - it: should create ConfigMap with both zoo.cfg and logback.xml when both enabled
+    set:
+      config:
+        zooCfg:
+          enabled: true
+          inline: |
+            tickTime=2000
+            dataDir=/data
+        logback:
+          enabled: true
+          inline: |
+            <configuration>
+              <root level="INFO" />
+            </configuration>
+    asserts:
+      - hasDocuments:
+          count: 1
+      - exists:
+          path: data["zoo.cfg"]
+      - exists:
+          path: data["logback.xml"]
+
+  # Labels
+  - it: should apply correct labels to ConfigMap
+    set:
+      config:
+        zooCfg:
+          enabled: true
+          inline: "tickTime=2000"
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: zookeeper
+      - equal:
+          path: metadata.labels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+      - isNotNull:
+          path: metadata.labels["app.kubernetes.io/version"]
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm

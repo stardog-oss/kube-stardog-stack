@@ -1,0 +1,22 @@
+{{- if eq (include "stardog.gatewayEnabled" .) "true" }}
+  {{- $redirectCfg := (include "stardog.launchpadRedirectConfig" . | fromYaml) }}
+  {{- $external := default dict $redirectCfg.externalService }}
+  {{- if and $redirectCfg.enabled (eq (default "proxy" $redirectCfg.mode) "proxy") $external.name $external.host }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $external.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ $external.name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: ExternalName
+  externalName: {{ $external.host }}
+  ports:
+    - name: https
+      port: {{ $external.port }}
+      targetPort: {{ $external.port }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,3 @@
+# This chart is controlled entirely by global.gateway.* values from the umbrella.
+# Relevant overrides:
+# - global.gateway.gatewayApiVersion

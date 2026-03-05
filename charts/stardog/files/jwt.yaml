@@ -1,0 +1,14 @@
+---
+confVersion: "1.0"
+deploymentName: TestYaml1
+issuers:
+  https://accounts.google.com:
+    usernameField: email
+    audience: google-client-id
+    algorithms:
+      RS256:
+        keyUrl: https://www.googleapis.com/oauth2/v3/certs
+signer:
+  algorithm: HS256
+  issuer: http://stardog.com/v1
+  audience: stardog-cloud

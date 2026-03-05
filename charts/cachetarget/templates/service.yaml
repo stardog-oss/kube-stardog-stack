@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cachetarget.fullname" . }}
+  namespace: {{ include "cachetarget.namespace" . }}
+  labels:
+    app: {{ include "cachetarget.fullname" . }}
+    {{- include "sdcommon.labels.standard" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ports:
+  - port: {{ .Values.ports.server }}
+    name: server
+  type: {{ .Values.service.type }}
+  {{- if .Values.service.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.service.loadBalancerIP }}
+  {{- end }}
+  selector:
+    app: {{ include "cachetarget.fullname" . }}

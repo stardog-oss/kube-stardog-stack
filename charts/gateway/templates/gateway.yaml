@@ -1,0 +1,188 @@
+{{- $globalGatewayEnabled := eq (include "sdcommon.globalGatewayEnabled" .) "true" -}}
+{{- if $globalGatewayEnabled }}
+  {{- $globalGateway := default (dict) .Values.global.gateway }}
+  {{- $className := trim (default "" (index $globalGateway "className")) }}
+  {{- if eq $className "" }}
+    {{- fail "global.gateway.className must be set when global.gateway.enabled=true." -}}
+  {{- end }}
+  {{- $domain := trim (default "" (index $globalGateway "domain")) }}
+  {{- if eq $domain "" }}
+    {{- fail "global.gateway.domain must be set when global.gateway.enabled=true." -}}
+  {{- end }}
+  {{- $gatewayName := include "sdcommon.globalGatewayName" . }}
+  {{- $gatewayNamespace := include "sdcommon.globalGatewayNamespace" . }}
+
+  {{- $gatewayHttp := default (dict) (index $globalGateway "http") }}
+  {{- $httpsPort := int (default 443 (index $gatewayHttp "port")) }}
+  {{- $httpPort := int (default 80 (index $gatewayHttp "httpPort")) }}
+
+  {{- $tls := default (dict) (index $globalGateway "tls") }}
+  {{- $tlsEnabled := default true (index $tls "enabled") }}
+  {{- $issuer := (include "sdcommon.effectiveCertIssuer" . | fromYaml) }}
+  {{- $sharedSecret := trim (default "" (index $tls "secretName")) }}
+  {{- if and (eq $sharedSecret "") $issuer.enabled }}
+    {{- $sharedSecret = trim (default "" (index $issuer "secretName")) }}
+  {{- end }}
+  {{- $tplSecret := "" }}
+  {{- if and (eq $sharedSecret "") $issuer.enabled }}
+    {{- $tplSecret = trim (default "" (index $issuer "secretNameTpl")) }}
+  {{- end }}
+  {{- $sparqlSecret := trim (default "" (index $tls "sparqlSecretName")) }}
+  {{- $launchpadSecret := trim (default "" (index $tls "launchpadSecretName")) }}
+  {{- if ne $tplSecret "" }}
+    {{- if eq $sparqlSecret "" }}
+      {{- $sparqlSecret = printf "%s-%s" "stardog" $tplSecret }}
+    {{- end }}
+    {{- if eq $launchpadSecret "" }}
+      {{- $launchpadSecret = printf "%s-%s" "launchpad" $tplSecret }}
+    {{- end }}
+  {{- end }}
+  {{- if eq $sparqlSecret "" }}
+    {{- $sparqlSecret = printf "sparql-%s-tls" .Release.Name }}
+  {{- end }}
+  {{- if eq $launchpadSecret "" }}
+    {{- $launchpadSecret = printf "launchpad-%s-tls" .Release.Name }}
+  {{- end }}
+  {{- include "sdcommon.validateSecretName" (dict "name" $sharedSecret) }}
+  {{- include "sdcommon.validateSecretName" (dict "name" $sparqlSecret) }}
+  {{- include "sdcommon.validateSecretName" (dict "name" $launchpadSecret) }}
+
+  {{- $sparqlTlsSecret := $sparqlSecret }}
+  {{- if ne $sharedSecret "" }}
+    {{- $sparqlTlsSecret = $sharedSecret }}
+  {{- end }}
+  {{- $launchpadTlsSecret := $launchpadSecret }}
+  {{- if ne $sharedSecret "" }}
+    {{- $launchpadTlsSecret = $sharedSecret }}
+  {{- end }}
+
+  {{- $stardogEnabled := false }}
+  {{- if and (hasKey .Values "global") (hasKey .Values.global "stardog") (hasKey .Values.global.stardog "enabled") -}}
+    {{- $raw := index .Values.global.stardog "enabled" -}}
+    {{- $stardogEnabled = or (eq $raw true) (eq (toString $raw) "true") -}}
+  {{- end -}}
+  {{- $launchpadEnabled := false }}
+  {{- if and (hasKey .Values "global") (hasKey .Values.global "launchpad") (hasKey .Values.global.launchpad "enabled") -}}
+    {{- $raw := index .Values.global.launchpad "enabled" -}}
+    {{- $launchpadEnabled = or (eq $raw true) (eq (toString $raw) "true") -}}
+  {{- end -}}
+  {{- $biEnabled := false }}
+  {{- if and (hasKey .Values "global") (hasKey .Values.global "bi") (hasKey .Values.global.bi "enabled") -}}
+    {{- $raw := index .Values.global.bi "enabled" -}}
+    {{- $biEnabled = or (eq $raw true) (eq (toString $raw) "true") -}}
+  {{- end -}}
+
+  {{- $hasTcpListener := and $stardogEnabled $biEnabled -}}
+  {{- if not (or $stardogEnabled $launchpadEnabled $hasTcpListener) }}
+    {{- fail "global.gateway.enabled requires global.stardog.enabled or global.launchpad.enabled to create listeners." -}}
+  {{- end }}
+
+  {{- $tcpBi := default (dict) (index $globalGateway "tcpBi") }}
+  {{- $tcpPort := int (default 5806 (index $tcpBi "port")) }}
+
+  {{- $gatewayApiVersion := default "" (index $globalGateway "gatewayApiVersion") }}
+  {{- if eq $gatewayApiVersion "" }}
+    {{- $gatewayApiVersion = default "" (index (default (dict) .Values.gateway) "gatewayApiVersion") }}
+  {{- end }}
+  {{- if eq $gatewayApiVersion "" }}
+    {{- $gatewayApiVersion = "gateway.networking.k8s.io/v1" }}
+  {{- end }}
+
+apiVersion: {{ $gatewayApiVersion }}
+kind: Gateway
+metadata:
+  name: {{ $gatewayName }}
+  namespace: {{ $gatewayNamespace }}
+  labels:
+{{ include "sdcommon.labels.standard" . | indent 4 }}
+  {{- with (index $globalGateway "annotations") }}
+  annotations:
+{{ toYaml . | indent 4 }}
+  {{- end }}
+spec:
+  gatewayClassName: {{ $className }}
+  {{- with (index $globalGateway "addresses") }}
+  addresses:
+{{ toYaml . | indent 4 }}
+  {{- end }}
+  listeners:
+  {{- if $stardogEnabled }}
+    {{- if $tlsEnabled }}
+    - name: sparql
+      hostname: {{ printf "sparql.%s" $domain | quote }}
+      port: {{ $httpsPort }}
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: {{ $sparqlTlsSecret }}
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: sparql-http
+      hostname: {{ printf "sparql.%s" $domain | quote }}
+      port: {{ $httpPort }}
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: All
+    {{- else }}
+    - name: sparql
+      hostname: {{ printf "sparql.%s" $domain | quote }}
+      port: {{ $httpPort }}
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: All
+    {{- end }}
+  {{- end }}
+  {{- if $launchpadEnabled }}
+    {{- if $tlsEnabled }}
+    - name: launchpad
+      hostname: {{ printf "launchpad.%s" $domain | quote }}
+      port: {{ $httpsPort }}
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: {{ $launchpadTlsSecret }}
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: launchpad-http
+      hostname: {{ printf "launchpad.%s" $domain | quote }}
+      port: {{ $httpPort }}
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: All
+    {{- else }}
+    - name: launchpad
+      hostname: {{ printf "launchpad.%s" $domain | quote }}
+      port: {{ $httpPort }}
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: All
+    {{- end }}
+  {{- end }}
+  {{- if and $stardogEnabled $biEnabled }}
+    - name: bi-tcp
+      port: {{ $tcpPort }}
+      protocol: TCP
+      allowedRoutes:
+        namespaces:
+          from: All
+    {{- if $tlsEnabled }}
+    - name: bi-http
+      hostname: {{ printf "bi.%s" $domain | quote }}
+      port: {{ $httpPort }}
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: All
+    {{- end }}
+  {{- end }}
+{{- end }}

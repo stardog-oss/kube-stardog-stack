@@ -1,0 +1,125 @@
+suite: Stardog ConfigMaps
+templates:
+  - configmap.yaml
+
+tests:
+  - it: creates log4j ConfigMap when override enabled
+    values:
+      - values/values-stardog.yaml
+    set:
+      log4jConfig:
+        override: true
+        content: |
+          <Configuration status="WARN"/>
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-log4j
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: data["log4j2.xml"]
+          value: "<Configuration status=\"WARN\"/>\n"
+
+  - it: injects cluster, jwt, and BI settings into stardog.properties
+    values:
+      - values/values-stardog.yaml
+    set:
+      cluster:
+        enabled: true
+        zookeeperService: "zookeeper.example:2181"
+      jwtConfig:
+        enabled: true
+      bi:
+        enabled: true
+      global:
+        bi:
+          enabled: true
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "pack\\.enabled=true"
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "pack\\.zookeeper\\.address="
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "jwt\\.conf=/var/opt/stardog/jwt.yaml"
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "sql\\.server\\.enabled=true"
+
+  - it: injects TLS settings into stardog.properties when enabled
+    values:
+      - values/values-stardog.yaml
+    set:
+      tls:
+        sparql:
+          enabled: true
+        truststore:
+          enabled: true
+          name: "test-truststore.p12"
+        keystore:
+          name: "test-keystore.p12"
+          pass: "testpass123!"
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "javax\\.net\\.ssl\\.keyStore=/var/opt/stardog/keystore/test-keystore\\.p12"
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "javax\\.net\\.ssl\\.keyStorePassword=testpass123!"
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "javax\\.net\\.ssl\\.keyStoreType=PKCS12"
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "javax\\.net\\.ssl\\.trustStore=/var/opt/stardog/keystore/test-truststore\\.p12"
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "javax\\.net\\.ssl\\.trustStorePassword=testpass123!"
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "javax\\.net\\.ssl\\.trustStoreType=PKCS12"
+
+  - it: renders JWT config map when jwtConfig enabled
+    values:
+      - values/values-stardog.yaml
+    set:
+      jwtConfig:
+        enabled: true
+        confVersion: "1.0"
+        deploymentName: stardog-server
+        autoDeleteUsersSchedule: "0 0 * * *"
+        signer:
+          enabled: true
+          algorithm: HS256
+          audience: stardog
+          issuer: https://issuer.example.com
+          secret: topsecret
+        issuers:
+          - issuer: https://issuer.example.com
+            audience: audience
+            usernameField: preferred_username
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-jwt
+    asserts:
+      - matchRegex:
+          path: data["jwt.yaml"]
+          pattern: "confVersion: 1.0"
+      - matchRegex:
+          path: data["jwt.yaml"]
+          pattern: "deploymentName: stardog-server"
+      - matchRegex:
+          path: data["jwt.yaml"]
+          pattern: "issuer: https://issuer\\.example\\.com"
+      - matchRegex:
+          path: data["jwt.yaml"]
+          pattern: "audience: stardog"

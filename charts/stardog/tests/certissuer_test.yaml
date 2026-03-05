@@ -1,0 +1,94 @@
+suite: Stardog CertIssuer
+templates:
+  - issuer.yaml
+
+tests:
+  - it: renders ClusterIssuer when enabled
+    values:
+      - values/values-stardog.yaml
+    set:
+      certIssuer:
+        enabled: true
+        clusterScoped: true
+        name: custom-issuer
+      ingress:
+        enabled: true
+        tls:
+          enabled: true
+    asserts:
+      - equal:
+          path: kind
+          value: ClusterIssuer
+      - equal:
+          path: metadata.name
+          value: custom-issuer
+      - equal:
+          path: spec.acme.solvers[0].http01.ingress.class
+          value: nginx
+
+  - it: auto-configures gateway HTTPRoute solver
+    values:
+      - values/values-stardog.yaml
+    set:
+      certIssuer:
+        enabled: true
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          className: traefik
+          skipApiValidation: true
+          tls:
+            enabled: true
+            secretName: gw-cert
+      ingress:
+        enabled: false
+    asserts:
+      - equal:
+          path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].name
+          value: RELEASE-NAME-gateway
+
+  - it: prefers redirect parentRefs when redirects enabled
+    values:
+      - values/values-stardog.yaml
+    set:
+      certIssuer:
+        enabled: true
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          createGateway: false
+          parentRefs:
+            - name: shared-https
+              namespace: gateway-system
+              sectionName: https
+          redirect:
+            enabled: true
+            parentRefs:
+              - name: shared-http
+                namespace: gateway-system
+                sectionName: http
+      ingress:
+        enabled: false
+    asserts:
+      - equal:
+          path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].name
+          value: shared-http
+      - equal:
+          path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].sectionName
+          value: http
+
+  - it: fails when ACME solvers unavailable
+    values:
+      - values/values-stardog.yaml
+    set:
+      certIssuer:
+        enabled: true
+      ingress:
+        enabled: false
+      gateway:
+        enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "certIssuer.acme.solvers is empty. Provide certIssuer.acme.solvers or enable ingress/gateway to auto-configure HTTP-01 solvers."

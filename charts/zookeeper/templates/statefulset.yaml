@@ -1,0 +1,363 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "zookeeper.fullname" . }}
+  labels:
+    {{- include "zookeeper.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "zookeeper.headlessServiceName" . }}
+  replicas: {{ .Values.replicaCount }}
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: {{ .Values.updateStrategy.type }}
+    {{- if eq .Values.updateStrategy.type "RollingUpdate" }}
+    rollingUpdate:
+      partition: {{ .Values.updateStrategy.rollingUpdate.partition }}
+    {{- end }}
+  selector:
+    matchLabels:
+      {{- include "zookeeper.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "zookeeper.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.commonAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "zookeeper.serviceAccountName" . }}
+      {{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      {{- end }}
+
+      {{- if .Values.podSecurityContext.enabled }}
+      securityContext:
+        {{- omit .Values.podSecurityContext "enabled" | toYaml | nindent 8 }}
+      {{- end }}
+
+      {{- if or .Values.extraInitContainers .Values.volumePermissions.enabled }}
+      initContainers:
+        {{- if .Values.volumePermissions.enabled }}
+        - name: volume-permissions
+          image: "{{ .Values.volumePermissions.image.repository }}:{{ .Values.volumePermissions.image.tag }}"
+          imagePullPolicy: {{ .Values.volumePermissions.image.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              chown -R {{ .Values.containerSecurityContext.runAsUser }}:{{ .Values.containerSecurityContext.runAsGroup }} /data
+              chown -R {{ .Values.containerSecurityContext.runAsUser }}:{{ .Values.containerSecurityContext.runAsGroup }} /datalog
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            {{- if and .Values.persistence.enabled .Values.persistence.datalog.enabled }}
+            - name: datalog
+              mountPath: /datalog
+            {{- else if .Values.persistence.enabled }}
+            - name: data
+              mountPath: /datalog
+              subPath: datalog
+            {{- else }}
+            - name: datalog
+              mountPath: /datalog
+            {{- end }}
+          {{- if .Values.volumePermissions.resources }}
+          resources:
+            {{- toYaml .Values.volumePermissions.resources | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.volumePermissions.securityContext | nindent 12 }}
+        {{- end }}
+        {{- with .Values.extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+
+      containers:
+        - name: zookeeper
+          image: "{{ .Values.image.repository }}{{- if .Values.image.tag }}:{{ .Values.image.tag }}{{- end }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          {{- if .Values.containerSecurityContext.enabled }}
+          securityContext:
+            {{- omit .Values.containerSecurityContext "enabled" | toYaml | nindent 12 }}
+          {{- end }}
+
+          ports:
+            - name: client
+              containerPort: {{ .Values.ports.client }}
+            - name: quorum
+              containerPort: {{ .Values.ports.quorum }}
+            - name: leader-election
+              containerPort: {{ .Values.ports.leaderElection }}
+            - name: admin
+              containerPort: {{ .Values.ports.admin }}
+            {{- if .Values.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.ports.metrics }}
+            {{- end }}
+
+          env:
+            - name: ZOO_TICK_TIME
+              value: {{ .Values.config.tickTime | quote }}
+            - name: ZOO_INIT_LIMIT
+              value: {{ .Values.config.initLimit | quote }}
+            - name: ZOO_SYNC_LIMIT
+              value: {{ .Values.config.syncLimit | quote }}
+            - name: ZOO_MAX_CLIENT_CNXNS
+              value: {{ .Values.config.maxClientCnxns | quote }}
+            - name: ZOO_4LW_COMMANDS_WHITELIST
+              value: {{ .Values.config.fourLetterWordsWhitelist | quote }}
+            - name: ZOO_STANDALONE_ENABLED
+              value: {{ include "zookeeper.standaloneEnabled" . | quote }}
+            - name: ZOO_ADMINSERVER_ENABLED
+              value: {{ .Values.adminServerEnabled | quote }}
+            - name: ZOO_AUTOPURGE_PURGEINTERVAL
+              value: {{ .Values.config.autopurge.purgeInterval | quote }}
+            - name: ZOO_AUTOPURGE_SNAPRETAINCOUNT
+              value: {{ .Values.config.autopurge.snapRetainCount | quote }}
+
+            # Replicated mode contract envs
+            - name: ZOO_SERVERS
+              value: {{ include "zookeeper.zooServers" . | quote }}
+            - name: MIN_SERVER_ID
+              value: {{ .Values.minServerId | quote }}
+
+            # ZOO_CFG_EXTRA must preserve whitespace/newlines
+            - name: ZOO_CFG_EXTRA
+              value: |-
+                {{- if .Values.config.cfgExtra -}}
+{{ .Values.config.cfgExtra | nindent 16 }}
+                {{- end -}}
+                {{- if .Values.config.preAllocSize }}
+                preAllocSize={{ .Values.config.preAllocSize }}
+                {{- end }}
+                {{- if .Values.config.snapCount }}
+                snapCount={{ .Values.config.snapCount }}
+                {{- end }}
+                {{- if .Values.config.maxSessionTimeout }}
+                maxSessionTimeout={{ .Values.config.maxSessionTimeout }}
+                {{- end }}
+                {{- if .Values.metrics.enabled }}
+                metricsProvider.className=org.apache.zookeeper.metrics.prometheus.PrometheusMetricsProvider
+                metricsProvider.httpPort={{ .Values.ports.metrics }}
+                {{- end }}
+
+            {{- with .Values.extraEnvVars }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+
+          command: ["sh","-ec"]
+          args:
+            - |
+              ordinal="${HOSTNAME##*-}"
+              export ZOO_MY_ID="$(( ${MIN_SERVER_ID} + ${ordinal} ))"
+              exec /docker-entrypoint.sh zkServer.sh start-foreground
+
+          volumeMounts:
+            - name: data
+              mountPath: /data
+
+            {{- if and .Values.persistence.enabled .Values.persistence.datalog.enabled }}
+            - name: datalog
+              mountPath: /datalog
+            {{- else if .Values.persistence.enabled }}
+            - name: data
+              mountPath: /datalog
+              subPath: datalog
+            {{- else }}
+            - name: datalog
+              mountPath: /datalog
+            {{- end }}
+
+            {{- if .Values.config.zooCfg.enabled }}
+            - name: zk-config
+              mountPath: /conf/zoo.cfg
+              subPath: zoo.cfg
+            {{- end }}
+            {{- if .Values.config.logback.enabled }}
+            - name: zk-config
+              mountPath: /conf/logback.xml
+              subPath: logback.xml
+            {{- end }}
+
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+
+          {{- if .Values.probes.enabled }}
+          {{- if .Values.probes.customReadinessProbe }}
+          readinessProbe:
+            {{- toYaml .Values.probes.customReadinessProbe | nindent 12 }}
+          {{- else }}
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - |
+                  curl -fsS --max-time {{ .Values.probes.readiness.timeoutSeconds }} http://127.0.0.1:{{ .Values.ports.admin }}/commands/ruok | grep error | grep null
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+            successThreshold: {{ .Values.probes.readiness.successThreshold }}
+          {{- end }}
+
+          {{- if .Values.probes.customLivenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.probes.customLivenessProbe | nindent 12 }}
+          {{- else }}
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - |
+                  curl -fsS --max-time {{ .Values.probes.liveness.timeoutSeconds }} http://127.0.0.1:{{ .Values.ports.admin }}/commands/ruok | grep ruok
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- end }}
+
+          {{- if .Values.resources }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- end }}
+
+        {{- with .Values.extraSidecars }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+
+      volumes:
+        {{- if .Values.config.zooCfg.enabled }}
+        - name: zk-config
+          configMap:
+            name: {{- if .Values.config.zooCfg.existingConfigMap -}}
+              {{ .Values.config.zooCfg.existingConfigMap }}
+            {{- else -}}
+              {{ include "zookeeper.fullname" . }}-config
+            {{- end }}
+            items:
+              - key: zoo.cfg
+                path: zoo.cfg
+        {{- end }}
+
+        {{- if .Values.config.logback.enabled }}
+        {{- if not .Values.config.zooCfg.enabled }}
+        - name: zk-config
+          configMap:
+            name: {{- if .Values.config.logback.existingConfigMap -}}
+              {{ .Values.config.logback.existingConfigMap }}
+            {{- else -}}
+              {{ include "zookeeper.fullname" . }}-config
+            {{- end }}
+            items:
+              - key: logback.xml
+                path: logback.xml
+        {{- else }}
+        # If you need zoo.cfg and logback.xml from different ConfigMaps, use extraVolumes/extraVolumeMounts.
+        {{- end }}
+        {{- end }}
+
+        {{- if not .Values.persistence.enabled }}
+        - name: data
+          emptyDir:
+            {{- if .Values.emptyDir.sizeLimit }}
+            sizeLimit: {{ .Values.emptyDir.sizeLimit | quote }}
+            {{- end }}
+        - name: datalog
+          emptyDir:
+            {{- if .Values.emptyDir.sizeLimit }}
+            sizeLimit: {{ .Values.emptyDir.sizeLimit | quote }}
+            {{- end }}
+        {{- end }}
+
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+
+      {{- if or .Values.affinity (ne .Values.podAntiAffinityPreset "") (ne .Values.nodeAffinityPreset.type "") }}
+      affinity:
+        {{- with .Values.affinity }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- $pa := include "zookeeper.podAntiAffinity" . }}
+        {{- if $pa }}
+        {{- $pa | nindent 8 }}
+        {{- end }}
+        {{- $na := include "zookeeper.nodeAffinityPreset" . }}
+        {{- if $na }}
+        {{- $na | nindent 8 }}
+        {{- end }}
+      {{- end }}
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+  {{- if .Values.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        {{- with .Values.persistence.data.annotations }}
+        annotations:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.persistence.data.labels }}
+        labels:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      spec:
+        accessModes:
+          {{- toYaml .Values.persistence.data.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.data.size | quote }}
+        {{- if .Values.persistence.data.storageClass }}
+        storageClassName: {{ .Values.persistence.data.storageClass | quote }}
+        {{- end }}
+
+    {{- if .Values.persistence.datalog.enabled }}
+    - metadata:
+        name: datalog
+        {{- with .Values.persistence.datalog.annotations }}
+        annotations:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.persistence.datalog.labels }}
+        labels:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      spec:
+        accessModes:
+          {{- toYaml .Values.persistence.datalog.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.datalog.size | quote }}
+        {{- if .Values.persistence.datalog.storageClass }}
+        storageClassName: {{ .Values.persistence.datalog.storageClass | quote }}
+        {{- end }}
+    {{- end }}
+  {{- end }}

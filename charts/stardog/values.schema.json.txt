@@ -1,0 +1,69 @@
+
+
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "confVersion": { "type": "string" },
+    "deploymentName": { "type": "string" },
+    "autoDeleteUsersSchedule": { "type": "string" },
+    "signer": {
+      "type": "object",
+      "required": ["algorithm", "issuer"],
+      "properties": {
+        "algorithm": {
+          "type": "string",
+          "enum": ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512"]
+        },
+        "audience": { "type": "string" },
+        "issuer": { "type": "string" },
+        "secret": { "type": "string" },
+        "publicKey": { "type": "string" },
+        "privateKey": { "type": "string" },
+        "tokenTTL": { "type": "string" }
+      }
+    },
+    "issuers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["issuer", "audience"],
+        "properties": {
+          "issuer": { "type": "string" },
+          "audience": { "type": "string" },
+          "usernameField": { "type": "string" },
+          "usernameTemplates": { "type": "array", "items": { "type": "string" } },
+          "autoCreateUsers": { "type": "boolean" },
+          "roleMappingSource": { "type": "string", "enum": ["token", "azure_groups"] },
+          "groupPrefix": { "type": "string" },
+          "allowedGroupIdentifiers": { "type": "array", "items": { "type": "string" } },
+          "rolesField": { "type": "string" },
+          "rolesClaimPath": { "type": "string" },
+          "superuserGroup": { "type": "string" },
+          "azureGraphPermission": { "type": "string" },
+          "clientSecret": { "type": "string" },
+          "clientCertificatePath": { "type": "string" },
+          "clientCertificatePassword": { "type": "string" },
+          "algorithms": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name"],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "enum": ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512"]
+                },
+                "secret": { "type": "string" },
+                "keyUrl": { "type": "string" },
+                "publicKey": { "type": "string" },
+                "privateKey": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": ["signer", "issuers"]
+}

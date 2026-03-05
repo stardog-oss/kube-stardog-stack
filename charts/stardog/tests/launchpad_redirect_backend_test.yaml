@@ -1,0 +1,38 @@
+suite: Launchpad Redirect Backend
+values:
+  - values/values-stardog.yaml
+templates:
+  - launchpad-redirect-backend.yaml
+
+tests:
+  - it: renders redirect backend when mode backend
+    set:
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          redirect:
+            enabled: false
+          redirectToLaunchpad:
+            enabled: true
+            mode: backend
+            externalUrl: https://launchpad.example.com
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        equal:
+          path: kind
+          value: Deployment
+      - documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].env[0].name
+          value: REDIRECT_TARGET
+      - documentIndex: 0
+        equal:
+          path: spec.template.spec.containers[0].env[0].value
+          value: https://launchpad.example.com
+      - documentIndex: 1
+        equal:
+          path: kind
+          value: Service

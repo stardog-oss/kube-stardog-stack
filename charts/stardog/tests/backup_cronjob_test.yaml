@@ -1,0 +1,70 @@
+suite: Stardog Backup CronJob
+templates:
+  - backup/job.yaml
+
+tests:
+  - it: renders cronjob when backup is enabled
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        cronjob:
+          enabled: true
+          schedule: "0 3 * * *"
+          ttlSecondsAfterFinished: 7200
+        credentialsSecret: custom-backup-secret
+      global:
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+          - metadata:
+              name: custom-backup-secret
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.schedule
+          value: "0 3 * * *"
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: STARDOG_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: custom-backup-secret
+                key: username
+
+  - it: injects S3 environment variables when S3 backup enabled
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        cronjob:
+          enabled: true
+        location:
+          s3:
+            enabled: true
+            bucketName: my-bucket
+            bucketDir: backups
+            region: us-east-1
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-backup-s3-secret
+                key: accesskey
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_BUCKET
+            value: my-bucket
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_BUCKET_DIR
+            value: backups

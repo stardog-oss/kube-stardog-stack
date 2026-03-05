@@ -1,0 +1,55 @@
+# ------------------------------------------------------------------------------
+# Voicebox Configuration
+# ------------------------------------------------------------------------------
+replicaCount: 1
+securityContext:
+  seccompProfile:
+    type: RuntimeDefault
+  runAsNonRoot: true
+  runAsUser: 100000
+  runAsGroup: 100000
+  fsGroup: 100000
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+service:
+  type: ClusterIP
+  #port: 8080  #can be configure at the global.voicebox.port
+  loadBalancerIP: ""
+  annotations: {}
+image:
+  #You should not rely on Docker up for you production environment. You should ALWAYS use an implicit tag
+  registry: docker.io
+  repository: stardog/voicebox-service
+  tag: latest  
+  pullPolicy: IfNotPresent 
+  # Request user credentiasl to Stardog team.
+  username: ""
+  password: ""
+  pullSecrets: []
+configFile: |
+  # {
+  #   "agent_selection_type": "llm",
+  #   "enable_lineage": true,
+  #   "enable_external_llm": true,
+  #   "enable_analytics": true,
+  #   "enable_charts": true,
+  #   "use_agents_automatically": false,
+  #   "default_llm_config": {
+  #     "llm_provider": "azure",
+  #     "llm_name": "Meta-Llama-3.1-70B-Instruct",
+  #     "server_url": "https://add-url-model.services.ai.azure.com/models"
+  #   }
+  # }
+environmentVariables:
+  PRODUCTION: 1 # 0 for development, 1 for production
+resources: 
+  requests:
+    memory: "1000Mi"
+    cpu: "500m"
+  limits:
+    memory: "2Gi"
+    cpu: "1"
+nodeSelector: {}
+affinity: {}
+tolerations: []

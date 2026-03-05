@@ -1,0 +1,88 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sdcommon.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdcommon.labels.standard" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{ include "sdcommon.labels.selector" . | nindent 6 }}
+      app: {{ include "sdcommon.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "sdcommon.fullname" . }}
+        {{ include "sdcommon.labels.standard" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include "voicebox.configmapChecksum" . }}
+        checksum/secret: {{ include "voicebox.secretChecksum" . }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      {{- if and (hasKey .Values "image") .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      {{- end }}
+  {{- if and (hasKey .Values "image") .Values.image.username .Values.image.password }}
+      imagePullSecrets:
+        - name: {{ .Release.Name }}-voicebox-image-pull-secret
+      {{- end }}
+      containers:
+        - name: {{ include "sdcommon.fullname" . }}
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+          securityContext: 
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ include "voicebox.servicePort" . | int }}
+              protocol: TCP
+          env:
+            - name: VBX_CONFIG_FILE
+              value: /voicebox-config/vbx_config.json
+          {{- range $key, $value := .Values.environmentVariables }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+          {{- end }}
+          volumeMounts:
+            - name: {{ include "sdcommon.fullname" . }}
+              mountPath: /voicebox-config/vbx_config.json
+              subPath: vbx_config.json
+              readOnly: true
+          {{- with .Values.resources }}
+          resources:
+          {{- toYaml . | nindent 12}}
+          {{- end }}
+      {{- with include "sdcommon.podScheduling" . }}
+{{ . | nindent 6 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- else }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: {{ include "sdcommon.fullname" . }}
+            topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: {{ include "sdcommon.fullname" . }}
+              topologyKey: topology.kubernetes.io/zone
+      {{- end }}
+      volumes:
+        - name: {{ include "sdcommon.fullname" . }}
+          configMap:
+            name: {{ include "sdcommon.fullname" . }}
+            items:
+              - key: vbx_config.json
+                path: vbx_config.json

@@ -1,0 +1,260 @@
+{{- $globalGatewayEnabled := eq (include "sdcommon.globalGatewayEnabled" .) "true" -}}
+{{- $gatewayEnabled := or (eq .Values.gateway.enabled true) (eq (toString .Values.gateway.enabled) "true") $globalGatewayEnabled -}}
+{{- if $gatewayEnabled }}
+  {{- if .Values.ingress.enabled }}
+    {{- fail "gateway.enabled=true requires ingress.enabled=false. Disable ingress and prefer gateway.* exposure." -}}
+  {{- end }}
+  {{- $rawGateway := default (dict) .Values.gateway }}
+  {{- $httpConfig := default (dict) $rawGateway.http }}
+  {{- $gatewayConfig := deepCopy $httpConfig }}
+  {{- if hasKey $rawGateway "redirectToLaunchpad" }}
+    {{- $_ := set $gatewayConfig "redirectToLaunchpad" (index $rawGateway "redirectToLaunchpad") }}
+  {{- end }}
+  {{- $globalGateway := default (dict) .Values.global.gateway }}
+  {{- $globalGatewayName := include "sdcommon.globalGatewayName" . }}
+  {{- $globalGatewayNamespace := include "sdcommon.globalGatewayNamespace" . }}
+  {{- $globalDomain := trim (default "" (index $globalGateway "domain")) }}
+  {{- $globalTls := default (dict) (index $globalGateway "tls") }}
+  {{- $globalTlsEnabled := default true (index $globalTls "enabled") }}
+  {{- $issuer := (include "sdcommon.effectiveCertIssuer" . | fromYaml) }}
+  {{- $biEnabled := eq (include "stardog.effectiveBiEnabled" .) "true" }}
+  {{- $biTlsEnabled := eq (include "stardog.biTlsEnabled" .) "true" }}
+  {{- if and (eq (trim (default "" $gatewayConfig.className)) "") (ne (trim (default "" $rawGateway.className)) "") }}
+    {{- $_ := set $gatewayConfig "className" $rawGateway.className }}
+  {{- end }}
+  {{- $_ := set $gatewayConfig "enabled" true }}
+  {{- if and $globalGatewayEnabled (eq (trim (default "" $gatewayConfig.domain)) "") (ne $globalDomain "") }}
+    {{- $_ := set $gatewayConfig "domain" $globalDomain }}
+  {{- end }}
+  {{- $domain := default "" $gatewayConfig.domain }}
+  {{- if eq (default "" $domain) "" }}
+    {{- fail "gateway.http.domain must be set to build fully-qualified hostnames." -}}
+  {{- end }}
+  {{- $gatewayName := default (include "sdcommon.defaultGatewayName" .) $gatewayConfig.name }}
+  {{- $createGateway := or (not (hasKey $gatewayConfig "createGateway")) $gatewayConfig.createGateway }}
+  {{- if $globalGatewayEnabled }}
+    {{- $createGateway = false }}
+    {{- $_ := set $gatewayConfig "createGateway" false }}
+  {{- end }}
+  {{- if and $globalGatewayEnabled (not (gt (len (default (list) $gatewayConfig.parentRefs)) 0)) }}
+    {{- $_ := set $gatewayConfig "parentRefs" (list (dict "name" $globalGatewayName "namespace" $globalGatewayNamespace "sectionName" "sparql")) }}
+  {{- end }}
+  {{- $baseParentRefs := list }}
+  {{- if $createGateway }}
+    {{- $baseParentRefs = list (dict "name" $gatewayName "namespace" .Release.Namespace) }}
+  {{- else if $gatewayConfig.parentRefs }}
+    {{- $baseParentRefs = $gatewayConfig.parentRefs }}
+  {{- else }}
+    {{- fail "gateway.http.parentRefs must be provided when createGateway=false." -}}
+  {{- end }}
+  {{- $sparqlHost := printf "%s.%s" (default "sparql" $gatewayConfig.sparqlSubdomain) $domain }}
+  {{- $biHost := printf "%s.%s" (default "bi" $gatewayConfig.biSubdomain) $domain }}
+  {{- $pathValue := default "/" $gatewayConfig.path }}
+  {{- $pathTypeSetting := default "Prefix" $gatewayConfig.pathType }}
+  {{- $matchType := ternary "Exact" "PathPrefix" (eq (lower $pathTypeSetting) "exact") }}
+  {{- $port := default (ternary 443 80 $gatewayConfig.tls.enabled) $gatewayConfig.port }}
+  {{- $httpRedirectCfg := deepCopy (default (dict) $gatewayConfig.redirect) }}
+  {{- $httpRedirectEnabled := default false $httpRedirectCfg.enabled }}
+  {{- if and $globalGatewayEnabled $httpRedirectEnabled (not (gt (len (default (list) $httpRedirectCfg.parentRefs)) 0)) }}
+    {{- $_ := set $httpRedirectCfg "parentRefs" (list (dict "name" $globalGatewayName "namespace" $globalGatewayNamespace "sectionName" "sparql-http")) }}
+  {{- end }}
+  {{- if and $httpRedirectEnabled $createGateway (not $gatewayConfig.tls.enabled) }}
+    {{- fail "gateway.http.redirect.enabled requires gateway.http.tls.enabled when the chart creates the Gateway." -}}
+  {{- end }}
+  {{- $httpRedirectPort := int (default 80 $httpRedirectCfg.port) }}
+  {{- if and $httpRedirectEnabled (le $httpRedirectPort 0) }}
+    {{- fail "gateway.http.redirect.port must be a positive integer." -}}
+  {{- end }}
+  {{- $httpRedirectStatus := int (default 301 $httpRedirectCfg.statusCode) }}
+  {{- if and $httpRedirectEnabled (or (lt $httpRedirectStatus 300) (gt $httpRedirectStatus 399)) }}
+    {{- fail "gateway.http.redirect.statusCode must be between 300 and 399." -}}
+  {{- end }}
+  {{- $httpRedirectParentRefs := default (list) $httpRedirectCfg.parentRefs }}
+  {{- if not $gatewayConfig.tls }}
+    {{- $_ := set $gatewayConfig "tls" (dict) }}
+  {{- end }}
+  {{- if and $globalGatewayEnabled $globalTlsEnabled }}
+    {{- $_ := set $gatewayConfig.tls "enabled" true }}
+  {{- end }}
+  {{- if and $globalGatewayEnabled (ne $globalGatewayNamespace .Release.Namespace) }}
+    {{- $_ := set $gatewayConfig.tls "secretNamespace" $globalGatewayNamespace }}
+  {{- end }}
+  {{- $tlsSecret := default "" $gatewayConfig.tls.secretName }}
+  {{- $tlsSecretNamespace := default .Release.Namespace $gatewayConfig.tls.secretNamespace }}
+  {{- if and $createGateway (ne $tlsSecretNamespace .Release.Namespace) }}
+    {{- fail "gateway.http.tls.secretNamespace can only be overridden when createGateway=false." -}}
+  {{- end }}
+  {{- $_ := set $gatewayConfig.tls "secretNamespace" $tlsSecretNamespace }}
+  {{- if and $gatewayConfig.tls.enabled (eq $tlsSecret "") }}
+    {{- if $issuer.enabled }}
+      {{- $_ := set $gatewayConfig.tls "secretName" (include "certIssuer.secretName" .) }}
+      {{- $tlsSecret = $gatewayConfig.tls.secretName }}
+    {{- else }}
+      {{- fail "gateway.http.tls.secretName must be set when TLS is enabled." -}}
+    {{- end }}
+  {{- end }}
+  {{- if and $gatewayConfig.tls.enabled $tlsSecret (not $issuer.enabled) }}
+    {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" $tlsSecret "namespace" $tlsSecretNamespace) }}
+  {{- end }}
+  {{- if and $httpRedirectEnabled (not $createGateway) (not (gt (len $httpRedirectParentRefs) 0)) }}
+    {{- fail "gateway.http.redirect.parentRefs must be provided when createGateway=false and redirects are enabled." -}}
+  {{- end }}
+  {{- if and $httpRedirectEnabled (not $createGateway) }}
+    {{- range $baseParentRefs }}
+      {{- if eq (default "" .sectionName) "" }}
+        {{- fail "gateway.http.parentRefs must include sectionName referencing the HTTPS listener when redirects are enabled and createGateway=false." -}}
+      {{- end }}
+    {{- end }}
+    {{- range $httpRedirectParentRefs }}
+      {{- if eq (default "" .sectionName) "" }}
+        {{- fail "gateway.http.redirect.parentRefs must include sectionName referencing the HTTP listener when createGateway=false." -}}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- $redirectCfg := (include "stardog.launchpadRedirectConfig" . | fromYaml) }}
+  {{- $redirectMode := default "proxy" $redirectCfg.mode }}
+  {{- $redirectHostname := default "" $redirectCfg.hostname }}
+  {{- $redirectScheme := default "https" $redirectCfg.scheme }}
+  {{- $redirectTargetPort := int (default 443 $redirectCfg.port) }}
+  {{- $match := dict "path" (dict "type" $matchType "value" $pathValue) }}
+  {{- $sparqlBackend := dict "name" (include "sdcommon.fullname" .) "port" .Values.ports.server }}
+  {{- $sparqlRule := dict "matches" (list $match) "backendRefs" (list $sparqlBackend) }}
+  {{- $routeRules := list $sparqlRule }}
+  {{- if $redirectCfg.enabled }}
+    {{- $rootMatch := dict "path" (dict "type" "Exact" "value" "/") }}
+    {{- $launchpadRule := dict "matches" (list $rootMatch) }}
+    {{- if eq $redirectMode "redirect" }}
+      {{- $redirectFilter := dict "type" "RequestRedirect" "requestRedirect" (dict "scheme" $redirectScheme "hostname" $redirectHostname "port" $redirectTargetPort "statusCode" $httpRedirectStatus) }}
+      {{- $_ := set $launchpadRule "filters" (list $redirectFilter) }}
+    {{- else }}
+      {{- $_ := set $launchpadRule "backendRefs" (list (dict "name" $redirectCfg.serviceName "port" $redirectCfg.servicePort)) }}
+    {{- end }}
+    {{- $routeRules = list $launchpadRule $sparqlRule }}
+  {{- end }}
+  {{- $sparqlParentRefs := $baseParentRefs }}
+  {{- $sparqlRedirectRefs := $httpRedirectParentRefs }}
+  {{- if and $httpRedirectEnabled $createGateway }}
+    {{- $sparqlParentRefs = list (dict "name" $gatewayName "namespace" .Release.Namespace "sectionName" "sparql") }}
+    {{- $sparqlRedirectRefs = list (dict "name" $gatewayName "namespace" .Release.Namespace "sectionName" "sparql-http") }}
+  {{- end }}
+  {{- $sparqlRoute := dict "name" (printf "%s-sparql" (include "sdcommon.fullname" .)) "hostnames" (list $sparqlHost) "rules" $routeRules "parentRefs" $sparqlParentRefs }}
+  {{- $routes := list $sparqlRoute }}
+  {{- $listeners := list (dict "name" "sparql" "hostname" $sparqlHost "port" $port) }}
+  {{- $acmeHttpListener := and $createGateway $issuer.enabled $gatewayConfig.tls.enabled $biEnabled }}
+  {{- if $acmeHttpListener }}
+    {{- $listeners = append $listeners (dict "name" "bi-http" "hostname" $biHost "port" 80 "protocol" "HTTP") }}
+  {{- end }}
+  {{- if $httpRedirectEnabled }}
+    {{- if $createGateway }}
+      {{- $listeners = append $listeners (dict "name" "sparql-http" "hostname" $sparqlHost "port" $httpRedirectPort "protocol" "HTTP") }}
+    {{- end }}
+    {{- $redirectRule := dict "matches" (list $match) "filters" (list (dict "type" "RequestRedirect" "requestRedirect" (dict "scheme" "https" "port" 443 "statusCode" $httpRedirectStatus))) }}
+    {{- $redirectRoute := dict "name" (printf "%s-sparql-http-redirect" (include "sdcommon.fullname" .)) "hostnames" (list $sparqlHost) "rules" (list $redirectRule) "parentRefs" $sparqlRedirectRefs }}
+      {{- $routes = append $routes $redirectRoute }}
+  {{- end }}
+  {{- $tcpListeners := list }}
+  {{- $tcpRoutes := list }}
+  {{- $manualTcpRoutes := list }}
+  {{- $tcpApiVersion := default "" (index (default (dict) .Values.global.gateway) "tcpRouteApiVersion") }}
+  {{- if eq $tcpApiVersion "" }}
+    {{- $tcpApiVersion = default "" (index (default (dict) .Values.gateway) "tcpRouteApiVersion") }}
+  {{- end }}
+  {{- if eq $tcpApiVersion "" }}
+    {{- $tcpApiVersion = "gateway.networking.k8s.io/v1alpha2" }}
+  {{- end }}
+  {{- $tcpBiConfig := default (dict) $rawGateway.tcpBi }}
+  {{- $tcpBiEnabledValue := $tcpBiConfig.enabled }}
+  {{- $tcpBiExplicit := and (hasKey $tcpBiConfig "enabled") (not (kindIs "invalid" $tcpBiEnabledValue)) }}
+  {{- $tcpBiEnabled := or (and $tcpBiExplicit $tcpBiEnabledValue) (and (not $tcpBiExplicit) $biEnabled) }}
+  {{- if and $tcpBiEnabled $biEnabled }}
+    {{- $tcpParentRefs := $baseParentRefs }}
+    {{- if $globalGatewayEnabled }}
+      {{- $tcpParentRefs = list (dict "name" $globalGatewayName "namespace" $globalGatewayNamespace "sectionName" "bi-tcp") }}
+    {{- end }}
+    {{- $tcpTlsEnabled := and (hasKey $tcpBiConfig "tls") $tcpBiConfig.tls.enabled }}
+    {{- if and $tcpTlsEnabled (not $createGateway) }}
+      {{- if not $globalGatewayEnabled }}
+        {{- fail "gateway.tcpBi.tls.* is only supported when gateway.http.createGateway=true. Configure TLS on the external Gateway listener instead." -}}
+      {{- end }}
+    {{- end }}
+    {{- if and $tcpTlsEnabled (not $biTlsEnabled) (eq (upper (default "Passthrough" $tcpBiConfig.tls.mode)) "PASSTHROUGH") }}
+      {{- fail "gateway.tcpBi.tls.enabled with mode=Passthrough requires stardog.tls.bi.enabled=true." -}}
+    {{- end }}
+    {{- if and $tcpTlsEnabled $createGateway }}
+      {{- $tcpTlsMode := default "Passthrough" $tcpBiConfig.tls.mode }}
+      {{- $tcpTlsModeUpper := upper $tcpTlsMode }}
+      {{- $tcpTlsSecret := default "" $tcpBiConfig.tls.secretName }}
+      {{- if and (ne $tcpTlsModeUpper "PASSTHROUGH") (eq (trim $tcpTlsSecret) "") }}
+        {{- fail "gateway.tcpBi.tls.secretName must be set when tcpBi.tls.enabled=true and tls.mode is Terminate." -}}
+      {{- end }}
+      {{- if and (ne $tcpTlsModeUpper "PASSTHROUGH") (ne (trim $tcpTlsSecret) "") (not (and $issuer.enabled $createGateway)) }}
+        {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" $tcpTlsSecret "namespace" .Release.Namespace) }}
+      {{- end }}
+    {{- end }}
+    {{- if $createGateway }}
+      {{- $tcpParentRefs = list (dict "name" $gatewayName "namespace" .Release.Namespace "sectionName" "bi-tcp") }}
+    {{- else if $tcpBiConfig.parentRefs }}
+      {{- range $tcpBiConfig.parentRefs }}
+        {{- if eq (default "" .sectionName) "" }}
+          {{- fail "gateway.tcpBi.parentRefs must include sectionName when createGateway=false." -}}
+        {{- end }}
+      {{- end }}
+      {{- $tcpParentRefs = $tcpBiConfig.parentRefs }}
+    {{- end }}
+    {{- $tcpPort := int (default 5806 $tcpBiConfig.port) }}
+    {{- if le $tcpPort 0 }}
+      {{- fail "gateway.tcpBi.port must be a positive integer." -}}
+    {{- end }}
+    {{- if $createGateway }}
+      {{- $tcpProtocolDefault := (ternary "TLS" "TCP" $tcpTlsEnabled) }}
+      {{- $tcpProtocolRaw := default $tcpProtocolDefault $tcpBiConfig.protocol }}
+      {{- $tcpProtocolUpper := upper $tcpProtocolRaw }}
+      {{- $tcpProtocol := ternary "TLS" $tcpProtocolUpper $tcpTlsEnabled }}
+      {{- $tcpListener := dict "name" "bi-tcp" "port" $tcpPort "protocol" $tcpProtocol }}
+      {{- if $tcpTlsEnabled }}
+        {{- $tcpTlsMode := default "Passthrough" $tcpBiConfig.tls.mode }}
+        {{- $tcpTls := dict "mode" $tcpTlsMode }}
+        {{- if and (ne (upper $tcpTlsMode) "PASSTHROUGH") $tcpBiConfig.tls.secretName }}
+          {{- $_ := set $tcpTls "certificateRefs" (list (dict "group" "" "kind" "Secret" "name" $tcpBiConfig.tls.secretName)) }}
+        {{- end }}
+        {{- $_ := set $tcpListener "tls" $tcpTls }}
+      {{- end }}
+      {{- $tcpListeners = append $tcpListeners $tcpListener }}
+      {{- $biTcpRoute := dict "name" (printf "%s-bi-tcp" (include "sdcommon.fullname" .)) "rules" (list (dict "backendRefs" (list (dict "name" (include "sdcommon.fullname" .) "port" .Values.ports.sql)))) }}
+      {{- $_ := set $biTcpRoute "parentRefs" $tcpParentRefs }}
+      {{- $tcpRoutes = append $tcpRoutes $biTcpRoute }}
+    {{- else }}
+      {{- $manualRoute := dict "name" (printf "%s-bi-tcp" (include "sdcommon.fullname" .)) "parentRefs" $tcpParentRefs "rules" (list (dict "backendRefs" (list (dict "name" (include "sdcommon.fullname" .) "port" .Values.ports.sql)))) }}
+      {{- $manualTcpRoutes = append $manualTcpRoutes $manualRoute }}
+    {{- end }}
+  {{- end }}
+  {{- $autoTlsSecret := and $issuer.enabled $gatewayConfig.tls.enabled }}
+  {{- include "sdcommon.gatewayResources" (dict
+        "context" .
+        "gateway" $gatewayConfig
+        "ingressEnabled" .Values.ingress.enabled
+        "listeners" $listeners
+        "routes" $routes
+        "tcpListeners" $tcpListeners
+        "tcpRoutes" $tcpRoutes
+        "skipTlsSecretValidation" $autoTlsSecret
+    ) }}
+  {{- range $manualTcpRoutes }}
+---
+apiVersion: {{ $tcpApiVersion }}
+kind: TCPRoute
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+{{ include "sdcommon.labels.standard" $ | indent 4 }}
+spec:
+  parentRefs:
+{{ toYaml .parentRefs | indent 4 }}
+  rules:
+  {{- range .rules }}
+    - backendRefs:
+{{ toYaml .backendRefs | indent 8 }}
+  {{- end }}
+  {{- end }}
+{{- end }}

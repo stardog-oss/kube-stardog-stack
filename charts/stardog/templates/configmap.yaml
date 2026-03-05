@@ -1,0 +1,148 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sdcommon.fullname" . }}-log4j
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{ include "sdcommon.labels.standard" . | nindent 4 }}
+data: {{- if .Values.log4jConfig.override }}
+  log4j2.xml: {{- .Values.log4jConfig.content | toYaml | indent 1}}{{- else }}
+  {{- (.Files.Glob "files/log4j2.xml").AsConfig | nindent 2 }}
+{{- end }}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sdcommon.fullname" . }}-properties
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{ include "sdcommon.labels.standard" . | nindent 4 }}
+data:
+  {{- $truststoreEnabled := or .Values.tls.truststore.enabled (eq (include "stardog.biTlsEnabled" .) "true") }}
+  {{- (.Files.Glob "files/stardog.properties").AsConfig | nindent 2 }}
+    {{- if .Values.cluster.enabled }}
+    pack.enabled={{ .Values.cluster.enabled }}
+    {{- $zkService := include "stardog.zookeeperService" . | trim }}
+    {{- if ne $zkService "" }}
+    pack.zookeeper.address={{ $zkService }}
+    {{- end }}
+    {{- end }}
+    {{- if .Values.jwtConfig.enabled }}
+    jwt.conf=/var/opt/stardog/jwt.yaml
+    {{- end }}
+    {{- if eq (include "stardog.effectiveBiEnabled" .) "true" }}
+    sql.server.enabled=true
+    {{- end }}
+    {{- if eq (include "stardog.sparqlTlsEnabled" .) "true" }}
+    javax.net.ssl.keyStore=/var/opt/stardog/keystore/{{ .Values.tls.keystore.name }}
+    javax.net.ssl.keyStorePassword={{ .Values.tls.keystore.pass }}
+    javax.net.ssl.keyStoreType=PKCS12
+    {{- if $truststoreEnabled }}
+    javax.net.ssl.trustStore=/var/opt/stardog/keystore/{{ default "stardog-truststore.p12" .Values.tls.truststore.name }}
+    javax.net.ssl.trustStorePassword={{ default .Values.tls.keystore.pass .Values.tls.truststore.pass }}
+    javax.net.ssl.trustStoreType={{ default "PKCS12" .Values.tls.truststore.type }}
+    {{- end }}
+    {{- end }}
+    {{- .Values.stardogProperties | nindent 4 }}
+
+{{- if .Values.jwtConfig.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sdcommon.fullname" . }}-jwt
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{ include "sdcommon.labels.standard" . | nindent 4 }}
+data:
+  jwt.yaml: |
+    {{- if .Values.jwtConfig.confVersion }}
+    confVersion: {{ .Values.jwtConfig.confVersion }}
+    {{- end }}
+    {{- if .Values.jwtConfig.deploymentName }}
+    deploymentName: {{ .Values.jwtConfig.deploymentName }}
+    {{- end }}
+    {{- if .Values.jwtConfig.autoDeleteUsersSchedule }}
+    autoDeleteUsersSchedule: {{ .Values.jwtConfig.autoDeleteUsersSchedule  }}
+    {{- end }}
+    {{- if .Values.jwtConfig.signer.enabled }}
+    signer:
+      algorithm: {{ required "signer.algorithm is required" .Values.jwtConfig.signer.algorithm }}
+      audience: {{ default "stardog" .Values.jwtConfig.signer.audience  }}
+      issuer: {{ required "signer.issuer is required" .Values.jwtConfig.signer.issuer }}
+      {{- if .Values.jwtConfig.signer.secret }}
+      secret: {{ .Values.jwtConfig.signer.secret  }}
+      {{- end }}
+      {{- if .Values.jwtConfig.signer.publicKey }}
+      publicKey: {{ .Values.jwtConfig.signer.publicKey  }}
+      {{- end }}
+      {{- if .Values.jwtConfig.signer.privateKey }}
+      privateKey: {{ .Values.jwtConfig.signer.privateKey  }}
+      {{- end }}
+      tokenTTL: {{ default "P7D" .Values.jwtConfig.signer.tokenTTL  }}
+    {{- end }}
+
+    issuers:
+      {{- range $i, $issuer := .Values.jwtConfig.issuers }}
+      {{- $url := $issuer.issuer }}
+      {{ $url }}:
+        audience: {{ $issuer.audience }}
+        {{- if $issuer.usernameField }}
+        usernameField: {{ $issuer.usernameField }}
+        {{- end }}
+        {{- if $issuer.usernameTemplates }}
+        usernameTemplates: {{ $issuer.usernameTemplates | toJson }}
+        {{- end }}
+        autoCreateUsers: {{ default true $issuer.autoCreateUsers }}
+        {{- if $issuer.roleMappingSource }}
+        roleMappingSource: {{ $issuer.roleMappingSource }}
+        {{- end }}
+        {{- if $issuer.groupPrefix }}
+        groupPrefix: {{ $issuer.groupPrefix }}
+        {{- end }}
+        {{- if $issuer.allowedGroupIdentifiers }}
+        allowedGroupIdentifiers:
+          {{- toYaml $issuer.allowedGroupIdentifiers | nindent 10 }}
+        {{- end }}
+        {{- if $issuer.rolesField }}
+        rolesField: {{ $issuer.rolesField  }}
+        {{- end }}
+        {{- if $issuer.rolesClaimPath }}
+        rolesClaimPath: {{ $issuer.rolesClaimPath }}
+        {{- end }}
+        {{- if $issuer.superuserGroup }}
+        superuserGroup: {{ $issuer.superuserGroup }}
+        {{- end }}
+        {{- if $issuer.azureGraphPermission }}
+        azureGraphPermission: {{ $issuer.azureGraphPermission }}
+        {{- end }}
+        {{- if $issuer.clientSecret }}
+        clientSecret: {{ $issuer.clientSecret }}
+        {{- end }}
+        {{- if $issuer.clientCertificatePath }}
+        clientCertificatePath: {{ $issuer.clientCertificatePath  }}
+        {{- end }}
+        {{- if $issuer.clientCertificatePassword }}
+        clientCertificatePassword: {{ $issuer.clientCertificatePassword }}
+        {{- end }}
+        {{- if $issuer.algorithms }}
+        algorithms:
+          {{- range $alg := $issuer.algorithms }}
+          {{ $alg.name }}:
+            {{- if $alg.secret }}
+            secret: {{ $alg.secret }}
+            {{- end }}
+            {{- if $alg.keyUrl }}
+            keyUrl: {{ $alg.keyUrl  }}
+            {{- end }}
+            {{- if $alg.publicKey }}
+            publicKey: {{ $alg.publicKey }}
+            {{- end }}
+            {{- if $alg.privateKey }}
+            privateKey: {{ $alg.privateKey }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+{{- end }}

@@ -1,0 +1,368 @@
+suite: Validate StatefulSet
+values:
+  - values/values-zookeeper.yaml
+templates:
+  - statefulset.yaml
+
+tests:
+  # Basic StatefulSet Creation
+  - it: should create a ZooKeeper StatefulSet with default values
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: zookeeper-RELEASE-NAME
+      - equal:
+          path: spec.serviceName
+          value: zookeeper-RELEASE-NAME-headless
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: spec.podManagementPolicy
+          value: Parallel
+
+  # Image Configuration
+  - it: should use correct image configuration
+    set:
+      image:
+        repository: zookeeper
+        tag: "3.9.0"
+        pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "zookeeper:3.9.0"
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: "Always"
+
+  # Replica Count
+  - it: should support single replica for standalone mode
+    set:
+      replicaCount: 1
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should support multi-replica ensemble
+    set:
+      replicaCount: 5
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 5
+
+  # Ports Configuration
+  - it: should expose correct ports
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: client
+            containerPort: 2181
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: quorum
+            containerPort: 2888
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: leader-election
+            containerPort: 3888
+
+  - it: should expose admin port when adminServerEnabled is true
+    set:
+      adminServerEnabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: admin
+            containerPort: 8080
+
+  - it: should expose metrics port when metrics are enabled
+    set:
+      metrics.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: metrics
+            containerPort: 7000
+
+  # Security Context
+  - it: should apply pod security context when enabled
+    set:
+      podSecurityContext:
+        enabled: true
+        fsGroup: 1000
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+
+  - it: should apply container security context when enabled
+    set:
+      containerSecurityContext:
+        enabled: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+
+  # Volume Configuration
+  - it: should create data volume claim with persistence enabled
+    set:
+      persistence:
+        enabled: true
+        data:
+          size: 10Gi
+          storageClass: "fast"
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: data
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 10Gi
+              storageClassName: "fast"
+
+  - it: should create separate datalog volume when enabled
+    set:
+      persistence:
+        enabled: true
+        datalog:
+          enabled: true
+          size: 5Gi
+          storageClass: "fast"
+    asserts:
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: datalog
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 5Gi
+              storageClassName: "fast"
+
+  - it: should use emptyDir when persistence is disabled
+    set:
+      persistence:
+        enabled: false
+      emptyDir:
+        sizeLimit: "1Gi"
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir:
+              sizeLimit: "1Gi"
+
+  # Environment Variables
+  - it: should set ZOO_STANDALONE_ENABLED to true for single replica
+    set:
+      replicaCount: 1
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_STANDALONE_ENABLED
+            value: "true"
+
+  - it: should set ZOO_STANDALONE_ENABLED to false for multi-replica
+    set:
+      replicaCount: 3
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_STANDALONE_ENABLED
+            value: "false"
+
+  - it: should enable admin server when configured
+    set:
+      adminServerEnabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_ADMINSERVER_ENABLED
+            value: "true"
+
+  # Update Strategy
+  - it: should use RollingUpdate strategy by default
+    asserts:
+      - equal:
+          path: spec.updateStrategy.type
+          value: RollingUpdate
+      - equal:
+          path: spec.updateStrategy.rollingUpdate.partition
+          value: 0
+
+  - it: should support custom update strategy partition
+    set:
+      updateStrategy:
+        type: RollingUpdate
+        rollingUpdate:
+          partition: 2
+    asserts:
+      - equal:
+          path: spec.updateStrategy.rollingUpdate.partition
+          value: 2
+
+  # Service Account
+  - it: should use created service account
+    set:
+      serviceAccount:
+        create: true
+        name: ""
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: zookeeper-RELEASE-NAME
+
+  - it: should use existing service account
+    set:
+      serviceAccount:
+        create: false
+        name: "existing-sa"
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: "existing-sa"
+
+  # Resource Limits
+  - it: should apply resource limits when configured
+    set:
+      resources:
+        requests:
+          cpu: 500m
+          memory: 512Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 512Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 1000m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi
+
+  # Probes
+  - it: should configure readiness probe when enabled
+    set:
+      probes:
+        enabled: true
+        readiness:
+          initialDelaySeconds: 10
+          periodSeconds: 10
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].readinessProbe
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
+          value: 10
+
+  - it: should configure liveness probe when enabled
+    set:
+      probes:
+        enabled: true
+        liveness:
+          initialDelaySeconds: 20
+          periodSeconds: 10
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].livenessProbe
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.initialDelaySeconds
+          value: 20
+
+  # Init Containers
+  - it: should add volume permissions init container when enabled
+    set:
+      volumePermissions:
+        enabled: true
+        image:
+          repository: busybox
+          tag: "1.36"
+    asserts:
+      - isNotEmpty:
+          path: spec.template.spec.initContainers
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: volume-permissions
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: "busybox:1.36"
+
+  # Pod Labels and Annotations
+  - it: should apply custom pod labels
+    set:
+      podLabels:
+        custom-label: "test-value"
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.custom-label
+          value: "test-value"
+
+  - it: should apply custom pod annotations
+    set:
+      podAnnotations:
+        custom-annotation: "test-annotation"
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.custom-annotation
+          value: "test-annotation"
+
+  # Extra Containers
+  - it: should support extra sidecar containers
+    set:
+      extraSidecars:
+        - name: metrics-exporter
+          image: busybox:latest
+    asserts:
+      - contains:
+          path: spec.template.spec.containers
+          content:
+            name: metrics-exporter
+            image: busybox:latest
+
+  # Image Pull Secrets
+  - it: should add image pull secrets when configured
+    set:
+      image:
+        pullSecrets:
+          - name: my-registry-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.imagePullSecrets
+          content:
+            name: my-registry-secret

@@ -1,0 +1,34 @@
+# Ignore git and editor/OS junk
+.git
+.git/*
+.gitignore
+.DS_Store
+.idea
+.vscode
+
+# Ignore CI/test/support files to keep chart payload small
+.github
+.github/*
+tests
+tests/*
+charts/*/tests
+charts/*/tests/*
+scripts
+scripts/*
+
+# Ignore local package files and archives
+*.tgz
+*.tar.gz
+
+# Optional: ignore node/python build dirs
+node_modules
+venv
+.env*
+
+# Ignore top-level docs in the chart package
+README*.md
+CHANGELOG.md
+LICENSE
+HELM_QUICK_REFERENCE.md
+KUBECTL_QUICK_REFERENCE.md
+README_hook.md

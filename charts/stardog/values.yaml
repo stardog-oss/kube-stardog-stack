@@ -1,0 +1,550 @@
+# The namespace for Stardog resources that override the release namespace
+#namespace: stardog-ns
+
+# ------------------------------------------------------------------------------
+# Stardog Configuration
+# ------------------------------------------------------------------------------
+  # The number of seconds the post install job will wait for Stardog to
+  # start. This includes the total time to launch the cluster in k8s,
+  # including ZooKeeper. Consider increasing it for k8s providers that
+  # have slower resource provisioning.
+waitForStartSeconds: 300
+
+#stardogLicenseKeyPath: ""
+stardogCloudType: ""
+
+cluster:
+  enabled: false
+  replicaCount: 1
+  # Required when cluster.enabled=true unless global.zookeeper.enabled is set.
+  # Example: "zookeeper.example:2181"
+  zookeeperService: ""
+
+  # How to start the pods - use OrderedReady to use the default behavior of
+  # starting each pod one at a time or use Parallel to start them all at once
+podManagementPolicy: OrderedReady
+
+  # The number of seconds to wait for pods to shut down before
+  # killing them forcefully
+terminationGracePeriodSeconds: 300
+
+  # Java Virtual Machine memory parameters to pass to stardog.
+jvm:
+  minHeap: 1g
+  maxHeap: 1g
+  directMem: 2g
+
+  # Additional Java Virtual Machine arguments to pass to stardog
+javaArgs: ""
+
+service:
+  type: ClusterIP
+  annotations: {}
+  # loadBalancerIP: ""
+
+bi:
+  enabled: false # Defaults to global.bi.enabled when set.
+  service:
+    enabled: false # Enable Stardog's business intelligence service
+    type: LoadBalancer # Service type for Stardog's business intelligence service
+    annotations: {}
+    loadBalancerSourceRanges: []
+
+# The server port is the port to expose the Stardog server
+# The sql port is the port to expose Stardog's business intelligence server
+ports:
+  server: 5820
+  serverssl: 5821
+  sql: 5806
+
+tmpDir:
+  path: /var/opt/stardog/tmp-123456789
+  local: true
+
+debug:
+  # Sleep for N seconds after Stardog exits with a non-zero status (for troubleshooting).
+  sleepOnFailureSeconds: 0
+  # Enable verbose Java SSL diagnostics (javax.net.debug).
+  javaSsl: false
+
+# The home directory for Stardog
+stardogHome: /var/opt/stardog
+
+# The initial password for the Stardog admin user
+admin:
+  password: admin
+
+image:
+  # You should not rely on Docker up for you production environment. You should ALWAYS use an implicit tag
+  registry: docker.io
+  repository: stardog/stardog
+  tag: latest
+  pullPolicy: IfNotPresent
+  # Request user credentials to Stardog team.
+  username: ""
+  password: ""
+  pullSecrets: []
+
+# The storage class and size to use for Stardog home volumes for the pods
+persistence:
+  storageClass: ""
+  annotations: {}
+  size: 10Gi
+
+nodeSelector: {}
+tolerations: []
+#  - key: key1
+#    value: value1
+#    effect: NoSchedule
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+affinity: {}
+# If you set this, it completely replaces the default podAntiAffinity.
+# Example:
+# affinity:
+#   podAntiAffinity:
+#     requiredDuringSchedulingIgnoredDuringExecution:
+#     ...
+
+resources:
+  requests:
+    cpu: 1
+    memory: 1Gi
+  limits:
+    cpu: 2
+    memory: 2Gi
+
+# Stardog server environment variables
+environmentVariables:
+  DJL_CACHE_DIR: "/var/opt/stardog/djl-123456789"
+
+# These allow you to configure the UID and group ID used by the container when it's running,
+# and the fsGroup sets the group id for the volume-mounts
+securityContext:
+  seccompProfile:
+    type: RuntimeDefault
+  runAsNonRoot: true
+  runAsUser: 100000
+  runAsGroup: 100000
+  fsGroup: 100000
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  # capabilities:
+    # drop:
+    #   - ALL
+
+tls:
+  sparql:
+    enabled: false
+    required: false
+    # Optional secret containing tls.crt and tls.key used to build the Stardog keystore.
+    # Defaults to the configured certIssuer/gateway TLS secret when set.
+    secretName: ""
+  bi:
+    enabled: false
+    # Optional secret containing tls.crt and tls.key used to build the Stardog keystore.
+    # Defaults to the configured certIssuer/gateway TLS secret when set.
+    secretName: ""
+  # Max seconds to wait for the TLS secret to appear before failing startup.
+  waitForSecretSeconds: 300
+  keystore:
+    create: true
+    existingSecret: ""
+    name: "stardog-keystore.p12"
+    pass: "ChangeMe123!"
+  truststore:
+    # When true, generate a truststore from the JVM default cacerts and (optionally)
+    # merge in additional CA certs. By default, the JVM trust store is used.
+    enabled: false
+    # Truststore file name to create under /var/opt/stardog/keystore.
+    name: "stardog-truststore.p12"
+    # Defaults to keystore.pass when empty.
+    pass: ""
+    type: "PKCS12"
+    # Password for the source JVM cacerts (usually "changeit").
+    sourcePass: "changeit"
+    # Optional secret containing a CA bundle to merge into the truststore.
+    caSecretName: ""
+    caSecretKey: "ca.crt"
+
+
+log4jConfig:
+  override: false
+  # We provide a default log4j2.xml. If you want to provide your own,
+  # in your own values.yaml, set log4Config.override: true, and log4Config.content
+  content: |-
+
+
+# Stardog liveness probe settings. Consider increasing initialDelaySeconds on clouds where
+# storage provisioning is slower. It is generally not required to modify periodSeconds and timeoutSeconds.
+livenessProbe:
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+
+# Stardog readiness probe settings. Consider increasing initialDelaySeconds when using K8s nodes with
+# limited CPUs. It is generally not required to modify periodSeconds and timeoutSeconds.
+readinessProbe:
+  initialDelaySeconds: 20
+  periodSeconds: 5
+  timeoutSeconds: 3
+
+stardogProperties: |
+  pack.node.join.retry.count=15
+  pack.node.join.retry.delay=1m
+
+
+certIssuer:
+  enabled: false
+  # Optional per-chart override for the certificate secret name.
+  # When set, this overrides global.certIssuer.secretName/Tpl.
+  secretName: ""
+  # false => namespaced Issuer, true => ClusterIssuer
+  clusterScoped: false
+
+  # If empty, defaults to "{{ .Release.Name }}-issuer"
+  name: ""
+
+  # One of: selfSigned, acme, ca, vault, cyberArk
+  type: acme
+
+  # =====================
+  # SelfSigned
+  # =====================
+  selfSigned: {}
+
+  # =====================
+  # ACME (Let’s Encrypt / ZeroSSL / etc.)
+  # =====================
+  acme:
+    # REQUIRED for ACME
+    email: "helm-admin@stardog.com"
+    # Default is Let's Encrypt production. For staging, use:
+    # https://acme-staging-v02.api.letsencrypt.org/directory
+    server: "https://acme-v02.api.letsencrypt.org/directory"
+    # If empty, defaults to "<issuer-name>-account-key"
+    privateKeySecretName: ""
+
+    # Leave empty to auto-configure HTTP-01 solvers for enabled ingress/gateway controllers.
+    # Provide custom entries (e.g., DNS-01) to override the auto-generated solvers.
+    solvers: []
+      # - dns01:
+      #     cloudflare:
+      #       # Secret must contain key "api-token"
+      #       apiTokenSecretRef:
+      #         name: cloudflare-api-token-secret
+      #         key: api-token
+
+  # =====================
+  # CA Issuer
+  # =====================
+  ca:
+    # REQUIRED for CA issuer (name of a Secret with a TLS keypair)
+    secretName: ""
+    # Optional X.509 extensions
+    crlDistributionPoints: []
+    ocspServers: []
+    issuingCertificateURLs: []
+
+  # =====================
+  # Vault Issuer (HashiCorp Vault PKI)
+  # =====================
+  vault:
+    # REQUIRED
+    server: "https://vault.local"
+    path: "pki_int/sign/example-dot-com"  # must be a *sign* endpoint
+    # Optional trust for Vault's TLS, base64-encoded PEM (or leave empty to use system roots)
+    caBundle: ""
+    # Choose one auth mechanism below; leave the others empty
+    auth:
+      # 1) Token auth
+      tokenSecretRef:
+        name: ""
+        key: "token"
+      # 2) AppRole auth
+      appRole:
+        path: ""        # e.g. approle (optional)
+        roleId: ""
+        secretRef:
+          name: ""
+          key: "secretId"
+      # 3) Kubernetes/JWT auth
+      kubernetes:
+        mountPath: "/v1/auth/kubernetes"  # optional; default shown
+        role: ""
+        serviceAccountRef:
+          name: ""  # SA used for projected token; RBAC needed for serviceaccounts/token
+
+  # =====================
+  # CyberArk (Venafi) Issuer
+  # =====================
+  cyberArk:
+    # REQUIRED
+    zone: "My Application or My CIT"   # <Application Name>\<Issuing Template Alias>
+
+    # Choose ONE of these: `cloud` (CyberArk Certificate Manager SaaS) OR `tpp` (self-hosted)
+    cloud:
+      apiTokenSecretRef:
+        name: "api-key-secret"
+        key: "apikey"
+
+    tpp:
+      url: "https://tpp.example.com/vedsdk"
+      credentialsRef:
+        name: "tpp-credentials"   # Secret with key "access-token" (preferred) or legacy "username"/"password"
+      # Optionally trust a custom CA for TPP (use only one of the following)
+      caBundle: ""               # base64-encoded PEM string
+      caBundleSecretRef:
+        name: "custom-tpp-ca"    # Secret containing a PEM bundle
+        key: "ca.crt"
+
+# Optional utility to create Secrets referenced by issuers (DNS provider tokens, Venafi tokens, Vault tokens, etc.)
+  secrets:
+    create: false
+    # When creating a ClusterIssuer, secrets are typically placed in the cert-manager namespace
+    namespaceForClusterIssuer: "cert-manager"
+    items: []
+    # items example:
+    # items:
+    #   - name: cloudflare-api-token-secret
+    #     data:
+    #       api-token: "<your-token>"
+    #   - name: api-key-secret
+    #     data:
+    #       apikey: "<your-cyberark-saas-api-key>"
+    #   - name: tpp-credentials
+    #     data:
+    #       access-token: "<your-venafi-tpp-access-token>"
+    #       # or legacy:
+    #       # username: "<user>"
+    #       # password: "<pass>"
+    #   - name: custom-tpp-ca
+    #     data:
+    #       ca.crt: |-
+    #         -----BEGIN CERTIFICATE-----
+    #         ...
+    #         -----END CERTIFICATE-----
+    #   - name: vault-token
+    #     data:
+    #       token: "<vault-token>"
+
+route:
+  enabled: false
+  domain: ""
+
+ingress:
+  enabled: false # Deprecated: switch to gateway.*; ingress will be removed soon
+  className: "nginx" # Example ingress class name
+  sparqlSubdomain: "sparql" # Subdomain prefix for SPARQL endpoint
+  biSubdomain: "bi" # Subdomain prefix for BI endpoint
+  url: "sparql.stardogcloud.com"
+  path: "/"
+  pathType: "Prefix"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+  tls:
+    enabled: false
+    secretName: ""
+
+gateway:
+  enabled: false
+  # Override the TCPRoute API version (defaults to gateway.networking.k8s.io/v1alpha2).
+  # For Gateway API versions that support v1beta1 TCPRoute, set to gateway.networking.k8s.io/v1beta1.
+  tcpRouteApiVersion: ""
+  # Override the Gateway API version (defaults to gateway.networking.k8s.io/v1).
+  gatewayApiVersion: ""
+  # Override the HTTPRoute API version (defaults to gateway.networking.k8s.io/v1).
+  httpRouteApiVersion: ""
+  http:
+    createGateway: true
+    name: "" # Defaults to "<release>-gateway" when empty
+    className: "" # Required when createGateway=true
+    domain: "" # Fully qualified base domain for Gateway hosts (required)
+    sparqlSubdomain: "sparql"
+    biSubdomain: "bi"
+    port: 443
+    path: "/"
+    pathType: "Prefix" # Prefix | Exact
+    annotations: {}
+    addresses: [] # Optional static addresses for the Gateway spec
+    parentRefs: [] # Required when createGateway=false
+    skipApiValidation: false # Set true only for templating/tests when the CRDs are not installed
+    tls:
+      enabled: false
+      secretName: "" # Required when tls.enabled=true
+      certificateName: "" # Optional override for the generated Certificate resource
+    redirect:
+      enabled: true
+      port: 80
+      statusCode: 301
+      parentRefs: []
+  redirectToLaunchpad:
+    enabled: null      # When unset, auto-enabled if global.launchpad.enabled=true
+    serviceName: ""   # defaults to launchpad service when global.launchpad.enabled=true
+    servicePort: 80
+    externalUrl: ""   # Provide when launching outside this cluster (https://launchpad.example.com)
+    externalPort: 443
+    mode: ""          # "redirect", "proxy", or "backend". Defaults to "redirect" when global.launchpad.enabled=true, otherwise "proxy"
+    hostname: ""      # Optional explicit redirect hostname when mode=redirect
+    scheme: https
+    port: 443
+    backend:
+      image:
+        registry: docker.io
+        repository: stardog/launchpad
+        tag: latest
+        pullPolicy: IfNotPresent
+        pullSecrets: []
+  tcpBi:
+    enabled: null        # Defaults to bi.enabled when unset
+    port: 5806
+    protocol: TCP # TCP | TLS (MySQL start-TLS requires TCP passthrough)
+    parentRefs: []       # Required when http.createGateway=false and tcpBi.enabled=true
+    tls:
+      enabled: false     # Only honored when http.createGateway=true; requires stardog.tls.bi.enabled=true for Passthrough
+      mode: Passthrough
+      secretName: ""     # Required when tls.enabled=true
+
+backup:
+  enabled: false
+
+  cronjob:
+    enabled: false # Enable the cron job for Stardog backup
+    schedule: "0 0 * * *" # Cron job schedule
+    timeZone: ""  #America/New_York Time zone for the cron job
+    ttlSecondsAfterFinished: 86400 # Time to live for the job after it finishes 86,400 seconds = 1 day
+
+  credentialsSecret: ""  # Stardog backup credentials secret
+  credentials:  # Stardog backup credentials
+    username: "backup_user" # Stardog user name
+    password: "" # Stardog user password
+
+  location:
+    azure:
+      enabled: false
+      accountName: ""  # name of the storage account
+      accountKey: "" # key of the storage account
+      containerName: "" # name of the blob container
+      protocol: fuse # protocol to use for the blob storage fuse or nfs
+      backupDir: "stardog-backups" # directory for the backup
+
+      storageClass: # Storage class for the backup volume for Azure blob storage
+        annotations: {}
+        provisioner: blob.csi.azure.com
+        parameters:
+          skuName: Standard_GRS  # available values: Standard_LRS, Premium_LRS, Standard_GRS, Standard_RAGRS
+        reclaimPolicy: Retain # Options: Retain, Delete
+        volumeBindingMode: Immediate # Options: Immediate, WaitForFirstConsumer
+        allowVolumeExpansion: true
+        mountOptions:
+          - -o allow_other
+          - --file-cache-timeout-in-seconds=120
+          - --use-attr-cache=true
+          - --cancel-list-on-mount-seconds=10
+          - -o attr_timeout=120
+          - -o entry_timeout=120
+          - -o negative_timeout=120
+          - --log-level=LOG_WARNING
+          - --cache-size-mb=1000
+
+      persistentVolume:
+        annotations:
+          pv.kubernetes.io/provisioned-by: blob.csi.azure.com
+        capacity: 1Ti
+        accessModes:
+          - ReadWriteMany
+        reclaimPolicy: Retain # Options: Retain, Delete
+        mountOptions:
+          - -o allow_other
+          - --file-cache-timeout-in-seconds=120
+
+      persistentVolumeClaim:
+        annotations: {}
+        capacity: 1Ti
+        accessModes:
+          - ReadWriteMany
+
+    s3:
+      enabled: false
+      bucketName: "" # name of the s3 bucket
+      bucketDir: "stardog-backups" #directory
+      region: "" # region of the s3 bucket
+      accessKey: "" # access key for the s3 bucket
+      secretKey: "" # secret key for the s3 bucket
+
+    persistentVolume:
+      enabled: false
+      backupDir: "stardog-backups" # directory for the backup
+      customStorageClass: "" # Custom storage class
+      customPersitentVolume: "" # Custom persistent volume
+      customPersitentVolumeClaim: "" # Custom persistent volume claim
+
+
+# The JWT configuration will be automatically generated from the below variables
+# when enabled is set to true.
+# docs: https://docs.stardog.com/operating-stardog/security/oauth-integration#example
+jwtConfig:
+  enabled: false
+  # (Optional) The version of the configuration file; currently "1.0"
+  confVersion: "1.0"
+  # (Optional) Name for this deployment.
+  deploymentName: stardog-server
+  # (Optional) Cron schedule for removing auto-created users.
+  # Example: "0 0/30 * * * ?" for every 30 minutes
+  autoDeleteUsersSchedule: ""
+  # ===============================
+  # Signer configuration
+  # ===============================
+  signer:
+    enabled: false
+    # Algorithm type to sign with. [HS256 | HS384 | HS512 | RS256 | RS384 | RS512]
+    algorithm: HS256
+    # (Optional) Audience to include as aud field. Defaults to "stardog".
+    audience: "stardog"
+    # (Required) The name of the local issuer (added automatically to issuers).
+    issuer: ""
+    # (Required for HMAC only) Secret key used to sign tokens.
+    secret: ""
+    # (Required for RSA only) Absolute paths to RSA public/private keys.
+    publicKey: ""
+    privateKey: ""
+    # (Optional) Token TTL in ISO-8601 duration format. Default: "P7D" (7 days)
+    tokenTTL: "P7D"
+
+  # ===============================
+  # Issuers configuration
+  # ===============================
+  issuers: []
+    # Example issuer configuration for Azure AD
+    # - issuer: https://login.microsoftonline.com/XXXXXXX......./v2.0
+    #   audience: 998af732-6df6-4848-83d9-3ba275b9166a
+    #   usernameField: preferred_username
+    #   # usernameTemplates: ["user_{sub}", "app_{azp}"]
+    #   autoCreateUsers: true
+    #   roleMappingSource: token               # [token | azure_groups]
+    #   groupPrefix: ""                        # Azure group prefix to strip, if any.
+    #   allowedGroupIdentifiers: []            # Allowed group IDs
+    #   rolesField: ""                         # Use with allowedGroupIdentifiers
+    #   rolesClaimPath: ""                     # Alternative to rolesField
+    #   superuserGroup: ""                     # Group mapped to Stardog superuser
+
+    #   # Optional (Azure Graph integration)
+    #   azureGraphPermission: Directory.Read.All
+    #   clientSecret: ""
+    #   clientCertificatePath: ""
+    #   clientCertificatePassword: ""
+
+    #   algorithms:
+    #     - name: RS256
+    #       keyUrl: https://login.microsoftonline.com/ff24.../discovery/v2.0/keys
+    #       secret: ""       # (for HMAC)
+    #       publicKey: ""    # (for RSA)
+    #       privateKey: ""   # (for RSA)

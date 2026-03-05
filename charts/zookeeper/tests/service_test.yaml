@@ -1,0 +1,198 @@
+suite: Validate Services
+values:
+  - values/values-zookeeper.yaml
+templates:
+  - service.yaml
+  - svc-headless.yaml
+
+tests:
+  # Main Service Tests
+  - it: should create a main ZooKeeper service
+    template: service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: zookeeper-RELEASE-NAME
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: should expose client port on main service
+    template: service.yaml
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: client
+            port: 2181
+            targetPort: client
+
+  - it: should expose admin port when configured
+    template: service.yaml
+    set:
+      adminServerEnabled: true
+      service.exposeAdmin: true
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: admin
+            port: 8080
+            targetPort: admin
+
+  - it: should not expose admin port when disabled
+    template: service.yaml
+    set:
+      adminServerEnabled: false
+      service.exposeAdmin: false
+    asserts:
+      - notContains:
+          path: spec.ports
+          content:
+            name: admin
+
+  - it: should expose metrics port when enabled
+    template: service.yaml
+    set:
+      metrics.enabled: true
+      service.exposeMetrics: true
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: metrics
+            port: 7000
+            targetPort: metrics
+
+  - it: should not expose metrics port when disabled
+    template: service.yaml
+    set:
+      metrics.enabled: false
+      service.exposeMetrics: false
+    asserts:
+      - notContains:
+          path: spec.ports
+          content:
+            name: metrics
+
+  - it: should support LoadBalancer service type
+    template: service.yaml
+    set:
+      service.type: LoadBalancer
+    asserts:
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+
+  - it: should support NodePort service type
+    template: service.yaml
+    set:
+      service.type: NodePort
+    asserts:
+      - equal:
+          path: spec.type
+          value: NodePort
+
+  - it: should apply custom service annotations
+    template: service.yaml
+    set:
+      service:
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    asserts:
+      - equal:
+          path: metadata.annotations["service.beta.kubernetes.io/aws-load-balancer-type"]
+          value: "nlb"
+
+  - it: should apply custom service labels
+    template: service.yaml
+    set:
+      service:
+        labels:
+          custom-label: "custom-value"
+    asserts:
+      - equal:
+          path: metadata.labels.custom-label
+          value: "custom-value"
+
+  # Headless Service Tests
+  - it: should create a headless service
+    template: svc-headless.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: zookeeper-RELEASE-NAME-headless
+      - equal:
+          path: spec.clusterIP
+          value: None
+
+  - it: should publish not ready addresses on headless service
+    template: svc-headless.yaml
+    set:
+      headlessService.publishNotReadyAddresses: true
+    asserts:
+      - equal:
+          path: spec.publishNotReadyAddresses
+          value: true
+
+  - it: should expose all ports on headless service
+    template: svc-headless.yaml
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            name: quorum
+            port: 2888
+            targetPort: quorum
+      - contains:
+          path: spec.ports
+          content:
+            name: leader-election
+            port: 3888
+            targetPort: leader-election
+
+  - it: should apply custom headless service annotations
+    template: svc-headless.yaml
+    set:
+      headlessService:
+        annotations:
+          custom-annotation: "test-value"
+    asserts:
+      - equal:
+          path: metadata.annotations.custom-annotation
+          value: "test-value"
+
+  - it: should apply custom headless service labels
+    template: svc-headless.yaml
+    set:
+      headlessService:
+        labels:
+          custom-label: "test-value"
+    asserts:
+      - equal:
+          path: metadata.labels.custom-label
+          value: "test-value"
+
+  - it: should use correct selector for both services
+    template: service.yaml
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/name"]
+          value: zookeeper
+      - equal:
+          path: spec.selector["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+
+  - it: headless service should use correct selector
+    template: svc-headless.yaml
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/name"]
+          value: zookeeper
+      - equal:
+          path: spec.selector["app.kubernetes.io/instance"]
+          value: RELEASE-NAME

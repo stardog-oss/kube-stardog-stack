@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# Pre-commit: two-phase Helm checks with emoji/ASCII toggle (Bash 3+ compatible)
+# Phase 1: Sync locks (helm dependency build/update) for ALL charts; stage Chart.lock changes
+# Phase 2: Lint + Unit tests for ALL charts
+#
+# Enable once per clone:
+#   git config core.hooksPath .githooks
+#
+# Emoji toggle:
+#   USE_EMOJI=1  (default) → show icons
+#   USE_EMOJI=0           → plain ASCII
+set -euo pipefail
+
+# -------- Output helpers (emoji/ASCII) --------
+USE_EMOJI=${USE_EMOJI:-1}
+say() {
+  local emoji="$1"; local ascii="$2"; shift 2
+  if [ "${USE_EMOJI}" = "1" ]; then
+    printf "%s %s\n" "${emoji}" "$*"
+  else
+    printf "%s %s\n" "${ascii}" "$*"
+  fi
+}
+
+# -------- Bypass hook quickly if requested --------
+if [[ "${SKIP_HELM_HOOKS:-}" == "1" ]]; then
+  say "🔕" "--" "Skipping Helm pre-commit (SKIP_HELM_HOOKS=1)"
+  exit 0
+fi
+
+# -------- Ensure we're in a git repo --------
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "${repo_root}" ]]; then
+  exit 0
+fi
+cd "${repo_root}"
+
+# -------- Tool presence checks --------
+if ! command -v helm >/dev/null 2>&1; then
+  say "⚠️" "WARN" "Helm not found; skipping Helm checks. Install: https://helm.sh/docs/intro/install/"
+  exit 0
+fi
+
+if ! helm plugin list 2>/dev/null | awk '{print $1}' | grep -qx 'unittest'; then
+  say "❌" "ERR" "helm-unittest plugin missing."
+  echo "   Install once:  helm plugin install https://github.com/helm-unittest/helm-unittest"
+  exit 1
+fi
+
+# -------- Discover chart directories --------
+# Find tracked Chart.yaml (root + subcharts), exclude vendored deps under */charts/*/charts/*
+charts=()
+while IFS= read -r f; do
+  d="$(dirname "$f")"
+  # de-duplicate
+  already=0
+  for c in "${charts[@]}"; do
+    if [[ "$c" == "$d" ]]; then already=1; break; fi
+  done
+  [[ $already -eq 0 ]] && charts+=("$d")
+done < <(git ls-files -- '**/Chart.yaml' 'Chart.yaml' | grep -vE '/charts/[^/]+/charts/')
+
+if [[ ${#charts[@]} -eq 0 ]]; then
+  say "ℹ️" "INFO" "No charts found; skipping."
+  exit 0
+fi
+
+say "🔎" "--" "Found ${#charts[@]} chart(s): ${charts[*]}"
+
+# -------- Phase 1: Sync locks --------
+locks_updated=0
+for c in "${charts[@]}"; do
+  [[ -d "$c" ]] || continue
+  say "▶" ">>" "Sync: $c"
+  if (cd "$c" && helm dependency build); then
+    say "✓" "OK" "Dependencies OK"
+  else
+    say "↻" "UPD" "Lock out of sync → helm dependency update"
+    (cd "$c" && helm dependency update && helm dependency build)
+    if [[ -f "$c/Chart.lock" ]]; then
+      if ! git diff --quiet -- "$c/Chart.lock"; then
+        git add "$c/Chart.lock"
+        locks_updated=1
+        say "📦" "ADD" "Staged $c/Chart.lock"
+      fi
+    fi
+  fi
+done
+
+# -------- Phase 2: Lint + Unit tests --------
+for c in "${charts[@]}"; do
+  [[ -d "$c" ]] || continue
+  say "🧪" "TEST" "Check: $c"
+  lint_values_arg=""
+  if [[ -f "$repo_root/values.skip-secret-validation.yaml" ]]; then
+    lint_values_arg="-f $repo_root/values.skip-secret-validation.yaml"
+  fi
+  (cd "$c" && helm lint . ${lint_values_arg})
+  if [[ "$c" == "." ]]; then
+    (cd "$c" && helm unittest --with-subchart=false --strict .)
+  else
+    (cd "$c" && helm unittest --strict .)
+  fi
+done
+
+if [[ $locks_updated -eq 1 ]]; then
+  say "✅" "OK" "Pre-commit complete: locks synced (staged), lint & tests passed."
+else
+  say "✅" "OK" "Pre-commit complete: locks already in sync; lint & tests passed."
+fi

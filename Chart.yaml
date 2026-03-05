@@ -1,0 +1,52 @@
+apiVersion: v2
+appVersion: latest
+dependencies:
+- name: common
+  version: 0.1.5
+  repository: file://charts/common
+- condition: global.gateway.enabled
+  name: gateway
+  repository: file://charts/gateway
+  version: '>=1.0.0'
+- condition: global.stardog.enabled
+  name: stardog
+  repository: file://charts/stardog
+  version: '>=4.0.0'
+  import-values:
+    - child: global
+      parent: global
+- condition: global.zookeeper.enabled
+  name: zookeeper
+  repository: file://charts/zookeeper
+  version: '>=1.0.0'
+- condition: global.launchpad.enabled
+  name: launchpad
+  repository: file://charts/launchpad
+  version: '>=1.0.0'
+  import-values:
+    - child: global
+      parent: global
+- condition: global.voicebox.enabled
+  name: voicebox
+  repository: file://charts/voicebox
+  version: '>=1.0.0'
+  import-values:
+    - child: global
+      parent: global
+- condition: global.cachetarget.enabled
+  name: cachetarget
+  repository: file://charts/cachetarget
+  version: '>=1.0.0'
+  import-values:
+    - child: global
+      parent: global
+description: Helm chart to deploy the complete Stardog ecosystem, including Stardog,
+  Launchpad, and Voicebox
+home: https://stardog-union.github.io/kube-stardog-stack/
+icon: https://s3.amazonaws.com/stardog-logos.public/stardog-logo.png
+maintainers:
+- email: tech@stardog.com
+  name: Stardog Union
+  url: https://www.stardog.com
+name: kube-stardog-stack
+version: 1.0.0

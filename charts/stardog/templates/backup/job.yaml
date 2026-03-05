@@ -1,0 +1,135 @@
+
+{{- if and .Values.backup.enabled .Values.backup.cronjob.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "stardog.fullname" . }}-backup-job
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+  {{- if .Values.backup.cronjob.timeZone }}
+  annotations:
+    cronjob.kubernetes.io/timezone: {{ .Values.backup.cronjob.timeZone | quote }}
+  {{- end }}
+spec:
+  schedule: {{ .Values.backup.cronjob.schedule | quote }}
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: {{ .Values.backup.cronjob.ttlSecondsAfterFinished }}
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/instance: {{ .Release.Name }}
+            app.kubernetes.io/managed-by: {{ .Release.Service }}
+        spec:
+          restartPolicy: Never
+          securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- if .Values.backup.credentialsSecret }}
+          {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" .Values.backup.credentialsSecret "namespace" .Release.Namespace) }}
+          {{- end }}
+          containers:
+          - name: stardog-backup
+            image: {{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+            imagePullPolicy: {{ .Values.image.pullPolicy }}
+            securityContext: 
+            {{- toYaml .Values.containerSecurityContext | nindent 14 }}
+            resources:
+              requests:
+                memory: 250Mi
+                cpu: 300m
+              limits:
+                memory: 250Mi
+                cpu: 300m
+            env:
+            - name: STARDOG_HOST
+              value: "http://{{ include "sdcommon.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.ports.server }}"
+            - name: STARDOG_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backup.credentialsSecret | default ((include "sdcommon.fullname" .) | printf "%s-backup-credentials") }}
+                  key: username
+            - name: STARDOG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backup.credentialsSecret | default ((include "sdcommon.fullname" .) | printf "%s-backup-credentials") }}
+                  key: password
+            {{- if .Values.backup.location.s3.enabled }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-backup-s3-secret
+                  key: accesskey
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-backup-s3-secret
+                  key: secretkey
+            - name: AWS_REGION
+              value: {{ .Values.backup.location.s3.region }}
+            - name: AWS_BUCKET
+              value: {{ .Values.backup.location.s3.bucketName }}
+            - name: AWS_BUCKET_DIR
+              value: {{ .Values.backup.location.s3.bucketDir }}
+            {{- end }}
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set +x
+              function stardog_healthcheck {
+                HOST=${1}
+                # Wait for Stardog to be running
+                COUNT=0
+                set +e
+                while true; do
+                  if [[ ${COUNT} -gt 300 ]]; then
+                      echo "Timeout waiting for Stardog to start."
+                      return 1
+                  fi
+                  if curl -s --head --request GET ${STARDOG_HOST}/admin/healthcheck | grep "200 OK" > /dev/null; then
+                      echo "Stardog is up and running."
+                      break
+                  else
+                      COUNT=$((COUNT+1))
+                      sleep 1
+                  fi
+                done
+                return 0
+              }
+              stardog_healthcheck ${STARDOG_HOST}
+              if [ $? -ne 0 ]; then
+                echo "Stardog Server is not healthy for backup"
+                exit 1
+              fi
+              echo "Stardog Server is healthy for backup"
+              {{ if .Values.backup.location.s3.enabled }}
+              echo "Starting Stardog Backup to S3"
+              BACKUP_DIR="s3:///${AWS_BUCKET}/${AWS_BUCKET_DIR}?region=${AWS_REGION}&AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}&AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
+              /opt/stardog/bin/stardog-admin --server $STARDOG_HOST server backup -u $STARDOG_USERNAME -p $STARDOG_PASSWORD -- $BACKUP_DIR
+              {{ else if or .Values.backup.location.azure.enabled .Values.backup.location.persistentVolume.enabled }}
+              echo "Starting Stardog Backup to External Storage"
+              /opt/stardog/bin/stardog-admin --server $STARDOG_HOST server backup -u $STARDOG_USERNAME -p $STARDOG_PASSWORD
+              {{- end }}
+              rc=$?
+              if [ $rc -ne 0 ]; then
+                  echo "Backup failed"
+                  exit $rc
+              else
+                  echo "Backup succeded"
+                  exit 0
+              fi
+          {{- if and (hasKey .Values "image") .Values.image.pullSecrets }}
+          imagePullSecrets:
+          {{ toYaml .Values.image.pullSecrets | nindent 12 }}
+          {{- end }}
+          {{- if and (hasKey .Values "image") .Values.image.username .Values.image.password }}
+          imagePullSecrets:
+            - name: {{ .Release.Name }}-image-pull-secret
+          {{- end }}
+
+{{- end }}

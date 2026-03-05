@@ -1,0 +1,128 @@
+suite: Validate RBAC
+values:
+  - values/values-zookeeper.yaml
+templates:
+  - rbac.yaml
+
+tests:
+  # RBAC not created by default
+  - it: should not create RBAC resources when disabled
+    set:
+      rbac:
+        create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create Role and RoleBinding when enabled
+    set:
+      rbac:
+        create: true
+      serviceAccount:
+        create: true
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  # Role tests
+  - it: should create Role with correct metadata
+    set:
+      rbac:
+        create: true
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Role
+      - equal:
+          path: metadata.name
+          value: zookeeper-RELEASE-NAME
+
+  - it: should have correct Role labels
+    set:
+      rbac:
+        create: true
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: zookeeper
+      - equal:
+          path: metadata.labels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+
+  # RoleBinding tests
+  - it: should create RoleBinding with correct metadata
+    set:
+      rbac:
+        create: true
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: RoleBinding
+      - equal:
+          path: metadata.name
+          value: zookeeper-RELEASE-NAME
+
+  - it: should bind to correct ServiceAccount
+    set:
+      rbac:
+        create: true
+      serviceAccount:
+        create: true
+        name: ""
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: subjects[0].kind
+          value: ServiceAccount
+      - equal:
+          path: subjects[0].name
+          value: zookeeper-RELEASE-NAME
+
+  - it: should bind to custom ServiceAccount
+    set:
+      rbac:
+        create: true
+      serviceAccount:
+        create: false
+        name: "custom-sa"
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: subjects[0].name
+          value: "custom-sa"
+
+  - it: should reference correct Role
+    set:
+      rbac:
+        create: true
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: roleRef.kind
+          value: Role
+      - equal:
+          path: roleRef.name
+          value: zookeeper-RELEASE-NAME
+      - equal:
+          path: roleRef.apiGroup
+          value: rbac.authorization.k8s.io
+
+  - it: should have correct RoleBinding labels
+    set:
+      rbac:
+        create: true
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: zookeeper
+      - equal:
+          path: metadata.labels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm

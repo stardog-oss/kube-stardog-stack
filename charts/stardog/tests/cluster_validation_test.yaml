@@ -1,0 +1,15 @@
+suite: Cluster Validation
+values:
+  - values/values-stardog.yaml
+templates:
+  - statefulset.yaml
+
+tests:
+  - it: fails when cluster enabled without a ZooKeeper service
+    set:
+      cluster:
+        enabled: true
+        replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "Cluster mode requires stardog.cluster.zookeeperService or shared ZooKeeper (global.zookeeper.enabled)"

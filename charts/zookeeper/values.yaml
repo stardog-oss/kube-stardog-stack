@@ -1,0 +1,238 @@
+# Default values for zookeeper.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Kubernetes cluster domain used to build FQDNs
+clusterDomain: cluster.local
+
+image:
+  # You should not rely on Docker up for you production environment. You should ALWAYS use an implicit tag
+  registry: docker.io
+  repository: zookeeper
+  tag: 3.9.4
+  pullPolicy: IfNotPresent
+  # Request user credentials to Stardog team.
+  username: ""
+  password: ""
+  pullSecrets: []
+
+replicaCount: 3
+
+# minServerId added to pod ordinal (default 1).
+# Example: pod "-0" => myid=1, "-1" => myid=2, ...
+minServerId: 3
+
+# Standalone mode toggle (official image env: ZOO_STANDALONE_ENABLED).
+# If left as null (default), chart auto-sets:
+# - replicaCount >= 2 => false
+# - replicaCount == 1 => true
+# You can still explicitly override to true/false.
+standaloneEnabled: null
+
+# Enable ZooKeeper AdminServer (official image env: ZOO_ADMINSERVER_ENABLED).
+# Default probes use AdminServer endpoints on localhost to avoid log-noise.
+adminServerEnabled: true
+
+ports:
+  client: 2181
+  quorum: 2888
+  leaderElection: 3888
+  admin: 8080
+  metrics: 7000
+
+service:
+  type: ClusterIP
+  annotations: {}
+  labels: {}
+  exposeAdmin: false
+  exposeMetrics: true
+
+headlessService:
+  annotations: {}
+  labels: {}
+  publishNotReadyAddresses: true
+
+persistence:
+  enabled: true
+  data:
+    size: 8Gi
+    accessModes: ["ReadWriteOnce"]
+    storageClass: ""
+    annotations: {}
+    labels: {}
+  datalog:
+    enabled: false
+    size: 8Gi
+    accessModes: ["ReadWriteOnce"]
+    storageClass: ""
+    annotations: {}
+    labels: {}
+
+emptyDir:
+  sizeLimit: ""
+
+volumePermissions:
+  enabled: false
+  image:
+    repository: busybox
+    tag: "1.36"
+    pullPolicy: IfNotPresent
+  resources: {}
+  securityContext:
+    runAsUser: 0
+    runAsGroup: 0
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+
+config:
+  tickTime: 2000
+  initLimit: 10
+  syncLimit: 5
+  maxClientCnxns: 60
+
+  # Optional additional tunables injected via ZOO_CFG_EXTRA when set
+  preAllocSize: ""
+  snapCount: ""
+  maxSessionTimeout: ""
+
+  fourLetterWordsWhitelist: "ruok,stat,srvr,mntr,conf,isro"
+
+  autopurge:
+    purgeInterval: 0
+    snapRetainCount: 3
+
+  # Extra zoo.cfg lines appended verbatim (official image env: ZOO_CFG_EXTRA).
+  cfgExtra: ""
+
+  # Provide a full zoo.cfg via ConfigMap mount to /conf/zoo.cfg (optional)
+  zooCfg:
+    enabled: false
+    existingConfigMap: ""
+    inline: |
+      tickTime=2000
+      initLimit=10
+      syncLimit=5
+      dataDir=/data
+      dataLogDir=/datalog
+      clientPort=2181
+
+  # Provide logback.xml via ConfigMap mount to /conf/logback.xml (optional)
+  logback:
+    enabled: false
+    existingConfigMap: ""
+    inline: |
+      <configuration>
+        <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+          <encoder>
+            <pattern>%d{ISO8601} %-5level [%thread] %logger - %msg%n</pattern>
+          </encoder>
+        </appender>
+        <root level="INFO">
+          <appender-ref ref="STDOUT" />
+        </root>
+      </configuration>
+
+ensemble:
+  # Override ZOO_SERVERS (advanced). If empty, auto-generated.
+  zooServersOverride: ""
+
+probes:
+  enabled: true
+  readiness:
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 6
+    successThreshold: 1
+  liveness:
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 6
+  customReadinessProbe: {}
+  customLivenessProbe: {}
+
+metrics:
+  enabled: false
+  port: 7000
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+    namespace: ""
+
+resources:
+  requests:
+    memory: "500Mi"
+    cpu: "500m"
+  limits:
+    memory: "1Gi"
+    cpu: "1"
+
+
+podAnnotations: {}
+podLabels: {}
+
+affinity: {}
+nodeSelector: {}
+tolerations: []
+topologySpreadConstraints: []
+
+podAntiAffinityPreset: "soft" # "soft" | "hard" | ""
+nodeAffinityPreset:
+  type: "" # "soft" | "hard" | ""
+  key: ""
+  values: []
+
+pdb:
+  enabled: false
+  minAvailable: 1
+  maxUnavailable: ""
+
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    partition: 0
+
+podSecurityContext:
+  enabled: true
+  fsGroup: 1000
+
+containerSecurityContext:
+  enabled: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: true
+
+rbac:
+  create: false
+
+networkPolicy:
+  enabled: false
+  ingressNamespaceSelector: {}
+  ingressPodSelector: {}
+  egress:
+    enabled: false
+    dnsNamespaceSelector:
+      kubernetes.io/metadata.name: kube-system
+    dnsPodSelector:
+      k8s-app: kube-dns
+
+extraEnvVars: []
+extraVolumes: []
+extraVolumeMounts: []
+extraInitContainers: []
+extraSidecars: []
+
+commonLabels: {}
+commonAnnotations: {}

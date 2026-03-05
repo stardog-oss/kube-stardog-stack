@@ -1,0 +1,31 @@
+name: CI (features)
+
+on:
+  push:
+    branches:
+      - 'SAT-*'
+      - 'CLOUD-*'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    uses: ./.github/workflows/helm-validate-reusable.yml
+    with:
+      charts: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/voicebox","charts/cachetarget","."]'
+
+  # smoke:
+  #   needs: unit-tests
+  #   uses: ./.github/workflows/minikube-smoke.yml
+  #   secrets: inherit
+
+  ci:
+    needs: validate
+    uses: ./.github/workflows/helm-package-reusable.yml
+    secrets: inherit
+    with:
+      # Include umbrella chart explicitly. If your umbrella is at repo root, use "."
+      # Otherwise, set the folder name (e.g., "kube-stardog-stack").
+
+      charts: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/voicebox","charts/cachetarget","."]'
+      oci_repo: 'oci://stardog-example-helm-chart.jfrog.io/'
+      versioning_mode: 'branch'

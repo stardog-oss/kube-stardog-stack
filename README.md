@@ -1,0 +1,294 @@
+# Kube Stardog Stack
+
+An umbrella Helm chart that manages the complete Stardog ecosystem including Stardog, Launchpad, and Voicebox components.
+
+## Overview
+
+This chart provides a unified way to deploy and manage the entire Stardog stack with a single Helm release. It includes:
+
+- **Stardog**: The core graph database
+- **Cache target**: Optional cache nodes that register against a Stardog cluster
+- **Launchpad**: Web-based UI to access Stardog applications (Designer, Explorer, Studio)
+- **Voicebox**: Natural language interface for Stardog
+
+## Components
+
+### Stardog
+The core graph database component. Enable with `global.stardog.enabled: true`
+
+### Cache Target
+Installs cache target nodes and runs a post-install job that registers them against the primary Stardog cluster or an external endpoint. Enable with `global.cachetarget.enabled: true`.
+
+### Launchpad  
+Web-based UI to access Stardog applications (Designer, Explorer, Studio). Enable with `global.launchpad.enabled: true`
+
+### Voicebox
+Natural language interface for Stardog. Enable with `global.voicebox.enabled: true`
+
+### ZooKeeper
+Coordination service for clustered Stardog deployments. Enable with `global.zookeeper.enabled: true`
+
+## Shared Resources
+
+### ClusterIssuer
+The ClusterIssuer resource for certificate management is managed by this umbrella chart and will be created if either Stardog or Launchpad has certificate management enabled. This ensures that both components can share the same certificate issuer without conflicts.
+
+## Installation
+
+### Basic Installation (Stardog Only)
+
+```bash
+helm install my-stardog-stack ./kube-stardog-stack
+```
+
+### Installation with All Components
+
+```bash
+helm install my-stardog-stack ./kube-stardog-stack \
+  --set global.stardog.enabled=true \
+  --set global.launchpad.enabled=true \
+  --set global.voicebox.enabled=true
+```
+
+### Installation with Custom Values
+
+```bash
+helm install my-stardog-stack ./kube-stardog-stack -f values.yaml
+```
+
+## Configuration
+
+The umbrella chart allows you to enable/disable individual components and configure each one independently.
+
+### Cross-Component Configuration
+
+When multiple components are enabled, you may need to configure them to communicate with each other:
+
+#### Cache Target Registration
+
+When the cache target subchart is enabled it automatically registers itself against the Stardog cluster in the same release. To point it at another release/namespace or an external endpoint, tune the following values:
+
+```yaml
+cachetarget:
+  enabled: true
+  primary:
+    name: stardog-secondary         # defaults to stardog-<release>
+    namespace: shared-services      # defaults to the release namespace
+    port: 5820
+    url: cache.stardog.example.com  # optional https endpoint (implies TLS)
+    validateService: true           # fail fast if the Service does not exist
+    validateConnectivity: true      # have the job curl the endpoint before registering
+    skipTLSVerify: false            # set true when using self-signed certs
+```
+
+#### Launchpad + Voicebox Integration
+
+When both Launchpad and Voicebox are enabled **outside** of the umbrella chart, Launchpad needs to know how to reach the Voicebox service. (The umbrella chart wires this up automatically whenever both components are enabled.) Configure this manually in Launchpad’s environment variables only when you deploy the charts separately:
+
+```yaml
+launchpad:
+  env:
+    # Auto-configure voicebox service endpoint when both are enabled
+    VOICEBOX_SERVICE_ENDPOINT: "http://RELEASE-NAME-voicebox.NAMESPACE.svc.cluster.local:8080"
+```
+
+**Note**: Replace `RELEASE-NAME` with your actual Helm release name and `NAMESPACE` with your Kubernetes namespace.
+
+### Component Enablement
+
+| Component | Default | Description |
+|-----------|---------|-------------|
+| `global.stardog.enabled` | `true` | Deploy Stardog |
+| `global.cachetarget.enabled` | `false` | Deploy cache target nodes that register with Stardog |
+| `global.launchpad.enabled` | `false` | Deploy Launchpad |
+| `global.voicebox.enabled` | `false` | Deploy Voicebox |
+| `global.zookeeper.enabled` | `false` | Deploy a shared ZooKeeper ensemble |
+
+### Example Configurations
+
+#### Stardog + Launchpad
+```yaml
+global:
+  stardog:
+    enabled: true
+  launchpad:
+    enabled: true
+  voicebox:
+    enabled: false
+
+stardog:
+  # Stardog configuration here
+
+launchpad:
+  # Launchpad configuration here
+```
+
+#### Complete Stack
+```yaml
+global:
+  stardog:
+    enabled: true
+  cachetarget:
+    enabled: true
+  launchpad:
+    enabled: true
+  voicebox:
+    enabled: true
+
+stardog:
+  # Stardog configuration here
+
+cachetarget:
+  primary:
+    validateConnectivity: true
+    skipTLSVerify: false
+
+launchpad:
+  # Launchpad configuration here
+  env:
+    # Configure voicebox service endpoint when both are enabled
+    VOICEBOX_SERVICE_ENDPOINT: "http://RELEASE-NAME-voicebox.NAMESPACE.svc.cluster.local:8080"
+
+voicebox:
+  # Voicebox configuration here
+```
+
+## Usage
+
+### Deploying Individual Components
+
+You can deploy individual components by setting only the desired component to `enabled: true`:
+
+```bash
+# Deploy only Stardog
+helm install my-launchpad ./kube-stardog-stack \
+  --set global.stardog.enabled=true \
+  --set global.launchpad.enabled=false \
+  --set global.voicebox.enabled=false
+```
+
+### Advanced Configuration
+
+Create a comprehensive values file:
+
+```yaml
+global:
+  stardog:
+    enabled: true
+  launchpad:
+    enabled: true
+  voicebox:
+    enabled: true
+
+stardog:
+  image:
+    registry: your-registry.com
+    repository: your-org/stardog
+    tag: latest
+  persistence:
+    size: 20Gi
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1"
+    limits:
+      memory: "4Gi"
+      cpu: "2"
+
+launchpad:
+  image:
+    registry: your-registry.com
+    repository: your-org/launchpad
+    tag: latest
+  ingress:
+    enabled: true
+    url: "your-domain.com"
+  env:
+    FRIENDLY_NAME: "My Stardog Applications"
+    STARDOG_INTERNAL_ENDPOINT: "http://my-stardog-stack-stardog:5820"
+
+voicebox:
+  image:
+    registry: your-registry.com
+    repository: your-org/voicebox
+    tag: latest
+  environmentVariables:
+    AZURE_API_KEY: "your-azure-api-key"
+    PRODUCTION: 1
+```
+
+## Upgrading
+
+```bash
+helm upgrade my-stardog-stack ./kube-stardog-stack
+```
+
+## Uninstalling
+
+```bash
+helm uninstall my-stardog-stack
+```
+
+## Dry-Run & CI Rendering
+
+The charts validate required secrets during rendering. For `helm template` or other dry-run flows where those secrets are not present in the cluster (for example in CI), load `values.skip-secret-validation.yaml` (or set `global.skipSecretValidation=true`) to bypass the lookups while still producing manifests. Leave it disabled for real installs so missing secrets still fail fast.
+
+```bash
+helm template my-stardog-stack ./kube-stardog-stack -f values.skip-secret-validation.yaml
+```
+
+## Component Documentation
+
+For detailed configuration options for each component, see:
+
+- [Stardog Chart](../charts/stardog/README.md)
+- [Cache Target Chart](../charts/cachetarget/README.md)
+- [Launchpad Chart](../charts/launchpad/README.md)
+- [Voicebox Chart](../charts/voicebox/README.md)
+
+## Benefits of the Umbrella Chart
+
+1. **Single Deployment**: Deploy the entire Stardog ecosystem with one command
+2. **Unified Configuration**: Manage all components from a single values file
+3. **Flexible Composition**: Enable only the components you need
+4. **CI/CD Friendly**: Simplified pipeline integration
+5. **Independent Charts**: Each component can still be deployed independently
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Dependency Resolution**: Ensure all sub-charts are available in the `charts/` directory
+2. **Image Pull Errors**: Verify registry credentials for all components
+3. **Resource Conflicts**: Check for port or name conflicts between components
+
+### Component Status
+
+Check the status of all components:
+
+```bash
+kubectl get all -l app.kubernetes.io/instance=my-stardog-stack
+```
+
+### Verify TLS Certificate with OpenSSL
+
+Use SNI to confirm the certificate served for a specific hostname:
+
+```bash
+HOST=launchpad.example.com
+openssl s_client -connect "${HOST}:443" -servername "${HOST}" -showcerts </dev/null 2>/dev/null \
+  | openssl x509 -noout -subject -issuer -ext subjectAltName
+```
+
+### Individual Component Logs
+
+```bash
+# Stardog logs
+kubectl logs -l app=my-stardog-stack-stardog
+
+# Launchpad logs
+kubectl logs -l app=my-stardog-stack-launchpad
+
+# Voicebox logs
+kubectl logs -l app=my-stardog-stack-voicebox
+```

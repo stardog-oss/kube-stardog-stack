@@ -1,0 +1,144 @@
+name: Helm Package (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      charts:
+        description: 'JSON array of chart paths'
+        required: true
+        type: string
+        default: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/voicebox","charts/cachetarget","."]'
+      oci_repo:
+        description: 'OCI repo URL, e.g. oci://example.jfrog.io/'
+        required: true
+        type: string
+      versioning_mode:
+        description: 'branch | rc | release'
+        required: true
+        type: string
+        default: 'branch'
+      branch_prefix_regex:
+        description: 'Regex for ticket prefix'
+        required: false
+        type: string
+        default: '^(SAT|CLOUD)-[0-9]+'
+      prerelease_label:
+        description: 'Label for rc mode'
+        required: false
+        type: string
+        default: 'rc'
+      helm_version:
+        required: false
+        type: string
+        default: 'v3.19.4'
+      add_repos:
+        description: 'Optional newline-separated "name url" pairs'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      ARTIFACTORY_URL:
+        required: true
+      ARTIFACTORY_USERNAME:
+        required: true
+      ARTIFACTORY_PASSWORD:
+        required: true
+
+jobs:
+  package-and-push:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJSON(inputs.charts) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: ${{ inputs.helm_version }}
+
+      - name: Parse OCI host (for login)
+        id: parse
+        shell: bash
+        env:
+          OCI_REPO: ${{ inputs.oci_repo }}
+        run: |
+          set -euo pipefail
+          rest="${OCI_REPO#oci://}"; host="${rest%%/*}"
+          [[ -n "$host" ]] || { echo "Bad oci_repo (need oci://<host>[...])"; exit 1; }
+          echo "host=$host" >> "$GITHUB_OUTPUT"
+
+      - name: Helm login (OCI)
+        env:
+          HOST: ${{ steps.parse.outputs.host }}
+          USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
+          PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          helm registry logout "$HOST" >/dev/null 2>&1 || true
+          helm registry login "$HOST" --username "$USERNAME" --password "$PASSWORD"
+
+      - name: Add extra Helm repos (optional)
+        if: ${{ inputs.add_repos != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          while read -r line; do
+            [ -z "$line" ] && continue
+            name=$(echo "$line" | awk '{print $1}')
+            url=$(echo "$line" | awk '{print $2}')
+            helm repo add "$name" "$url"
+          done <<< "${{ inputs.add_repos }}"
+          helm repo update
+
+      - name: Build dependencies
+        working-directory: ${{ matrix.chart }}
+        run: helm dependency build
+
+      - name: Package & Push (OCI → host/charts/<chart>)
+        id: pkgpush
+        working-directory: ${{ matrix.chart }}
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+          RUN_NUM: ${{ github.run_number }}
+          OCI_REPO: ${{ inputs.oci_repo }}
+          VERSIONING_MODE: ${{ inputs.versioning_mode }}
+          PRERELEASE_LABEL: ${{ inputs.prerelease_label }}
+          BRANCH_RE: ${{ inputs.branch_prefix_regex }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          chart_name=$(helm show chart . | awk '/^name:/{print $2}')
+          base_ver=$(helm show chart . | awk '/^version:/{print $2}' | sed -E 's/^v//; s/\+.*$//')
+          [[ $base_ver =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Chart version must be X.Y.Z (got: $base_ver)"; exit 1; }
+
+          case "$VERSIONING_MODE" in
+            release) new_ver="$base_ver" ;;
+            rc)      new_ver="${base_ver}-${PRERELEASE_LABEL}.${RUN_NUM}" ;;
+            branch|*)
+              prefix=$(echo "$BRANCH_NAME" | grep -oE "$BRANCH_RE" || true)
+              [ -z "$prefix" ] && prefix="dev"
+              new_ver="${base_ver}-${prefix}.${RUN_NUM}"
+              ;;
+          esac
+
+          oci_repo="$(printf '%s' "$OCI_REPO" | tr -d '[:space:]')"
+          [[ "$oci_repo" == oci://* ]] || { echo "oci_repo must start with oci://"; exit 1; }
+          rest="${oci_repo#oci://}"
+          host="${rest%%/*}"
+          [[ -n "$host" ]] || { echo "missing host in oci_repo"; exit 1; }
+
+          dest_repo="oci://${host}/charts"
+          dest_ref="${dest_repo}/${chart_name}"
+
+          out=/tmp/pkg && mkdir -p "$out"
+          helm package . --dependency-update -d "$out" --version "$new_ver"
+          tgz="$out/${chart_name}-${new_ver}.tgz"
+
+          helm push "$tgz" "$dest_repo"
+          helm show chart "$dest_ref" --version "$new_ver" >/dev/null || { echo "Failed to verify pushed chart"; exit 1; }
+
+          echo "chart_name=$chart_name" >> "$GITHUB_OUTPUT"
+          echo "chart_version=$new_ver" >> "$GITHUB_OUTPUT"
+          echo "chart_uri=$dest_ref" >> "$GITHUB_OUTPUT"

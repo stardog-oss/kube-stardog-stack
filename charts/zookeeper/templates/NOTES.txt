@@ -1,0 +1,28 @@
+ZooKeeper has been deployed.
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+Client Service:
+  {{ include "zookeeper.fullname" . }}:{{ .Values.ports.client }}
+
+Headless Service (quorum DNS):
+  {{ include "zookeeper.headlessServiceName" . }}
+
+In-cluster example:
+  zkCli.sh -server {{ include "zookeeper.fullname" . }}:{{ .Values.ports.client }}
+
+Port-forward client port:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "zookeeper.fullname" . }} 2181:{{ .Values.ports.client }}
+
+AdminServer (on pods):
+  http://127.0.0.1:{{ .Values.ports.admin }}/commands/ruok
+
+Ensemble identity:
+  ZOO_SERVERS = {{ include "zookeeper.zooServers" . }}
+  ZOO_MY_ID is computed at runtime from pod ordinal + minServerId ({{ .Values.minServerId }})
+
+Standalone defaulting:
+  If values.standaloneEnabled is null:
+    - replicaCount==1 => true
+    - replicaCount>=2 => false

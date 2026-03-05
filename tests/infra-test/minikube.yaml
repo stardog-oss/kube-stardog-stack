@@ -1,0 +1,53 @@
+global:
+  stardog:
+    enabled: true
+  launchpad:
+    enabled: false
+  voicebox:
+    enabled: false
+  zookeeper:
+    enabled: false
+  cachetarget:
+    enabled: false
+
+stardog:
+  javaArgs: -Xmx512m -Xms512m -XX:MaxDirectMemorySize=512m
+
+  livenessProbe:
+    periodSeconds: 30
+    timeoutSeconds: 15
+
+  readinessProbe:
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
+
+  persistence:
+    size: 1Gi
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 768Mi
+    limits:
+      cpu: 750m
+      memory: 1024Mi
+
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution: []
+
+zookeeper:
+  podAntiAffinityPreset: soft
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 150m
+      memory: 256Mi
+  persistence:
+    enabled: true
+    data:
+      size: 1Gi
+      storageClass: standard

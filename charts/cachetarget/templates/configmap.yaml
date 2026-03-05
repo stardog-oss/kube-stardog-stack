@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cachetarget.fullname" . }}-log4j
+  namespace: {{ include "cachetarget.namespace" . }}
+  labels:
+    {{- include "sdcommon.labels.standard" . | nindent 4 }}
+data:{{ if .Values.log4jConfig.override }}
+  log4j2.xml: {{ toJson .Values.log4jConfig.content }}{{ else }}
+  {{- (.Files.Glob "files/log4j2.xml").AsConfig | nindent 2 }}
+{{ end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cachetarget.fullname" . }}-properties
+  namespace: {{ include "cachetarget.namespace" . }}
+  labels:
+    {{- include "sdcommon.labels.standard" . | nindent 4 }}
+
+data:
+  stardog.properties: |
+    query.timeout = 10m
+    cache.target.enabled = true
+    cache.target.autoregister = false
+  {{- .Values.additionalStardogProperties | nindent 4 }}

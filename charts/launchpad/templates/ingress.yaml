@@ -1,0 +1,40 @@
+{{- if .Values.ingress.enabled }}
+{{- printf "# WARNING: ingress.* is deprecated and will be removed in a future release. Use gateway.* instead.\n" }}
+{{- end }}
+
+{{- $issuer := (include "sdcommon.effectiveCertIssuer" . | fromYaml) -}}
+{{- if and .Values.ingress.enabled .Values.ingress.tls.enabled (not $issuer.enabled) }}
+  {{- if eq (default "" .Values.ingress.tls.secretName) "" }}
+    {{- fail "ingress.tls.secretName must be set when certIssuer is disabled." -}}
+  {{- else }}
+    {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" .Values.ingress.tls.secretName "namespace" .Release.Namespace) }}
+  {{- end }}
+{{- end }}
+
+{{- if .Values.ingress.enabled }}
+  {{- $host := printf "%s.%s" (.Values.ingress.sparqlSubdomain | default "launchpad") .Values.ingress.url }}
+  {{- $annotations := dict }}
+  {{- if $issuer.enabled }}
+    {{- if eq (include "certIssuer.kind" .) "ClusterIssuer" }}
+      {{- $_ := set $annotations "cert-manager.io/cluster-issuer" (include "certIssuer.name.lp" .) -}}
+    {{- else }}
+      {{- $_ := set $annotations "cert-manager.io/issuer" (include "certIssuer.name.lp" .) -}}
+    {{- end }}
+  {{- end }}
+  {{- $merged := merge $annotations (default dict .Values.ingress.annotations) }}
+  {{- $tls := list }}
+  {{- if .Values.ingress.tls.enabled }}
+    {{- $tls = list (dict "hosts" (list $host) "secretName" (include "certIssuer.secretName.lp" .)) }}
+  {{- end }}
+  {{- $paths := list (dict "path" .Values.ingress.path "pathType" .Values.ingress.pathType "backend" (dict "service" (dict "name" (include "sdcommon.fullname" .) "port" (dict "number" 80)))) }}
+  {{- $rules := list (dict "host" $host "http" (dict "paths" $paths)) }}
+{{- printf "%s\n" (include "sdcommon.ingressResource" (dict
+      "context" .
+      "name" (include "sdcommon.fullname" .)
+      "className" .Values.ingress.className
+      "annotations" $merged
+      "extraLabels" (dict "app" (include "sdcommon.fullname" .))
+      "rules" $rules
+      "tls" $tls
+  )) }}
+{{- end }}

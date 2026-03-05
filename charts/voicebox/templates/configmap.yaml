@@ -1,0 +1,10 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sdcommon.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdcommon.labels.standard" . | nindent 4 }}
+data:
+  vbx_config.json: {{ .Values.configFile | quote }}

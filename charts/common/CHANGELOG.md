@@ -1,0 +1,5 @@
+# Changelog
+
+## 0.1.5
+- Initial release of the common chart.
+- Shared helpers and reusable templates used across all subcharts.

@@ -1,0 +1,58 @@
+suite: Launchpad Redirect Service
+templates:
+  - launchpad-redirect-service.yaml
+tests:
+  - it: creates ExternalName service when redirect uses external URL
+    set:
+      gateway:
+        enabled: true
+        http:
+          redirectToLaunchpad:
+            enabled: true
+            externalUrl: https://launchpad.example.com
+      stardog:
+        gateway:
+          enabled: true
+          http:
+            redirectToLaunchpad:
+              enabled: true
+              externalUrl: https://launchpad.example.com
+      global:
+        gateway:
+          enabled: true
+        launchpad:
+          enabled: false
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.externalName
+          value: launchpad.example.com
+      - equal:
+          path: spec.ports[0].port
+          value: 443
+
+  - it: skips ExternalName service when mode is redirect
+    set:
+      gateway:
+        enabled: true
+        http:
+          redirectToLaunchpad:
+            enabled: true
+            mode: redirect
+            externalUrl: https://launchpad.example.com
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not render service when gateway disabled
+    set:
+      gateway:
+        enabled: false
+        http:
+          redirectToLaunchpad:
+            enabled: true
+            externalUrl: https://launchpad.example.com
+    asserts:
+      - hasDocuments:
+          count: 0

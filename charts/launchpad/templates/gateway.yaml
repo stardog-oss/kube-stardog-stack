@@ -1,0 +1,141 @@
+{{- if eq (include "launchpad.gatewayEnabled" .) "true" }}
+  {{- $rawGateway := default (dict) .Values.gateway }}
+  {{- $httpConfig := default (dict) $rawGateway.http }}
+  {{- $gatewayConfig := deepCopy $httpConfig }}
+  {{- $globalGatewayEnabled := eq (include "sdcommon.globalGatewayEnabled" .) "true" }}
+  {{- $globalValues := default (dict) .Values.global }}
+  {{- $globalGateway := default (dict) (index $globalValues "gateway") }}
+  {{- $globalGatewayName := include "sdcommon.globalGatewayName" . }}
+  {{- $globalGatewayNamespace := include "sdcommon.globalGatewayNamespace" . }}
+  {{- $globalDomain := trim (default "" (index $globalGateway "domain")) }}
+  {{- $globalTls := default (dict) (index $globalGateway "tls") }}
+  {{- $globalTlsEnabled := default true (index $globalTls "enabled") }}
+  {{- $issuer := (include "sdcommon.effectiveCertIssuer" . | fromYaml) }}
+  {{- if and $globalGatewayEnabled (eq (trim (default "" $gatewayConfig.domain)) "") (ne $globalDomain "") }}
+    {{- $_ := set $gatewayConfig "domain" $globalDomain }}
+  {{- end }}
+  {{- $_ := set $gatewayConfig "enabled" true }}
+  {{- $domain := default "" $gatewayConfig.domain }}
+  {{- if eq (default "" $domain) "" }}
+    {{- fail "gateway.http.domain must be set to build fully-qualified hostnames." -}}
+  {{- end }}
+  {{- $gatewayName := default (include "sdcommon.defaultGatewayName" .) $gatewayConfig.name }}
+  {{- $createGateway := or (not (hasKey $gatewayConfig "createGateway")) $gatewayConfig.createGateway }}
+  {{- if $globalGatewayEnabled }}
+    {{- $createGateway = false }}
+    {{- $_ := set $gatewayConfig "createGateway" false }}
+  {{- end }}
+  {{- if and $globalGatewayEnabled (not (gt (len (default (list) $gatewayConfig.parentRefs)) 0)) }}
+    {{- $_ := set $gatewayConfig "parentRefs" (list (dict "name" $globalGatewayName "namespace" $globalGatewayNamespace "sectionName" "launchpad")) }}
+  {{- end }}
+  {{- $baseParentRefs := list }}
+  {{- if $createGateway }}
+    {{- $baseParentRefs = list (dict "name" $gatewayName "namespace" .Release.Namespace) }}
+  {{- else if $gatewayConfig.parentRefs }}
+    {{- $baseParentRefs = $gatewayConfig.parentRefs }}
+  {{- else }}
+    {{- fail "gateway.http.parentRefs must be provided when createGateway=false." -}}
+  {{- end }}
+  {{- $host := printf "%s.%s" (default "launchpad" $gatewayConfig.subdomain) $domain }}
+  {{- $pathValue := default "/" $gatewayConfig.path }}
+  {{- $pathTypeSetting := default "Prefix" $gatewayConfig.pathType }}
+  {{- $matchType := ternary "Exact" "PathPrefix" (eq (lower $pathTypeSetting) "exact") }}
+  {{- $port := default (ternary 443 80 $gatewayConfig.tls.enabled) $gatewayConfig.port }}
+  {{- $redirectCfg := deepCopy (default (dict) $gatewayConfig.redirect) }}
+  {{- $redirectEnabled := default false $redirectCfg.enabled }}
+  {{- if and $globalGatewayEnabled $redirectEnabled (not (gt (len (default (list) $redirectCfg.parentRefs)) 0)) }}
+    {{- $_ := set $redirectCfg "parentRefs" (list (dict "name" $globalGatewayName "namespace" $globalGatewayNamespace "sectionName" "launchpad-http")) }}
+  {{- end }}
+  {{- if and $redirectEnabled $createGateway (not $gatewayConfig.tls.enabled) }}
+    {{- fail "gateway.http.redirect.enabled requires gateway.http.tls.enabled when the chart creates the Gateway." -}}
+  {{- end }}
+  {{- $redirectPort := int (default 80 $redirectCfg.port) }}
+  {{- if and $redirectEnabled (le $redirectPort 0) }}
+    {{- fail "gateway.http.redirect.port must be a positive integer." -}}
+  {{- end }}
+  {{- $redirectStatus := int (default 301 $redirectCfg.statusCode) }}
+  {{- if and $redirectEnabled (or (lt $redirectStatus 300) (gt $redirectStatus 399)) }}
+    {{- fail "gateway.http.redirect.statusCode must be between 300 and 399." -}}
+  {{- end }}
+  {{- $redirectParentRefs := default (list) $redirectCfg.parentRefs }}
+  {{- if not $gatewayConfig.tls }}
+    {{- $_ := set $gatewayConfig "tls" (dict) }}
+  {{- end }}
+  {{- if and $globalGatewayEnabled $globalTlsEnabled }}
+    {{- $_ := set $gatewayConfig.tls "enabled" true }}
+  {{- end }}
+  {{- if and $globalGatewayEnabled (ne $globalGatewayNamespace .Release.Namespace) }}
+    {{- $_ := set $gatewayConfig.tls "secretNamespace" $globalGatewayNamespace }}
+  {{- end }}
+  {{- $tlsSecret := default "" $gatewayConfig.tls.secretName }}
+  {{- $tlsSecretNamespace := default .Release.Namespace $gatewayConfig.tls.secretNamespace }}
+  {{- if and $createGateway (ne $tlsSecretNamespace .Release.Namespace) }}
+    {{- fail "gateway.http.tls.secretNamespace can only be overridden when createGateway=false." -}}
+  {{- end }}
+  {{- $_ := set $gatewayConfig.tls "secretNamespace" $tlsSecretNamespace }}
+  {{- if and $gatewayConfig.tls.enabled (eq $tlsSecret "") }}
+    {{- if $issuer.enabled }}
+      {{- $_ := set $gatewayConfig.tls "secretName" (include "certIssuer.secretName.lp" .) }}
+      {{- $tlsSecret = $gatewayConfig.tls.secretName }}
+    {{- else }}
+      {{- fail "gateway.http.tls.secretName must be set when TLS is enabled." -}}
+    {{- end }}
+  {{- end }}
+  {{- if and $gatewayConfig.tls.enabled $tlsSecret (not $issuer.enabled) }}
+    {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" $tlsSecret "namespace" $tlsSecretNamespace) }}
+  {{- end }}
+  {{- if and $redirectEnabled (not $createGateway) (not (gt (len $redirectParentRefs) 0)) }}
+    {{- fail "gateway.http.redirect.parentRefs must be provided when createGateway=false and redirects are enabled." -}}
+  {{- end }}
+  {{- if and $redirectEnabled (not $createGateway) }}
+    {{- range $baseParentRefs }}
+      {{- if eq (default "" .sectionName) "" }}
+        {{- fail "gateway.http.parentRefs must include sectionName referencing the HTTPS listener when redirects are enabled and createGateway=false." -}}
+      {{- end }}
+    {{- end }}
+    {{- range $redirectParentRefs }}
+      {{- if eq (default "" .sectionName) "" }}
+        {{- fail "gateway.http.redirect.parentRefs must include sectionName referencing the HTTP listener when createGateway=false." -}}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- $matches := list (dict "path" (dict "type" $matchType "value" $pathValue)) }}
+  {{- $tlsParentRefs := $baseParentRefs }}
+  {{- $httpParentRefs := $redirectParentRefs }}
+  {{- if and $redirectEnabled $createGateway }}
+    {{- $tlsParentRefs = list (dict "name" $gatewayName "namespace" .Release.Namespace "sectionName" "launchpad") }}
+    {{- $httpParentRefs = list (dict "name" $gatewayName "namespace" .Release.Namespace "sectionName" "launchpad-http") }}
+  {{- end }}
+  {{- $servicePort := 80 }}
+  {{- $route := dict
+        "name" (printf "%s-launchpad" (include "sdcommon.fullname" .))
+        "hostnames" (list $host)
+        "rules" (list (dict "matches" $matches "backendRefs" (list (dict "name" (include "sdcommon.fullname" .) "port" $servicePort))))
+        "parentRefs" $tlsParentRefs
+    }}
+  {{- $listeners := list (dict "name" "launchpad" "hostname" $host "port" $port) }}
+  {{- if and $redirectEnabled $createGateway }}
+    {{- $listeners = append $listeners (dict "name" "launchpad-http" "hostname" $host "port" $redirectPort "protocol" "HTTP") }}
+  {{- end }}
+  {{- if $redirectEnabled }}
+    {{- $redirectRule := dict "matches" $matches "filters" (list (dict "type" "RequestRedirect" "requestRedirect" (dict "scheme" "https" "port" 443 "statusCode" $redirectStatus))) }}
+    {{- $redirectRoute := dict
+          "name" (printf "%s-launchpad-http-redirect" (include "sdcommon.fullname" .))
+          "hostnames" (list $host)
+          "rules" (list $redirectRule)
+          "parentRefs" $httpParentRefs
+      }}
+    {{- $route = list $route $redirectRoute }}
+  {{- else }}
+    {{- $route = list $route }}
+  {{- end }}
+  {{- $autoTlsSecret := and $issuer.enabled $gatewayConfig.tls.enabled }}
+  {{- include "sdcommon.gatewayResources" (dict
+        "context" .
+        "gateway" $gatewayConfig
+        "ingressEnabled" .Values.ingress.enabled
+        "listeners" $listeners
+        "routes" $route
+        "skipTlsSecretValidation" $autoTlsSecret
+    ) }}
+{{- end }}

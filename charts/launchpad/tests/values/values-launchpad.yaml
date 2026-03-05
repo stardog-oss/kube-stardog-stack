@@ -1,0 +1,55 @@
+global:
+  stardog:
+    enabled: false
+  launchpad:
+    enabled: true
+
+launchpad:
+  enabled: true
+  image:
+    registry: stardog.azurecr.io
+    repository: sa-lab-stardog/launchpad
+    tag: latest
+    username: helm-stardog
+    password: "uhdd7/iwy9nHf9b8mDWWHx0JsNsyTVh6d0h/Zl9kAz+ACRBtLFVf"
+
+  tls:
+    enabled: true
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    #fsGroup: 1000
+
+  certIssuer:
+    enabled: true
+    type: acme
+    acme:
+      email: admin@stardog.com
+      server: https://acme-v02.api.letsencrypt.org/directory
+      solvers:
+        - http01:
+            ingress:  
+              class: nginx
+
+  ingress:
+    enabled: true
+    annotations: {}
+    className: "nginx"
+    url: "lp.test.sd-testlab.com" # The URL for the ingress
+    path: "/" # The path for the ingress
+    pathType: "Prefix" # The path type (e.g., Prefix, Exact)
+    tls:
+      enabled: true
+
+  service:
+    enabled: true
+    port: 8080
+    type: ClusterIP
+    loadBalancerIP: "192.168.1.2"
+
+  environmentVariables:
+    FRIENDLY_NAME: "Stardog Applications Cluster Alone"
+    STARDOG_INTERNAL_ENDPOINT: "https://sparql.test.sd-testlab.com"
+    STARDOG_EXTERNAL_ENDPOINT: "https://sparql.test.sd-testlab.com"

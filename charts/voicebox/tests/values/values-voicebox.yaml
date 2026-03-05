@@ -1,0 +1,59 @@
+
+global:
+  stardog:
+    enabled: false
+  voicebox:
+    enabled: true
+
+replicaCount: 2
+image:
+  registry: stardog.azurecr.io
+  repository: sa-lab-stardog/voicebox
+  tag: latest
+  pullPolicy: Always
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+env:
+  - name: VBX_CONFIG_FILE
+    value: /voicebox-config/vbx_config.json
+  - name: PRODUCTION
+    value: "1"
+nodeSelector:
+  disktype: ssd
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: disktype
+              operator: In
+              values:
+                - ssd
+tolerations:
+  - key: "key1"
+    operator: "Equal"
+    value: "value1"
+    effect: "NoSchedule"
+resources: 
+  requests:
+    memory: "256Mi"
+    cpu: "250m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+configFile: |
+  {
+    "agent_selection_type": "llm",
+    "enable_lineage": true,
+    "enable_external_llm": true,
+    "enable_analytics": true,
+    "enable_charts": true,
+    "use_agents_automatically": false,
+    "default_llm_config": {
+      "llm_provider": "azure",
+      "llm_name": "Meta-Llama-3.1-70B-Instruct",
+      "server_url": "https://add-url-model.services.ai.azure.com/models"
+    }
+  } 

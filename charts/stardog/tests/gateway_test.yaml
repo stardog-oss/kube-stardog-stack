@@ -1,0 +1,496 @@
+suite: Gateway Support
+values:
+  - values/values-stardog.yaml
+templates:
+  - gateway.yaml
+
+tests:
+  - it: renders Gateway and SPARQL route when enabled
+    set:
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          className: traefik
+          skipApiValidation: true
+          tls:
+            enabled: true
+            secretName: custom-tls
+          redirect:
+            enabled: false
+      global:
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+          - metadata:
+              name: custom-tls
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        equal:
+          path: spec.gatewayClassName
+          value: traefik
+      - documentIndex: 0
+        equal:
+          path: spec.listeners[0].hostname
+          value: sparql.example.com
+      - documentIndex: 1
+        equal:
+          path: spec.hostnames[0]
+          value: sparql.example.com
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 5820
+
+  - it: does not render BI HTTP routes even when BI enabled
+    set:
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          className: traefik
+          skipApiValidation: true
+          redirect:
+            enabled: false
+        tcpBi:
+          enabled: false
+      bi:
+        enabled: true
+      global:
+        bi:
+          enabled: true
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        notExists:
+          path: spec.listeners[1]
+      - documentIndex: 1
+        equal:
+          path: spec.hostnames[0]
+          value: sparql.example.com
+
+  - it: enforces TLS secret when enabled
+    set:
+      gateway:
+        enabled: true
+        http:
+          className: traefik
+          domain: example.com
+          skipApiValidation: true
+          tls:
+            enabled: true
+          redirect:
+            enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.http.tls.secretName must be set when TLS is enabled."
+
+  - it: prevents enabling ingress and gateway at the same time
+    set:
+      ingress:
+        enabled: true
+      gateway:
+        enabled: true
+        http:
+          className: traefik
+          domain: example.com
+          skipApiValidation: true
+          redirect:
+            enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.enabled=true requires ingress.enabled=false. Disable ingress and prefer gateway.* exposure."
+
+  - it: adds HTTP redirect routes when requested
+    set:
+      gateway:
+        enabled: true
+        http:
+          className: traefik
+          domain: example.com
+          skipApiValidation: true
+          tls:
+            enabled: true
+            secretName: custom-tls
+          redirect:
+            enabled: true
+            port: 8080
+            statusCode: 308
+      global:
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+          - metadata:
+              name: custom-tls
+    asserts:
+      - hasDocuments:
+          count: 3
+      - documentIndex: 1
+        equal:
+          path: spec.parentRefs[0].sectionName
+          value: sparql
+      - documentIndex: 2
+        equal:
+          path: spec.parentRefs[0].sectionName
+          value: sparql-http
+      - documentIndex: 2
+        equal:
+          path: spec.rules[0].filters[0].requestRedirect.statusCode
+          value: 308
+
+  - it: falls back to certIssuer secret when tls.secretName omitted
+    set:
+      certIssuer:
+        enabled: true
+      ingress:
+        enabled: false
+        tls:
+          secretName: sparql-custom
+      gateway:
+        enabled: true
+        http:
+          className: traefik
+          domain: example.com
+          skipApiValidation: true
+          tls:
+            enabled: true
+          redirect:
+            enabled: false
+      global:
+        __secretFixtures:
+          - metadata:
+              name: sparql-custom
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: fails when TLS secret cannot be determined
+    set:
+      certIssuer:
+        enabled: false
+      ingress:
+        enabled: false
+      gateway:
+        enabled: true
+        http:
+          className: traefik
+          domain: example.com
+          skipApiValidation: true
+          tls:
+            enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.http.tls.secretName must be set when TLS is enabled."
+
+  - it: routes root path to custom Launchpad service when redirect enabled
+    set:
+      gateway:
+        enabled: true
+        http:
+          className: traefik
+          domain: example.com
+          skipApiValidation: true
+          redirect:
+            enabled: false
+          redirectToLaunchpad:
+            enabled: true
+            serviceName: custom-launchpad
+            servicePort: 81
+      global:
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].matches[0].path.value
+          value: /
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: custom-launchpad
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 81
+      - documentIndex: 1
+        equal:
+          path: spec.rules[1].backendRefs[0].port
+          value: 5820
+
+  - it: auto enables launchpad redirect when launchpad chart enabled
+    set:
+      global:
+        launchpad:
+          enabled: true
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+      gateway:
+        enabled: true
+        http:
+          className: traefik
+          domain: example.com
+          skipApiValidation: true
+          redirect:
+            enabled: false
+    asserts:
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].matches[0].path.value
+          value: /
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].filters[0].requestRedirect.hostname
+          value: launchpad.example.com
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].filters[0].requestRedirect.scheme
+          value: https
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].filters[0].requestRedirect.port
+          value: 443
+
+  - it: routes root path to redirect backend when mode backend
+    set:
+      gateway:
+        enabled: true
+        http:
+          className: traefik
+          domain: example.com
+          skipApiValidation: true
+          redirect:
+            enabled: false
+          redirectToLaunchpad:
+            enabled: true
+            mode: backend
+      global:
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: stardog-RELEASE-NAME-launchpad-redirect
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 8080
+
+  - it: renders TCPRoute for BI port when tcpBi enabled
+    set:
+      gateway:
+        enabled: true
+        http:
+          className: traefik
+          domain: example.com
+          skipApiValidation: true
+          redirect:
+            enabled: false
+        tcpBi:
+          enabled: true
+          port: 5806
+      bi:
+        enabled: true
+      global:
+        bi:
+          enabled: true
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - hasDocuments:
+          count: 3
+      - documentIndex: 2
+        isKind:
+          of: TCPRoute
+      - documentIndex: 2
+        equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 5806
+
+  - it: auto enables TCPRoute when bi enabled and tcpBi unset
+    set:
+      gateway:
+        enabled: true
+        http:
+          className: traefik
+          domain: example.com
+          skipApiValidation: true
+          redirect:
+            enabled: false
+      bi:
+        enabled: true
+      global:
+        bi:
+          enabled: true
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - hasDocuments:
+          count: 3
+      - documentIndex: 2
+        isKind:
+          of: TCPRoute
+
+  - it: auto enables TCPRoute when global BI enabled and tcpBi unset
+    set:
+      gateway:
+        enabled: true
+        http:
+          className: traefik
+          domain: example.com
+          skipApiValidation: true
+          redirect:
+            enabled: false
+      bi:
+        enabled: false
+      global:
+        bi:
+          enabled: true
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - hasDocuments:
+          count: 3
+      - documentIndex: 2
+        isKind:
+          of: TCPRoute
+
+  - it: uses provided tcpBi parentRefs when createGateway disabled
+    set:
+      gateway:
+        enabled: true
+        http:
+          createGateway: false
+          domain: example.com
+          skipApiValidation: true
+          redirect:
+            enabled: false
+          parentRefs:
+            - name: shared-gw
+              namespace: envoy
+              sectionName: https
+        tcpBi:
+          parentRefs:
+            - name: shared-gw
+              namespace: envoy
+              sectionName: bi-tcp
+      bi:
+        enabled: true
+      global:
+        bi:
+          enabled: true
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 1
+        isKind:
+          of: TCPRoute
+      - documentIndex: 1
+        equal:
+          path: spec.parentRefs[0].sectionName
+          value: bi-tcp
+
+  - it: fails when tcpBi TLS enabled without secret
+    set:
+      gateway:
+        enabled: true
+        http:
+          className: traefik
+          domain: example.com
+          skipApiValidation: true
+          redirect:
+            enabled: false
+        tcpBi:
+          enabled: true
+          tls:
+            enabled: true
+            mode: Terminate
+      tls:
+        enabled: true
+      bi:
+        enabled: true
+      global:
+        bi:
+          enabled: true
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.tcpBi.tls.secretName must be set when tcpBi.tls.enabled=true and tls.mode is Terminate."
+
+  - it: fails when tcpBi TLS enabled without stardog BI TLS
+    set:
+      gateway:
+        enabled: true
+        http:
+          className: traefik
+          domain: example.com
+          skipApiValidation: true
+          redirect:
+            enabled: false
+        tcpBi:
+          enabled: true
+          tls:
+            enabled: true
+            mode: Passthrough
+      bi:
+        enabled: true
+      global:
+        bi:
+          enabled: true
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.tcpBi.tls.enabled with mode=Passthrough requires stardog.tls.bi.enabled=true."
+
+  - it: fails when tcpBi TLS configured while createGateway disabled
+    set:
+      gateway:
+        enabled: true
+        http:
+          createGateway: false
+          domain: example.com
+          skipApiValidation: true
+          redirect:
+            enabled: false
+          parentRefs:
+            - name: shared-gw
+              namespace: envoy
+              sectionName: https
+        tcpBi:
+          parentRefs:
+            - name: shared-gw
+              namespace: envoy
+              sectionName: bi-tcp
+          tls:
+            enabled: true
+            secretName: custom-tls
+      bi:
+        enabled: true
+      global:
+        bi:
+          enabled: true
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.tcpBi.tls.* is only supported when gateway.http.createGateway=true. Configure TLS on the external Gateway listener instead."

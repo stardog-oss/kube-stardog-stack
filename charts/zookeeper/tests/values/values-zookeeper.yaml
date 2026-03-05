@@ -1,0 +1,51 @@
+global:
+  stardog:
+    enabled: false
+  zookeeper:
+    enabled: true
+
+image:
+  repository: zookeeper
+  tag: "3.8.3"
+  pullPolicy: IfNotPresent
+
+replicaCount: 3
+
+ports:
+  client: 2181
+  quorum: 2888
+  leaderElection: 3888
+  admin: 8080
+  metrics: 7000
+
+service:
+  type: ClusterIP
+  exposeAdmin: true
+  exposeMetrics: true
+
+persistence:
+  enabled: true
+  data:
+    size: 8Gi
+    accessModes: ["ReadWriteOnce"]
+
+config:
+  tickTime: 2000
+  initLimit: 10
+  syncLimit: 5
+  maxClientCnxns: 60
+  fourLetterWordsWhitelist: "ruok,stat,srvr,mntr,conf,isro"
+
+serviceAccount:
+  create: true
+  automountServiceAccountToken: true
+
+podSecurityContext:
+  enabled: true
+  fsGroup: 1000
+
+containerSecurityContext:
+  enabled: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true

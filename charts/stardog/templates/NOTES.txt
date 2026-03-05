@@ -1,0 +1,50 @@
+CHART NAME: {{ .Chart.Name }}
+CHART VERSION: {{ .Chart.Version }}
+APP VERSION: {{ .Chart.AppVersion }}
+
+** Please be patient while the chart is being deployed **
+
+Your application is now deployed and can be accessed via:
+
+Stardog endpoint: {{ printf "%s.%s" (.Values.ingress.sparqlSubdomain | default "sparql") .Values.ingress.url }}
+
+{{- if and .Values.ingress.nabled (eq (include "stardog.effectiveBiEnabled" .) "true") }}
+BI endpoint: {{ printf "%s.%s" (.Values.ingress.biSubdomain | default "bi") .Values.ingress.url }}:{{ .Values.ports.sql }}
+{{- else }}
+{{- if eq .Values.service.type "ClusterIP" }}
+
+  {{- if .Values.route.enabled }}
+  Use the following URLs to access Stardog:
+SPARQL endpoint: sparql.{{ include "stardog.fullname" . }}.{{ .Values.route.domain }}
+  {{- else }}
+
+  Use `kubectl` to port-forward or proxy to your pod:
+
+  kubectl port-forward svc/{{ include "stardog.fullname" . }} 5820:5820
+  {{- end }}
+{{- else if eq .Values.service.type "LoadBalancer" }}
+  Access your application via the LoadBalancer's IP:
+  kubectl get svc {{ include "stardog.fullname" . }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+
+{{- else if eq .Values.service.type "NodePort" }}
+  Access your application via any cluster node IP at the following port:
+
+  kubectl get svc {{ include "stardog.fullname" . }} -o jsonpath='{.spec.ports[0].nodePort}'
+{{- end }}
+{{- end }}
+
+{{- if and .Values.backup.enabled (not .Values.backup.backupCredentialsSecret) }}
+  {{- $secret := lookup "v1" "Secret" .Release.Namespace ((include "stardog.fullname" .) | printf "%s-backup-credentials") }}
+  {{- if $secret }}
+  Please save these backup user credentials for future use:
+  {{- range $key, $val := $secret.data }}
+     {{ $key }}: {{ $val | b64dec }}
+  {{- end }}
+  
+  In the event of a restore, the credentials will need to be updated, and the secret named {{ ((include "stardog.fullname" .) | printf "%s-backup-credentials") }} must be recreated with the new password.
+  Save these credentials securely for future use.
+  {{- end }}
+{{- end }}
+
+Thank you for installing {{ .Chart.Name }}!
+For more information, visit https://stardog.com.

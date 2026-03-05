@@ -1,0 +1,153 @@
+suite: Launchpad Cert Issuer
+templates:
+  - issuer.yaml
+
+tests:
+  - it: renders ClusterIssuer for self-signed certificates
+    set:
+      certIssuer:
+        enabled: true
+        clusterScoped: true
+        type: selfSigned
+    asserts:
+      - isKind:
+          of: ClusterIssuer
+      - notExists:
+          path: metadata.namespace
+      - exists:
+          path: spec.selfSigned
+
+  - it: renders Issuer for ACME configuration
+    set:
+      certIssuer:
+        enabled: true
+        clusterScoped: false
+        type: acme
+        acme:
+          email: admin@example.com
+          server: https://acme-v02.api.letsencrypt.org/directory
+          solvers:
+            - http01:
+                ingress:
+                  class: nginx
+    asserts:
+      - isKind:
+          of: Issuer
+      - equal:
+          path: metadata.namespace
+          value: NAMESPACE
+      - equal:
+          path: spec.acme.email
+          value: admin@example.com
+      - equal:
+          path: spec.acme.server
+          value: https://acme-v02.api.letsencrypt.org/directory
+
+  - it: auto-configures gateway solver when solvers empty
+    set:
+      certIssuer:
+        enabled: true
+        type: acme
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          className: traefik
+          skipApiValidation: true
+          tls:
+            enabled: true
+            secretName: gw-cert
+      ingress:
+        enabled: false
+    asserts:
+      - equal:
+          path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].name
+          value: RELEASE-NAME-gateway
+  - it: prefers redirect parentRefs when redirects enabled
+    set:
+      certIssuer:
+        enabled: true
+        type: acme
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          createGateway: false
+          parentRefs:
+            - name: shared-https
+              namespace: gateway-system
+              sectionName: https
+          redirect:
+            enabled: true
+            parentRefs:
+              - name: shared-http
+                namespace: gateway-system
+                sectionName: http
+      ingress:
+        enabled: false
+    asserts:
+      - equal:
+          path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].name
+          value: shared-http
+      - equal:
+          path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].sectionName
+          value: http
+
+  - it: renders Issuer for CA type
+    set:
+      certIssuer:
+        enabled: true
+        clusterScoped: false
+        type: ca
+        ca:
+          secretName: ca-secret
+    asserts:
+      - equal:
+          path: spec.ca.secretName
+          value: ca-secret
+      - exists:
+          path: metadata.namespace
+
+  - it: renders Issuer for Vault type
+    set:
+      certIssuer:
+        enabled: true
+        clusterScoped: false
+        type: vault
+        vault:
+          server: https://vault.example.com
+          path: pki/sign/stardog
+          auth:
+            tokenSecretRef:
+              name: vault-token
+              key: token
+    asserts:
+      - equal:
+          path: spec.vault.server
+          value: https://vault.example.com
+      - equal:
+          path: spec.vault.path
+          value: pki/sign/stardog
+      - equal:
+          path: spec.vault.auth.tokenSecretRef.name
+          value: vault-token
+
+  - it: renders Issuer for CyberArk Venafi type
+    set:
+      certIssuer:
+        enabled: true
+        clusterScoped: false
+        type: cyberArk
+        cyberArk:
+          zone: Platform\\Team
+          cloud:
+            apiTokenSecretRef:
+              name: venafi-token
+              key: apikey
+    asserts:
+      - equal:
+          path: spec.venafi.zone
+          value: Platform\\Team
+      - equal:
+          path: spec.venafi.cloud.apiTokenSecretRef.name
+          value: venafi-token

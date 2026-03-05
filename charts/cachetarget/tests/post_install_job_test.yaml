@@ -1,0 +1,39 @@
+suite: Cache Target Post-Install Job
+values:
+  - values/values-cachetarget.yaml
+templates:
+  - post-install-job.yaml
+
+tests:
+  - it: renders post-install job with default primary secret
+    set:
+      primary:
+        name: ""
+    asserts:
+      - isKind:
+          of: Job
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PRIMARY_PW
+            valueFrom:
+              secretKeyRef:
+                name: stardog-RELEASE-NAME-password
+                key: password
+
+  - it: honors explicit primary override for secret references
+    set:
+      primary:
+        name: prod-stardog
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PRIMARY_PW
+            valueFrom:
+              secretKeyRef:
+                name: prod-stardog-password
+                key: password
+      - equal:
+          path: spec.template.spec.volumes[1].name
+          value: prod-stardog-password

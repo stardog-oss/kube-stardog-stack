@@ -1,0 +1,87 @@
+suite: StorageClass validation
+templates:
+  - statefulset.yaml
+
+tests:
+  - it: fails when no default storage class exists
+    values:
+      - values/values-stardog.yaml
+    set:
+      persistence:
+        storageClass: ""
+      global:
+        __storageClassFixtures:
+          - metadata:
+              name: gp3
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - failedTemplate:
+          errorMessage: "No default StorageClass detected. Please set persistence.storageClass or ask your cluster admin to mark a default StorageClass."
+
+  - it: passes when default storage class exists
+    values:
+      - values/values-stardog.yaml
+    set:
+      persistence:
+        storageClass: ""
+      global:
+        __storageClassFixtures:
+          - metadata:
+              name: managed-csi
+              annotations:
+                storageclass.kubernetes.io/is-default-class: "true"
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+
+  - it: fails when explicit storage class is missing
+    values:
+      - values/values-stardog.yaml
+    set:
+      persistence:
+        storageClass: premium-ssd
+      global:
+        __storageClassFixtures:
+          - metadata:
+              name: managed-csi
+              annotations:
+                storageclass.kubernetes.io/is-default-class: "true"
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - failedTemplate:
+          errorMessage: "StorageClass premium-ssd not found. Please create it or choose an existing class."
+
+  - it: uses explicit storage class when it exists
+    values:
+      - values/values-stardog.yaml
+    set:
+      persistence:
+        storageClass: premium-ssd
+      global:
+        __storageClassFixtures:
+          - metadata:
+              name: managed-csi
+              annotations:
+                storageclass.kubernetes.io/is-default-class: "true"
+          - metadata:
+              name: premium-ssd
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: premium-ssd

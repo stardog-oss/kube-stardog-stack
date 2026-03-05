@@ -1,0 +1,44 @@
+
+suite: Validate Stardog Init Job
+templates:
+- job-post-install.yaml
+tests:
+# Test for Stardog Job Creation
+- it: should create a Stardog initialization job when Stardog is enabled
+  values:
+    - values/values-stardog.yaml
+  set:
+    securityContext:
+      runAsUser: 1000
+    image:
+      pullPolicy: IfNotPresent
+      registry: docker.io
+      repository: stardog/stardog
+      tag: latest
+    ports:
+      server: "5820"
+  asserts:
+  - isKind:
+      of: Job
+  - equal:
+      path: metadata.name
+      value: stardog-RELEASE-NAME
+  - equal:
+      path: spec.template.spec.securityContext.runAsUser
+      value: 1000
+  - equal:
+      path: spec.template.spec.containers[0].imagePullPolicy
+      value: IfNotPresent
+
+# Test Image Pull Secrets
+- it: should correctly use image pull secrets if provided
+  values:
+    - values/values-stardog.yaml
+  set:
+    image:
+      username: "stardog_user"
+      password: "stardog_pass"
+  asserts:
+  - equal:
+      path: spec.template.spec.imagePullSecrets[0].name
+      value: "RELEASE-NAME-image-pull-secret"

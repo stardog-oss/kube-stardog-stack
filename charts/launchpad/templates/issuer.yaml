@@ -1,0 +1,109 @@
+{{- $issuer := (include "sdcommon.effectiveCertIssuer" . | fromYaml) -}}
+{{- if $issuer.enabled }}
+apiVersion: cert-manager.io/v1
+kind: {{ include "certIssuer.kind" . }}
+metadata:
+  name: {{ include "certIssuer.name.lp" . }}
+  {{- if not $issuer.clusterScoped }}
+  namespace: {{ .Release.Namespace }}
+  {{- end }}
+  labels:
+    {{- include "certIssuer.labels" . | nindent 4 }}
+spec:
+  {{- if eq $issuer.type "selfSigned" }}
+  selfSigned: {}
+
+  {{- else if eq $issuer.type "acme" }}
+  acme:
+    email: {{ required "certIssuer.acme.email is required" $issuer.acme.email | quote }}
+    server: {{ default "https://acme-v02.api.letsencrypt.org/directory" $issuer.acme.server | quote }}
+    privateKeySecretRef:
+      name: {{ include "certIssuer.privateKeySecretName" . }}
+    solvers:
+      {{- include "sdcommon.acmeSolvers" . | nindent 6 }}
+
+  {{- else if eq $issuer.type "ca" }}
+  ca:
+    secretName: {{ required "certIssuer.ca.secretName is required" $issuer.ca.secretName }}
+    {{- with $issuer.ca.crlDistributionPoints }}
+    crlDistributionPoints:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $issuer.ca.ocspServers }}
+    ocspServers:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $issuer.ca.issuingCertificateURLs }}
+    issuingCertificateURLs:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+  {{- else if eq $issuer.type "vault" }}
+  vault:
+    server: {{ required "certIssuer.vault.server is required" $issuer.vault.server | quote }}
+    path: {{ required "certIssuer.vault.path is required" $issuer.vault.path | quote }}
+    {{- with $issuer.vault.caBundle }}
+    caBundle: {{ . | quote }}
+    {{- end }}
+    {{- with $issuer.vault.auth }}
+    auth:
+      {{- if .tokenSecretRef.name }}
+      tokenSecretRef:
+        name: {{ .tokenSecretRef.name }}
+        key: {{ default "token" .tokenSecretRef.key }}
+      {{- end }}
+      {{- if .appRole.roleId }}
+      appRole:
+        {{- with .appRole.path }}
+        path: {{ . }}
+        {{- end }}
+        roleId: {{ .appRole.roleId | quote }}
+        secretRef:
+          name: {{ .appRole.secretRef.name }}
+          key: {{ default "secretId" .appRole.secretRef.key }}
+      {{- end }}
+      {{- if .kubernetes.role }}
+      kubernetes:
+        {{- with .kubernetes.mountPath }}
+        mountPath: {{ . | quote }}
+        {{- end }}
+        role: {{ .kubernetes.role | quote }}
+        {{- with .kubernetes.serviceAccountRef.name }}
+        serviceAccountRef:
+          name: {{ . | quote }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+
+  {{- else if eq $issuer.type "cyberArk" }}
+  venafi:
+    zone: {{ required "certIssuer.cyberArk.zone is required" $issuer.cyberArk.zone | quote }}
+    {{- with $issuer.cyberArk.cloud }}
+    {{- if .apiTokenSecretRef.name }}
+    cloud:
+      apiTokenSecretRef:
+        name: {{ .apiTokenSecretRef.name }}
+        key: {{ default "apikey" .apiTokenSecretRef.key }}
+    {{- end }}
+    {{- end }}
+    {{- with $issuer.cyberArk.tpp }}
+    {{- if .url }}
+    tpp:
+      url: {{ .url | quote }}
+      credentialsRef:
+        name: {{ .credentialsRef.name | quote }}
+      {{- if .caBundle }}
+      caBundle: {{ .caBundle | quote }}
+      {{- end }}
+      {{- with .caBundleSecretRef }}
+      caBundleSecretRef:
+        name: {{ .name | quote }}
+        key: {{ default "ca.crt" .key }}
+      {{- end }}
+    {{- end }}
+    {{- end }}
+
+  {{- else }}
+  {{- fail (printf "Unsupported certIssuer.type %q. Use one of: selfSigned, acme, ca, vault, cyberArk." $issuer.type) }}
+  {{- end }}
+{{- end }}

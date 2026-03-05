@@ -1,0 +1,179 @@
+---
+# The namespace for Stardog cache target resources that override the release namespace
+# namespaceOverride: stardog
+
+image:
+  registry: docker.io
+  repository: stardog/stardog
+  tag: latest
+  pullPolicy: IfNotPresent
+  username: ""
+  password: ""
+
+# The storage class and size to use for Stardog home volumes for the pods
+persistence:
+  storageClass: ""
+  annotations: {}
+  size: 5Gi
+
+# The number of seconds the post install job will wait for Stardog
+# to start. Consider increasing it for k8s providers that have
+# slower resource provisioning.
+waitForStartSeconds: 300
+
+stardogHome: /var/opt/stardog
+
+jvm:
+  minHeap: 1g
+  maxHeap: 1g
+  directMem: 2g
+
+# Additional Java Virtual Machine arguments to pass to stardog
+javaArgs: ""
+
+resources:
+  requests:
+    cpu: 1
+    memory: 1Gi
+  limits:
+    cpu: 2
+    memory: 2Gi
+
+environmentVariables:
+  DJL_CACHE_DIR: "/var/opt/stardog/djl-123456789"
+
+securityContext:
+  seccompProfile:
+    type: RuntimeDefault
+  runAsNonRoot: true
+  runAsUser: 100000
+  runAsGroup: 100000
+  fsGroup: 100000
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  # capabilities:
+  #   drop:
+  #     - ALL
+
+# The service type to use for cache target ports
+service:
+  type: LoadBalancer
+  annotations: {}
+  # loadBalancerIP: 0.0.0.0
+
+ports:
+  server: 5820
+
+# The location Stardog will use for temporary space (i.e. java.io.tmpdir).
+# If you choose to place this in STARDOG_HOME (/var/opt/stardog) for performance
+# reasons, ensure that it does not conflict with any possible database names.
+# For example, a good choice might be /var/opt/stardog/tmp-4646E7B662A7.
+# If the directory does not exist it will be created.
+tmpDir:
+  path: /var/opt/stardog/tmp-123456789
+  local: true
+
+# The initial password for the Stardog admin user
+admin:
+  password: admin
+  # passwordSecretRef: password-secret
+
+nodeSelector: {}
+tolerations: []
+
+log4jConfig:
+  override: false
+  # we provide a default log4j2.xml, if you want to provide your own. in your own values.yaml, set log4Config.override: true, and log4Config.content
+  content: |-
+    <?xml version="1.0" encoding="UTF-8"?>
+
+    <!-- Copyright (c) 2010 - 2019, Stardog Union. <http://www.stardog.com> -->
+    <!-- For more information about licensing and copyright of this software, please contact -->
+    <!-- sales@stardog.com or visit http://stardog.com -->
+
+    <Configuration status="ERROR" name="default-config">
+    	<Properties>
+    		<Property name="STARDOG_LOG">stardog</Property><!-- do not edit -->
+    		<Property name="ZOOKEEPER_LOG">zookeeper</Property>
+    		<Property name="LOG_DIR">${sys:stardog.home}</Property>
+    		<Property name="ARCHIVE">${LOG_DIR}/.logs_archive</Property><!-- for use with RollingFile -->
+    		<Property name="PATTERN">%-5level %d [%t] %c:%M(%L): %m%n</Property>
+    	</Properties>
+    	<Appenders>
+    		<Console name="STDOUT" target="SYSTEM_OUT">
+    			<JsonLayout compact="true" eventEol="true" includeStacktrace="true" stacktraceAsString="true"
+    				/>
+    		</Console>
+
+    		<File name="stardogAppender"
+    			  fileName="${LOG_DIR}/${STARDOG_LOG}.log">
+    			<PatternLayout pattern="${PATTERN}"/>
+    		</File>
+    		<File name="zookeeperAppender"
+    			  fileName="${LOG_DIR}/${ZOOKEEPER_LOG}.log">
+    			<PatternLayout pattern="${PATTERN}"/>
+    		</File>
+    	</Appenders>
+    	<Loggers>
+    		<Root level="WARN">
+    			<AppenderRef ref="STDOUT"/>
+    		</Root>
+    		<Logger name="com.complexible.stardog" level="INFO" additivity="false">
+    			<AppenderRef ref="STDOUT"/>
+    			<AppenderRef ref="stardogAppender"/>
+    		</Logger>
+    		<!-- ignore minor warnings from PDFBox about mis-named Unicode symbols -->
+    		<Logger name="org.apache.pdfbox.encoding.Encoding" level="ERROR" additivity="false">
+    			<AppenderRef ref="STDOUT"/>
+    			<AppenderRef ref="stardogAppender"/>
+    		</Logger>
+    		<!-- ignore warning from RIO about our replacing their TurtleWriter -->
+    		<Logger name="org.com.complexible.common.openrdf.rio.RDFWriterRegistry" level="ERROR"
+    			additivity="false">
+    			<AppenderRef ref="STDOUT"/>
+    			<AppenderRef ref="stardogAppender"/>
+    		</Logger>
+    		<!-- redirect all zookeeper records to its own log file -->
+    		<Logger name="org.apache.zookeeper" level="INFO" additivity="false">
+    			<AppenderRef ref="STDOUT"/>
+    			<AppenderRef ref="zookeeperAppender"/>
+    		</Logger>
+
+    		<!-- do not edit -->
+    		<Logger name="com.complexible.stardog.Kernels" level="INFO" additivity="false">
+    			<AppenderRef ref="STDOUT"/>
+    		</Logger>
+    	</Loggers>
+    </Configuration>
+
+# Stardog liveness probe settings. Consider increasing initialDelaySeconds on clouds where
+# storage provisioning is slower. It is generally not required to modify periodSeconds and timeoutSeconds.
+livenessProbe:
+  periodSeconds: 5
+  timeoutSeconds: 3
+
+# Stardog readiness probe settings. Consider increasing initialDelaySeconds when using nodes with
+# limited CPUs. It is not generally required to modify periodSeconds and timeoutSeconds.
+readinessProbe:
+  initialDelaySeconds: 20
+  periodSeconds: 5
+  timeoutSeconds: 3
+
+# Add additional settings to the stardog config file. e.g.
+# additionalStardogProperties: |
+#   logging.slow_query.enabled=true
+#   logging.slow_query.time=10s
+additionalStardogProperties: |
+
+# The name and port for the primary Stardog release that the cache target will connect to
+primary:
+  #name: ""  #default is stardog-<release-name>
+  port: 5820
+  validateService: false
+  skipTLSVerify: false
+
+serviceAccount:
+  enabled: true
+  annotations: {}

@@ -1,0 +1,72 @@
+suite: Launchpad Ingress
+release:
+  name: sd-stack
+templates:
+  - ingress.yaml
+
+tests:
+  - it: renders ingress with cert-manager annotations and TLS
+    set:
+      ingress:
+        enabled: true
+        url: "apps.example.com"
+        sparqlSubdomain: "lp"
+        path: /
+        pathType: Prefix
+        className: nginx
+        tls:
+          enabled: true
+      certIssuer:
+        enabled: true
+        clusterScoped: true
+        type: selfSigned
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: metadata.annotations["cert-manager.io/cluster-issuer"]
+          value: sd-stack-certissuer-lp
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: lp.apps.example.com
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /
+      - equal:
+          path: spec.rules[0].http.paths[0].pathType
+          value: Prefix
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 80
+      - equal:
+          path: spec.tls[0].secretName
+          value: launchpad-sd-stack-tls
+
+  - it: omits TLS when disabled and uses Issuer annotation
+    set:
+      ingress:
+        enabled: true
+        url: "apps.example.com"
+        path: /
+        pathType: Prefix
+        tls:
+          enabled: false
+      certIssuer:
+        enabled: true
+        clusterScoped: false
+        type: acme
+        acme:
+          email: ops@example.com
+          solvers:
+            - http01:
+                ingress:
+                  class: nginx
+    asserts:
+      - equal:
+          path: metadata.annotations["cert-manager.io/issuer"]
+          value: sd-stack-certissuer-lp
+      - notExists:
+          path: spec.tls

@@ -1,0 +1,27 @@
+{{- if and .Values.backup.enabled .Values.backup.location.azure.enabled }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ include "sdcommon.fullname" . }}-backup-sc
+  labels:
+    {{ include "sdcommon.labels.standard" . | nindent 4 }}
+  {{- with .Values.backup.location.azure.storageClass.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+provisioner: blob.csi.azure.com
+parameters:
+    containerName: {{ .Values.backup.location.azure.containerName }}
+    storageAccount: {{ .Values.backup.location.azure.accountName }}
+    protocol: {{ .Values.backup.location.azure.protocol }}
+{{- with .Values.backup.location.azure.storageClass.parameters }}
+    {{- toYaml . | nindent 4 }}
+{{- end }}
+reclaimPolicy: {{ .Values.backup.location.azure.storageClass.reclaimPolicy }}
+volumeBindingMode: {{ .Values.backup.location.azure.storageClass.volumeBindingMode }}
+allowVolumeExpansion: {{ .Values.backup.location.azure.storageClass.allowVolumeExpansion }}
+mountOptions:
+{{- range .Values.backup.location.azure.storageClass.mountOptions }}
+  - {{ . }}
+{{- end }}
+{{- end }}

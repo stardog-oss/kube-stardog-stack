@@ -1,0 +1,22 @@
+{{- $zooCfgEnabled := .Values.config.zooCfg.enabled -}}
+{{- $zooCfgExisting := .Values.config.zooCfg.existingConfigMap -}}
+{{- $logbackEnabled := .Values.config.logback.enabled -}}
+{{- $logbackExisting := .Values.config.logback.existingConfigMap -}}
+
+{{- if or (and $zooCfgEnabled (not $zooCfgExisting)) (and $logbackEnabled (not $logbackExisting)) -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "zookeeper.fullname" . }}-config
+  labels:
+    {{- include "zookeeper.labels" . | nindent 4 }}
+data:
+  {{- if and $zooCfgEnabled (not $zooCfgExisting) }}
+  zoo.cfg: |
+{{- .Values.config.zooCfg.inline | nindent 4 }}
+  {{- end }}
+  {{- if and $logbackEnabled (not $logbackExisting) }}
+  logback.xml: |
+{{- .Values.config.logback.inline | nindent 4 }}
+  {{- end }}
+{{- end -}}

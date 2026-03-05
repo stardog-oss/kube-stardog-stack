@@ -1,0 +1,35 @@
+suite: Test Voicebox ConfigMap
+values:
+  - values/values-voicebox.yaml
+templates:
+  - configmap.yaml
+
+tests:
+  # Test 1: Ensure the ConfigMap is created with basic configuration
+  - it: should create a Voicebox ConfigMap with basic configuration
+    values:
+      - values/values-voicebox.yaml
+    set:
+      configFile: '{"agent_selection_type": "llm", "enable_lineage": true}'
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: metadata.name
+          pattern: "^voicebox-.+"
+      - equal:
+          path: data["vbx_config.json"]
+          value: '{"agent_selection_type": "llm", "enable_lineage": true}'
+
+  # Test 2: Validate ConfigMap with empty config
+  - it: should create ConfigMap with empty config
+    set:
+      configFile: ""
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - exists:
+          path: data
+      - equal:
+          path: data["vbx_config.json"]
+          value: "" 

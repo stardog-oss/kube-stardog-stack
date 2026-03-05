@@ -1,0 +1,164 @@
+suite: Validate ServiceMonitor
+values:
+  - values/values-zookeeper.yaml
+templates:
+  - servicemonitor.yaml
+
+tests:
+  # ServiceMonitor creation
+  - it: should not create ServiceMonitor when metrics are disabled
+    set:
+      metrics:
+        enabled: false
+        serviceMonitor:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not create ServiceMonitor when serviceMonitor is disabled
+    set:
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create ServiceMonitor when both metrics and serviceMonitor are enabled
+    set:
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: metadata.name
+          value: zookeeper-RELEASE-NAME
+
+  # Selector
+  - it: should use correct service selector
+    set:
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: zookeeper
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+
+  # Endpoints
+  - it: should configure metrics endpoint correctly
+    set:
+      metrics:
+        enabled: true
+        port: 7000
+        serviceMonitor:
+          enabled: true
+          interval: 30s
+          scrapeTimeout: 10s
+    asserts:
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
+      - equal:
+          path: spec.endpoints[0].interval
+          value: 30s
+      - equal:
+          path: spec.endpoints[0].scrapeTimeout
+          value: 10s
+
+  - it: should use default interval when not specified
+    set:
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+          interval: 30s
+    asserts:
+      - equal:
+          path: spec.endpoints[0].interval
+          value: 30s
+
+  - it: should use custom scrape timeout
+    set:
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+          scrapeTimeout: 15s
+    asserts:
+      - equal:
+          path: spec.endpoints[0].scrapeTimeout
+          value: 15s
+
+  # Labels
+  - it: should apply correct default labels
+    set:
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: zookeeper
+      - equal:
+          path: metadata.labels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+      - isNotNull:
+          path: metadata.labels["app.kubernetes.io/version"]
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+
+  - it: should apply custom labels for Prometheus operator selector
+    set:
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+          labels:
+            prometheus: kube-prometheus
+            release: prometheus-operator
+    asserts:
+      - equal:
+          path: metadata.labels.prometheus
+          value: kube-prometheus
+      - equal:
+          path: metadata.labels.release
+          value: prometheus-operator
+
+  # Namespace
+  - it: should use namespaceSelector instead of metadata.namespace
+    set:
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+          namespace: ""
+    asserts:
+      - equal:
+          path: spec.namespaceSelector.matchNames[0]
+          value: NAMESPACE
+
+  - it: should use custom namespace in namespaceSelector when specified
+    set:
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+          namespace: "monitoring"
+    asserts:
+      - equal:
+          path: spec.namespaceSelector.matchNames[0]
+          value: monitoring

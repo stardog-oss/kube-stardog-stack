@@ -1,0 +1,216 @@
+suite: Validate ZooKeeper Ensemble Configuration
+values:
+  - values/values-zookeeper.yaml
+templates:
+  - statefulset.yaml
+
+tests:
+  # Standalone Mode Tests
+  - it: should configure standalone mode for single replica
+    set:
+      replicaCount: 1
+      standaloneEnabled: null
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_STANDALONE_ENABLED
+            value: "true"
+
+  - it: should allow explicit standalone mode override
+    set:
+      replicaCount: 3
+      standaloneEnabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_STANDALONE_ENABLED
+            value: "true"
+
+  # Ensemble Mode Tests
+  - it: should configure ensemble mode for 3 replicas
+    set:
+      replicaCount: 3
+      standaloneEnabled: null
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_STANDALONE_ENABLED
+            value: "false"
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="ZOO_SERVERS")].value
+          pattern: "server\\.3=.*server\\.4=.*server\\.5="
+
+  - it: should configure ensemble mode for 5 replicas
+    set:
+      replicaCount: 5
+      standaloneEnabled: null
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_STANDALONE_ENABLED
+            value: "false"
+
+  # Server ID Configuration
+  - it: should use default minServerId of 1
+    set:
+      replicaCount: 3
+      minServerId: 1
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MIN_SERVER_ID
+            value: "1"
+
+  - it: should support custom minServerId
+    set:
+      replicaCount: 3
+      minServerId: 10
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MIN_SERVER_ID
+            value: "10"
+
+  # ZooKeeper Configuration Parameters
+  - it: should set tick time configuration
+    set:
+      config:
+        tickTime: 3000
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_TICK_TIME
+            value: "3000"
+
+  - it: should set init limit configuration
+    set:
+      config:
+        initLimit: 15
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_INIT_LIMIT
+            value: "15"
+
+  - it: should set sync limit configuration
+    set:
+      config:
+        syncLimit: 10
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_SYNC_LIMIT
+            value: "10"
+
+  - it: should set max client connections
+    set:
+      config:
+        maxClientCnxns: 100
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_MAX_CLIENT_CNXNS
+            value: "100"
+
+  - it: should set four letter words whitelist
+    set:
+      config:
+        fourLetterWordsWhitelist: "ruok,stat,mntr"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_4LW_COMMANDS_WHITELIST
+            value: "ruok,stat,mntr"
+
+  # Autopurge Configuration
+  - it: should configure autopurge settings
+    set:
+      config:
+        autopurge:
+          purgeInterval: 24
+          snapRetainCount: 5
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_AUTOPURGE_PURGEINTERVAL
+            value: "24"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_AUTOPURGE_SNAPRETAINCOUNT
+            value: "5"
+
+  # Optional Configuration Parameters
+  - it: should set preAllocSize when configured
+    set:
+      config:
+        preAllocSize: "65536"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_CFG_EXTRA
+            value: preAllocSize=65536
+
+  - it: should set snapCount when configured
+    set:
+      config:
+        snapCount: "100000"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_CFG_EXTRA
+            value: snapCount=100000
+
+  - it: should set maxSessionTimeout when configured
+    set:
+      config:
+        maxSessionTimeout: "60000"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_CFG_EXTRA
+            value: maxSessionTimeout=60000
+
+  # Custom Config Extra
+  - it: should inject custom configuration via ZOO_CFG_EXTRA
+    set:
+      config:
+        cfgExtra: |
+          admin.enableServer=true
+          4lw.commands.whitelist=*
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="ZOO_CFG_EXTRA")].value
+          pattern: "admin.enableServer=true"
+
+  # Cluster Domain Configuration
+  - it: should use default cluster domain
+    set:
+      clusterDomain: cluster.local
+      replicaCount: 3
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].env
+
+  - it: should support custom cluster domain
+    set:
+      clusterDomain: custom.local
+      replicaCount: 3
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].env

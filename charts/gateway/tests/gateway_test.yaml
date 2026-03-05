@@ -1,0 +1,82 @@
+suite: Global Gateway
+release:
+  name: sd-stack
+templates:
+  - gateway.yaml
+
+tests:
+  - it: uses certIssuer.shared secret when global tls secret not set
+    capabilities:
+      apiVersions:
+        - gateway.networking.k8s.io/v1
+    set:
+      global:
+        stardog:
+          enabled: true
+        launchpad:
+          enabled: false
+        launchpadRedirect:
+          enabled: false
+        gateway:
+          enabled: true
+          className: stardog-envoy-gateway-class
+          domain: example.com
+          tls:
+            enabled: true
+        certIssuer:
+          enabled: true
+          secretName: shared-gw-tls
+      stardog:
+        gateway:
+          http:
+            domain: example.com
+            skipApiValidation: true
+            redirectToLaunchpad:
+              enabled: false
+              mode: proxy
+              hostname: launchpad.example.com
+    asserts:
+      - hasDocuments:
+          count: 1
+      - documentIndex: 0
+        equal:
+          path: spec.listeners[0].tls.certificateRefs[0].name
+          value: shared-gw-tls
+
+  - it: uses per-service secrets when certIssuer.secretNameTpl set
+    capabilities:
+      apiVersions:
+        - gateway.networking.k8s.io/v1
+    set:
+      global:
+        stardog:
+          enabled: true
+        launchpad:
+          enabled: false
+        launchpadRedirect:
+          enabled: false
+        gateway:
+          enabled: true
+          className: stardog-envoy-gateway-class
+          domain: example.com
+          tls:
+            enabled: true
+        certIssuer:
+          enabled: true
+          secretNameTpl: tls
+      stardog:
+        gateway:
+          http:
+            domain: example.com
+            skipApiValidation: true
+            redirectToLaunchpad:
+              enabled: false
+              mode: proxy
+              hostname: launchpad.example.com
+    asserts:
+      - hasDocuments:
+          count: 1
+      - documentIndex: 0
+        equal:
+          path: spec.listeners[0].tls.certificateRefs[0].name
+          value: stardog-tls

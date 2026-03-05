@@ -1,0 +1,37 @@
+{{- if and .Values.backup.enabled .Values.backup.location.azure.enabled }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "sdcommon.fullname" . }}-backup-pv
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    {{- with .Values.backup.location.azure.persistentVolume.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+    {{- end }}  
+spec:
+  capacity:
+    storage: {{ .Values.backup.location.azure.persistentVolume.capacity }}
+  accessModes:
+    {{- range .Values.backup.location.azure.persistentVolume.accessModes }}
+    - {{ . }}
+    {{- end }}
+  persistentVolumeReclaimPolicy: {{ .Values.backup.location.azure.persistentVolume.reclaimPolicy }}
+  storageClassName: {{ include "sdcommon.fullname" . }}-backup-sc
+  mountOptions:
+    {{- range .Values.backup.location.azure.persistentVolume.mountOptions }}
+    - {{ . }}
+    {{- end }}
+  csi:
+    driver: blob.csi.azure.com
+    volumeHandle: {{ .Values.backup.location.azure.accountName }}-{{ .Values.backup.location.azure.containerName }}
+    volumeAttributes: 
+      containerName: {{ .Values.backup.location.azure.containerName }}
+      protocol: {{ .Values.backup.location.azure.protocol }}
+    nodeStageSecretRef:
+      name: {{ .Release.Name }}-backup-azure-secret
+      namespace:  {{ .Release.Namespace }}
+{{- end }}

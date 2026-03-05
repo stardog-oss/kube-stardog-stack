@@ -1,0 +1,88 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "sdcommon.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{ include "sdcommon.labels.standard" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3 
+  template:
+    metadata:
+      name: {{ include "sdcommon.fullname" . }}
+      labels:
+        {{ include "sdcommon.labels.standard" . | nindent 8 }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      restartPolicy: Never
+      {{- if and .Values.backup.enabled .Values.backup.credentialsSecret }}
+      {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" .Values.backup.credentialsSecret "namespace" .Release.Namespace) }}
+      {{- end }}
+      containers:
+      - name: post-install-job
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        image: {{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+        securityContext: 
+{{- toYaml .Values.containerSecurityContext | nindent 10 }}
+        volumeMounts:
+        - name: {{ include "sdcommon.fullname" . }}-password
+          mountPath: /etc/stardog-password
+          readOnly: true
+        resources:
+          requests:
+            memory: 250Mi
+            cpu: 300m
+          limits:
+            memory: 250Mi
+            cpu: 300m
+        env:
+        {{- if .Values.backup.enabled }}
+        - name: BACKUP_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backup.credentialsSecret |default ((include "sdcommon.fullname" .) | printf "%s-backup-credentials")  }}
+              key: username
+        - name: BACKUP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backup.credentialsSecret |default ((include "sdcommon.fullname" .) | printf "%s-backup-credentials")  }}
+              key: password
+        {{- end }}
+        - name: PORT
+          value: "{{ .Values.ports.server }}"
+        - name: HOST
+          value: "{{ include "sdcommon.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local"
+        - name: PROTOCOL
+          value: "http"
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -ex
+          {{ .Files.Get "files/utils.sh" | indent 10 }}
+          wait_for_start ${HOST} ${PORT} ${PROTOCOL}
+          change_pw ${HOST} ${PORT} ${PROTOCOL}
+          {{- if .Values.backup.enabled }}
+          backup_credentials "${PROTOCOL}://${HOST}:${PORT}" ${BACKUP_USERNAME} ${BACKUP_PASSWORD}
+          {{- end }}
+  {{- if and (hasKey .Values "image") .Values.image.pullSecrets }}
+  imagePullSecrets:
+  {{ toYaml .Values.image.pullSecrets }}
+  {{- end }}
+      {{- if and (hasKey .Values "image") .Values.image.username .Values.image.password }}
+      imagePullSecrets:
+        - name: {{ .Release.Name }}-image-pull-secret
+      {{- end }}
+      volumes:
+      - name: {{ include "sdcommon.fullname" . }}-password
+        secret:
+          secretName: {{ include "sdcommon.fullname" . }}-password
+          items:
+            - key: password
+              path: adminpw
+              mode: 444

@@ -1,0 +1,300 @@
+suite: Validate Chart Integration and Labels
+values:
+  - values/values-zookeeper.yaml
+templates:
+  - statefulset.yaml
+  - service.yaml
+  - svc-headless.yaml
+
+tests:
+  # Common Labels
+  - it: should apply common labels to all resources
+    set:
+      commonLabels:
+        environment: production
+        team: platform
+    templates:
+      - statefulset.yaml
+    asserts:
+      - equal:
+          path: metadata.labels.environment
+          value: production
+      - equal:
+          path: metadata.labels.team
+          value: platform
+
+  - it: should apply common labels to service
+    set:
+      commonLabels:
+        environment: production
+    templates:
+      - service.yaml
+    asserts:
+      - equal:
+          path: metadata.labels.environment
+          value: production
+
+  # Common Annotations
+  - it: should apply common annotations to StatefulSet pod template
+    set:
+      commonAnnotations:
+        owner: platform-team
+        version: "1.0"
+    templates:
+      - statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.owner
+          value: platform-team
+      - equal:
+          path: spec.template.metadata.annotations.version
+          value: "1.0"
+
+  # Name Overrides
+  - it: should use nameOverride when set
+    set:
+      nameOverride: "custom-zk"
+    templates:
+      - statefulset.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: custom-zk-RELEASE-NAME
+
+  - it: should use fullnameOverride when set
+    set:
+      fullnameOverride: "my-zookeeper"
+    templates:
+      - statefulset.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: my-zookeeper
+
+  - it: should use fullnameOverride for service
+    set:
+      fullnameOverride: "my-zookeeper"
+    templates:
+      - service.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: my-zookeeper
+
+  # Standard Kubernetes Labels
+  - it: should have standard app.kubernetes.io labels on StatefulSet
+    templates:
+      - statefulset.yaml
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: zookeeper
+      - equal:
+          path: metadata.labels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+      - isNotNull:
+          path: metadata.labels["app.kubernetes.io/version"]
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+
+  - it: should have standard app.kubernetes.io labels on Service
+    templates:
+      - service.yaml
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: zookeeper
+      - equal:
+          path: metadata.labels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+
+  # Selector Labels
+  - it: should use consistent selector labels across resources
+    templates:
+      - statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: zookeeper
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/name"]
+          value: zookeeper
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+
+  - it: should use same selector labels in service
+    templates:
+      - service.yaml
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/name"]
+          value: zookeeper
+      - equal:
+          path: spec.selector["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+
+  # Affinity and Scheduling
+  - it: should configure pod anti-affinity with soft preset
+    set:
+      podAntiAffinityPreset: "soft"
+    templates:
+      - statefulset.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
+
+  - it: should configure pod anti-affinity with hard preset
+    set:
+      podAntiAffinityPreset: "hard"
+    templates:
+      - statefulset.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
+
+  - it: should configure node affinity when set
+    set:
+      nodeAffinityPreset:
+        type: "hard"
+        key: "kubernetes.io/hostname"
+        values:
+          - node1
+          - node2
+    templates:
+      - statefulset.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity.nodeAffinity
+
+  - it: should configure node selector
+    set:
+      nodeSelector:
+        disktype: ssd
+        region: us-west
+    templates:
+      - statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.disktype
+          value: ssd
+      - equal:
+          path: spec.template.spec.nodeSelector.region
+          value: us-west
+
+  - it: should configure tolerations
+    set:
+      tolerations:
+        - key: "key1"
+          operator: "Equal"
+          value: "value1"
+          effect: "NoSchedule"
+    templates:
+      - statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.tolerations
+          content:
+            key: "key1"
+            operator: "Equal"
+            value: "value1"
+            effect: "NoSchedule"
+
+  - it: should configure topology spread constraints
+    set:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: "topology.kubernetes.io/zone"
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: zookeeper
+    templates:
+      - statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.topologySpreadConstraints
+          content:
+            maxSkew: 1
+            topologyKey: "topology.kubernetes.io/zone"
+            whenUnsatisfiable: DoNotSchedule
+            labelSelector:
+              matchLabels:
+                app: zookeeper
+
+  # Extra Configuration
+  - it: should support extra environment variables
+    set:
+      extraEnvVars:
+        - name: CUSTOM_VAR
+          value: "custom-value"
+        - name: ANOTHER_VAR
+          value: "another-value"
+    templates:
+      - statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CUSTOM_VAR
+            value: "custom-value"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ANOTHER_VAR
+            value: "another-value"
+
+  - it: should support extra volumes
+    set:
+      extraVolumes:
+        - name: custom-config
+          configMap:
+            name: my-config
+    templates:
+      - statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: custom-config
+            configMap:
+              name: my-config
+
+  - it: should support extra volume mounts
+    set:
+      extraVolumeMounts:
+        - name: custom-config
+          mountPath: /etc/custom-config
+          readOnly: true
+    templates:
+      - statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: custom-config
+            mountPath: /etc/custom-config
+            readOnly: true
+
+  - it: should support extra init containers
+    set:
+      extraInitContainers:
+        - name: custom-init
+          image: busybox:latest
+          command: ["sh", "-c", "echo initializing"]
+    templates:
+      - statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: custom-init
+            image: busybox:latest
+            command: ["sh", "-c", "echo initializing"]

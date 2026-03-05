@@ -1,0 +1,102 @@
+{{- $primaryURL := trim (default "" .Values.primary.url) -}}
+{{- $primaryUsesURL := ne $primaryURL "" -}}
+{{- $shouldValidateService := and .Values.primary.validateService (not $primaryUsesURL) -}}
+{{- if $shouldValidateService }}
+  {{- include "sdcommon.ensureServiceExists" (dict "context" $ "name" (include "cachetarget.primaryName" .) "namespace" (include "cachetarget.primaryNamespace" .)) }}
+{{- end }}
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "cachetarget.fullname" . }}
+  namespace: {{ include "cachetarget.namespace" . }}
+  labels:
+    {{- include "sdcommon.labels.standard" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    metadata:
+      name: {{ include "cachetarget.fullname" . }}
+      labels:
+        {{- include "sdcommon.labels.standard" . | nindent 8 }}
+    spec:
+      {{- $saName := include "sdcommon.serviceAccountName" (dict "config" .Values.serviceAccount "defaultName" (include "cachetarget.fullname" .) "defaultDisabled" "") }}
+      {{- if $saName }}
+      serviceAccountName: {{ $saName }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      restartPolicy: Never
+      containers:
+      - name: post-install-job
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        securityContext:
+{{- toYaml .Values.containerSecurityContext | nindent 10 }}
+        env:
+        - name: PORT
+          value: "{{ .Values.ports.server }}"
+        - name: HOST
+          value: "{{ include "cachetarget.fullname" . }}.{{ include "cachetarget.namespace" . }}"
+        - name: DELAY
+          value: "{{ .Values.waitForStartSeconds }}"
+        - name: PRIMARY_SERVER_URL
+          value: "{{ include "cachetarget.primaryServerURL" . }}"
+        - name: PRIMARY_VALIDATE_CONNECTIVITY
+          value: '{{ ternary "true" "false" (or .Values.primary.validateConnectivity $primaryUsesURL) }}'
+        - name: PRIMARY_SKIP_TLS_VERIFY
+          value: '{{ ternary "true" "false" (default false .Values.primary.skipTLSVerify) }}'
+        - name: STARDOG_ADMINPW
+          valueFrom:
+            secretKeyRef:
+{{- if .Values.admin.passwordSecretRef }}
+              name: {{ .Values.admin.passwordSecretRef }}
+{{ else }}
+              name: {{ include "cachetarget.fullname" . }}-password
+{{- end }}
+              key: password
+        - name: PRIMARY_PW
+          valueFrom:
+            secretKeyRef:
+{{- if .Values.admin.clusterPasswordSecretRef }}
+              name: {{ .Values.admin.clusterPasswordSecretRef }}
+{{ else }}
+              name: {{ include "cachetarget.primaryName" . }}-password
+{{- end }}
+              key: password
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -ex
+          {{ .Files.Get "files/utils.sh" | indent 10 }}
+          wait_for_start ${HOST} ${PORT} ${DELAY}
+          change_pw ${HOST} ${PORT}
+          echo "Registering the target"
+          setup_cache_target {{ include "cachetarget.fullname" . }} {{ .Values.ports.server }} {{ include "cachetarget.primaryName" . }} {{ .Values.primary.port }} {{ include "cachetarget.primaryNamespace" . }} "{{ include "cachetarget.primaryServerURL" . }}"
+      {{- if and .Values.image.username .Values.image.password }}
+      imagePullSecrets:
+      - name: {{ include "cachetarget.fullname" . }}-image-pull-secret
+      {{- end}}
+      volumes:
+      - name: {{ include "cachetarget.fullname" . }}-password
+        secret:
+{{- if .Values.admin.passwordSecretRef }}
+          secretName: {{ .Values.admin.passwordSecretRef }}
+{{ else }}
+          secretName: {{ include "cachetarget.fullname" . }}-password
+{{- end}}
+          items:
+            - key: password
+              path: adminpw
+              mode: 444
+      - name: {{ include "cachetarget.primaryName" . }}-password
+        secret:
+          secretName: {{ include "cachetarget.primaryName" . }}-password
+          items:
+            - key: password
+              path: adminpw
+              mode: 444

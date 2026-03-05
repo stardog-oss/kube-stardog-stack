@@ -1,0 +1,29 @@
+suite: Cache Target Primary Validation
+values:
+  - values/values-cachetarget.yaml
+templates:
+  - post-install-job.yaml
+
+tests:
+  - it: fails when primary service validation enabled and service missing
+    set:
+      primary:
+        validateService: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "Service NAMESPACE/stardog-RELEASE-NAME not found. Please create it or disable primary.validateService."
+
+  - it: passes when service fixture provided
+    set:
+      primary:
+        validateService: true
+      global:
+        __serviceFixtures:
+          - metadata:
+              name: stardog-RELEASE-NAME
+    documentSelector:
+      path: metadata.name
+      value: cachetarget-RELEASE-NAME-cache
+    asserts:
+      - hasDocuments:
+          count: 1

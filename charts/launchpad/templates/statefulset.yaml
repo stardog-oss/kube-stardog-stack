@@ -1,0 +1,167 @@
+{{- /* =========================
+     Helper to render env vars
+     ========================= */ -}}
+{{- define "launchpad.envVars" -}}
+{{- $env := list -}}
+
+{{- /* COOKIE_SECRET via secretKeyRef */ -}}
+{{- $env = append $env (dict "name" "COOKIE_SECRET" "valueFrom" (dict "secretKeyRef" (dict "name" (printf "launchpad-%s-cookie-secret" .Release.Name) "key" "COOKIE_SECRET"))) -}}
+
+{{- /* SECURE (only if provided) */ -}}
+{{- if and (hasKey .Values "environmentVariables") (hasKey .Values.environmentVariables "SECURE") -}}
+  {{- $env = append $env (dict "name" "SECURE" "value" (printf "%v" .Values.environmentVariables.SECURE)) -}}
+{{- end -}}
+
+{{- /* FRIENDLY_NAME with default (safe when environmentVariables is nil) */ -}}
+{{- $friendly := "Stardog Applications " -}}
+{{- if and (hasKey .Values "environmentVariables") (hasKey .Values.environmentVariables "FRIENDLY_NAME") -}}
+  {{- $friendly = toString .Values.environmentVariables.FRIENDLY_NAME -}}
+{{- end -}}
+{{- $env = append $env (dict "name" "FRIENDLY_NAME" "value" $friendly) -}}
+
+{{- /* BASE_URL: provided non-empty else computed from helpers */ -}}
+{{- $base := "" -}}
+{{- if and (hasKey .Values "environmentVariables") (hasKey .Values.environmentVariables "BASE_URL") -}}
+  {{- $base = toString .Values.environmentVariables.BASE_URL -}}
+{{- end -}}
+{{- if eq $base "" -}}
+  {{- $base = printf "%s://%s" (include "launchpad.protocol" .) (include "launchpad.host" .) -}}
+{{- end -}}
+{{- $env = append $env (dict "name" "BASE_URL" "value" $base) -}}
+
+{{- /* VOICEBOX: env wins; else only if global.voicebox.enabled == true */ -}}
+{{- $vbEndpoint := "" -}}
+{{- if and (hasKey .Values "environmentVariables") (hasKey .Values.environmentVariables "VOICEBOX_SERVICE_ENDPOINT") -}}
+  {{- $vbEndpoint = toString .Values.environmentVariables.VOICEBOX_SERVICE_ENDPOINT -}}
+{{- end -}}
+
+{{- $vbEnabled := false -}}
+{{- if and (hasKey .Values "global") (hasKey .Values.global "voicebox") (hasKey .Values.global.voicebox "enabled") -}}
+  {{- $vbEnabled = or (eq .Values.global.voicebox.enabled true) (eq (toString .Values.global.voicebox.enabled) "true") -}}
+{{- else if and (hasKey .Values "voicebox") (hasKey .Values.voicebox "enabled") -}}
+  {{- $vbEnabled = or (eq .Values.voicebox.enabled true) (eq (toString .Values.voicebox.enabled) "true") -}}
+{{- end -}}
+
+{{- $vbPort := 8080 -}}
+{{- if and (hasKey .Values "global") (hasKey .Values.global "voicebox") (hasKey .Values.global.voicebox "service") (hasKey .Values.global.voicebox.service "port") -}}
+  {{- $vbPort = .Values.global.voicebox.service.port -}}
+{{- else if and (hasKey .Values "voicebox") (hasKey .Values.voicebox "service") (hasKey .Values.voicebox.service "port") -}}
+  {{- $vbPort = .Values.voicebox.service.port -}}
+{{- end -}}
+
+{{- if ne $vbEndpoint "" -}}
+  {{- $env = append $env (dict "name" "VOICEBOX_SERVICE_ENDPOINT" "value" $vbEndpoint) -}}
+{{- else if $vbEnabled -}}
+  {{- $computed := printf "http://voicebox-%s.%s.svc.cluster.local:%v" .Release.Name .Release.Namespace $vbPort -}}
+  {{- $env = append $env (dict "name" "VOICEBOX_SERVICE_ENDPOINT" "value" $computed) -}}
+{{- end -}}
+
+{{- /* passthrough any other non-empty string envs, excluding reserved ones */ -}}
+{{- if hasKey .Values "environmentVariables" -}}
+  {{- range $k, $v := .Values.environmentVariables -}}
+    {{- if and (typeIs "string" $v) (gt (len $v) 0)
+              (ne $k "COOKIE_SECRET") (ne $k "SECURE") (ne $k "FRIENDLY_NAME")
+              (ne $k "BASE_URL") (ne $k "VOICEBOX_SERVICE_ENDPOINT") -}}
+      {{- $env = append $env (dict "name" $k "value" $v) -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- /* final YAML */ -}}
+{{- toYaml $env -}}
+{{- end -}}
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "sdcommon.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdcommon.labels.standard" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  serviceName: {{ include "sdcommon.fullname" . }}
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "sdcommon.labels.selector" . | nindent 6 }}
+      app: {{ include "sdcommon.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "sdcommon.fullname" . }}
+        {{- include "sdcommon.labels.standard" . | nindent 8 }}
+        app.kubernetes.io/component: server
+        stardog.com/deployname: {{ .Release.Name }}-launchpad
+        stardog.com/resource-type: stardog-apps
+      annotations:
+        checksum/config: {{ include "launchpad.configmapChecksum" . | default (randAlphaNum 8) }}
+        checksum/secret: {{ include "launchpad.secretChecksum" . | default (randAlphaNum 8) }}
+    spec:
+      {{- /* single imagePullSecrets block (avoid duplicates) */ -}}
+      {{- if and (hasKey .Values "image") .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      {{- else if and (hasKey .Values "image") .Values.image.username .Values.image.password }}
+      imagePullSecrets:
+        - name: launchpad-{{ .Release.Name }}-image-pull-secret
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      containers:
+        - name: {{ include "sdcommon.fullname" . }}
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - name: {{ include "sdcommon.pvcName" (dict "context" . "chart" "launchpad" "withRelease" false) }}
+              mountPath: /data
+              subPath: data
+          env:
+            {{- include "launchpad.envVars" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+      {{- with include "sdcommon.podScheduling" . }}
+{{ . | nindent 6 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- else }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: {{ include "sdcommon.fullname" . }}
+            topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: {{ include "sdcommon.fullname" . }}
+              topologyKey: topology.kubernetes.io/zone
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: {{ include "sdcommon.pvcName" (dict "context" . "chart" "launchpad" "withRelease" false) }}
+        {{- with .Values.persistence.annotations }}
+        annotations:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.persistence.storageClass }}
+        storageClassName: {{ .Values.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}

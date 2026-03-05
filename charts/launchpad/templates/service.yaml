@@ -1,0 +1,24 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sdcommon.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "sdcommon.fullname" . }}
+    {{ include "sdcommon.labels.standard" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: {{ .Values.service.port }}
+  type: {{ .Values.service.type }}
+  {{- if (ne .Values.service.loadBalancerIP "") }}
+  loadBalancerIP: {{ .Values.service.loadBalancerIP }}
+  {{- end }}
+  selector:
+    app: {{ include "sdcommon.fullname" . }}

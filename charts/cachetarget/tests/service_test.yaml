@@ -1,0 +1,34 @@
+suite: Cache Target Service
+values:
+  - values/values-cachetarget.yaml
+templates:
+  - service.yaml
+
+tests:
+  - it: exposes default LoadBalancer service
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+      - equal:
+          path: spec.ports[0].port
+          value: 5820
+      - equal:
+          path: spec.selector.app
+          value: cachetarget-RELEASE-NAME-cache
+
+  - it: supports overriding annotations and type
+    set:
+      service:
+        type: ClusterIP
+        annotations:
+          service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+    asserts:
+      - equal:
+          path: metadata.annotations["service.beta.kubernetes.io/azure-load-balancer-internal"]
+          value: "true"
+      - equal:
+          path: spec.type
+          value: ClusterIP

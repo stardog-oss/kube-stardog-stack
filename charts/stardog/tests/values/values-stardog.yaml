@@ -1,0 +1,342 @@
+# The namespace for Stardog resources that override the release namespace
+#namespace: stardog-ns
+
+global:
+  __storageClassFixtures:
+    - metadata:
+        name: standard
+        annotations:
+          storageclass.kubernetes.io/is-default-class: "true"
+  __secretFixtures:
+    - metadata:
+        name: stardog-license
+  launchpad:
+    enabled: false
+
+stardog:
+  #stardogLicenseKeyPath: ""
+  stardogCloudType: ""
+
+  cluster:
+    enabled: false
+    replicaCount: 1
+
+  # How to start the pods - use OrderedReady to use the default behavior of
+  # starting each pod one at a time or use Parallel to start them all at once
+  podManagementPolicy: OrderedReady
+
+  # The number of seconds to wait for pods to shutdown before
+  # killing them forcefully
+  terminationGracePeriodSeconds: 300
+
+  # Java Virtual Machine memory parameters to pass to stardog.
+  jvm:
+    minHeap: 1g
+    maxHeap: 1g
+    directMem: 2g
+
+  # Additional Java Virtual Machine arguments to pass to stardog
+  javaArgs: ""
+
+  service:
+    type: ClusterIP
+    annotations: {}
+
+  bi:
+    enabled: false
+
+
+  # The server port is the port to expose the Stardog server
+  # The sql port is the port to expose Stardog's business intelligence server
+  ports:
+    server: 5820
+    sql: 5806
+
+  ssl:
+    enabled: false
+
+  tmpDir: /tmp
+
+  # The initial password for the Stardog admin user
+  admin:
+    password: admin
+
+
+  image:
+    registry: stardog.azurecr.io
+    repository: sa-lab-stardog/stardog
+    # Alternative config to pull from Stardog private repository
+    # registry: stardog-eps-docker.jfrog.io
+    # repository: stardog-eps-docker.jfrog.io/stardog
+    tag: latest
+    pullPolicy: IfNotPresent
+    # Request user credentiasl to Stardog team.
+    # username:
+    # password:
+    pullSecrets: []
+
+  # The storage class and size to use for Stardog home volumes for the pods
+  persistence:
+    storageClass: ""
+    annotations: {}
+    size: 10Gi
+
+  nodeSelector: {}
+  tolerations: []
+  #  - key: key1
+  #    value: value1
+  #    effect: NoSchedule
+
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+
+  antiAffinity: requiredDuringSchedulingIgnoredDuringExecution
+
+  resources:
+    requests:
+      cpu: 1
+      memory: 1Gi
+    limits:
+      cpu: 2
+      memory: 2Gi
+
+  # Dump the json formated Stardog audit log to the console of a side car container console
+  # The container will be named {{ .Release.Name }}-stardog-auditlog
+  enableAuditSidecar: false
+
+  # these allow you to configure the UID and group ID used by the container when it's running, and the fsGroup sets the group id for the volume-mounts
+  # if enabled: false, then the whole block is skipped
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    #fsGroup: 1000
+
+  log4jConfig:
+    override: false
+    # we provide a default log4j2.xml, if you want to provide your own. in your own values.yaml, set log4Config.override: true, and log4Config.content
+    content: |-
+
+
+  # Stardog liveness probe settings. Consider increasing initialDelaySeconds on clouds where
+  # storage provisioning is slower. It is not generally required to modify periodSeconds and timeoutSeconds.
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 15
+
+  # Stardog readiness probe settings. Consider increasing initialDelaySeconds when using nodes with
+  # K8S nodes with limited CPUs. It is not generally required to modify periodSeconds and timeoutSeconds.
+  readinessProbe:
+    initialDelaySeconds: 90
+    periodSeconds: 5
+    timeoutSeconds: 3
+
+  stardogProperties: |
+    pack.node.join.retry.count=15
+    pack.node.join.retry.delay=1m
+
+  tls:
+    sparql:
+      enabled: false
+      required: false
+      secretName: ""
+    bi:
+      enabled: false
+      secretName: ""
+
+  certificateManager:
+    enabled: false
+    duration: 2160h # 90d
+    renewBefore: 360h # 15d
+    email: ""
+    commonName: ""
+    dnsNames: []
+    issuerRef:
+      name: letsencrypt-staging # or letsencrypt-production for the production issuer
+
+  route:
+    enabled: false
+    domain: ""
+
+  ingress:
+    enabled: false
+    className: "nginx" # Example ingress class name
+    url: "sparql.stardogcloud.com"
+    path: "/"
+    pathType: "Prefix"
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    tls:
+      enabled: false
+
+  backup:
+    enabled: false
+    cronjob:
+      annotations: {}
+      storage:
+        accessModes:
+        - ReadWriteMany
+        volumeMode: Filesystem
+        resourcePolicy: keep
+        existingClaim: ""
+        storageClassName: ""
+        size: 10Gi
+
+  # The JWT configuration will be automatically generated from the below variables
+  # when enabled is set to true.       
+  jwtConfig:
+    enabled: false
+    azureClientId: ""
+    azureTenantId: ""
+    # Azure environment configuration
+    azureEnvironment: "global"  # Common options: "global", "usgov", "germany". Also can be any custom Azure environment URL (must be full URL in that case)
+    # Optional overrides for non-Azure SSO providers (takes precedence over azureEnvironment)
+    issuer: ""  # Override the issuer URL (e.g., for other SSO providers)
+    keyUrl: ""  # Override the key URL (e.g., for other SSO providers)
+    # Additional JWT configuration options
+    rolesClaimPath: "roles"  # Customize the roles claim path (e.g., "groups", "roles", "app_roles")
+    usernameTemplates: []  # Override username templates (e.g., ["{email}", "{preferred_username}"])
+    # Multiple identity providers support
+    additionalIssuers: []  # List of additional issuers for multi-IDP setups
+    # Example:
+    # additionalIssuers:
+    #   - issuer: "https://your-okta-domain.okta.com"
+    #     keyUrl: "https://your-okta-domain.okta.com/oauth2/v1/keys"
+    #     audience: "your-okta-client-id"
+    #     rolesClaimPath: "groups"
+    #     usernameTemplates: ["{preferred_username}"]
+
+launchpad:
+  replicaCount: 1
+
+  podAnnotations: {}
+
+  service:
+    type: ClusterIP
+    port: 8080
+    loadBalancerIP: ""
+    annotations: {}
+
+  tls:
+    enabled: false
+    internal:
+      enabled: false
+      secretName: "tls-secret-internal-stardog"
+
+
+  certificateManager:
+    enabled: false
+    duration: 2160h # 90d
+    renewBefore: 360h # 15d
+    email: ""
+    commonName: ""
+    dnsNames: []
+    issuerRef:
+      name: letsencrypt-staging # or letsencrypt-production for the production issuer
+
+  route:
+    enabled: false
+    domain: ""
+
+  ingress:
+    enabled: false
+    className: "nginx" # Example ingress class name
+    url: "launchnpad.stardogcloud.com"
+    path: "/"
+    pathType: "Prefix"
+    annotations:
+    tls:
+      enabled: false
+
+  resources:
+    requests:
+      cpu: 1
+      memory: 1Gi
+    limits:
+      cpu: 2
+      memory: 2Gi
+
+  serviceAccount:
+    # Specifies whether a service account should be created
+    create: true
+    # Annotations to add to the service account
+    annotations: {}
+    # The name of the service account to use.
+    # If not set and create is true, a name is generated using the fullname template
+    name: ""
+
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  #  - key: key1
+  #    value: value1
+  #    effect: NoSchedule
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    #fsGroup: 1000
+
+  image:
+    registry: stardog.azurecr.io
+    repository: sa-lab-stardog/launchpad
+    # Alternative config to pull from Stardog private repository
+    # registry: stardog-eps-docker.jfrog.io
+    # repository: stardog-eps-docker.jfrog.io/stardog
+    tag: latest
+    pullPolicy: IfNotPresent
+    # Request user credentiasl to Stardog team.
+    username: ""
+    password: ""
+    pullSecrets: []
+
+  env:
+    # basic configurations
+    BASE_URL: ""
+    STARDOG_INTERNAL_ENDPOINT: ""
+    STARDOG_EXTERNAL_ENDPOINT: ""
+    FRIENDLY_NAME: "Stardog Applications"
+
+    # Security configurations:
+    SECURE: false
+    PASSWORD_AUTH_ENABLED: "true"
+    SESSION_EXPIRATION: "86400"
+    STARDOG_SERVER_CERT_PATH: ""
+    STARDOG_CLIENT_CERT_PATH: ""
+    STARDOG_CLIENT_CERT_PRIVATE_KEY_PATH: ""
+
+    # JWT Configurations 
+    JWK_LOCATION: "/jwk"
+    JWT_ISSUER: ""
+    K8S_DEPLOYMENT: "true"
+
+    # Azure Configurations:
+    AZURE_AUTH_ENABLED: ""
+    AZURE_TENANT: ""
+    AZURE_CLIENT_ID: ""
+    AZURE_CLIENT_SECRET: ""
+    AZURE_CLIENT_PRIVATE_KEY_FILE: ""
+    AZURE_CLIENT_CERTIFICATE_THUMBPRINT: ""
+    AZURE_CLIENT_CERTIFICATE_FILE: ""
+
+    AZURE_AUTH_TOKEN_TYPE: ""
+    AZURE_STARDOG_SCOPE: ""
+
+    # Google Configurations:
+    GOOGLE_AUTH_ENABLED: ""
+    GOOGLE_CLIENT_ID: ""
+    GOOGLE_CLIENT_SECRET: ""
+
+    # Keycloak Configurations:
+    KEYCLOAK_AUTH_ENABLED: ""
+    KEYCLOAK_CLIENT_ID: ""
+    KEYCLOAK_CLIENT_SECRET: ""
+    KEYCLOAK_ENDPOINT: ""
+    KEYCLOAK_REALM: ""
+    KEYCLOAK_TOKEN_ROLES_CLAIM: ""

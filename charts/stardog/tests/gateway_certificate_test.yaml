@@ -1,0 +1,220 @@
+suite: Gateway Certificate
+release:
+  name: sd-stack
+values:
+  - values/values-stardog.yaml
+templates:
+  - gateway-certificate.yaml
+
+tests:
+  - it: renders certificate with SPARQL and BI hosts
+    set:
+      certIssuer:
+        enabled: true
+      ingress:
+        enabled: false
+        tls:
+          secretName: sparql-custom
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          skipApiValidation: true
+          tls:
+            enabled: true
+      bi:
+        enabled: true
+      global:
+        bi:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - documentIndex: 0
+        equal:
+          path: spec.secretName
+          value: sparql-custom
+      - documentIndex: 0
+        contains:
+          path: spec.dnsNames
+          content: sparql.example.com
+      - documentIndex: 0
+        contains:
+          path: spec.dnsNames
+          content: bi.example.com
+
+  - it: includes BI host when enabled via global
+    set:
+      certIssuer:
+        enabled: true
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          skipApiValidation: true
+          tls:
+            enabled: true
+      bi:
+        enabled: false
+      global:
+        bi:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - documentIndex: 0
+        contains:
+          path: spec.dnsNames
+          content: bi.example.com
+
+  - it: uses wildcard cert when global shared secretName is set
+    set:
+      global:
+        certIssuer:
+          enabled: true
+          secretName: shared-gateway-tls
+          acme:
+            solvers:
+              - dns01:
+                  cloudflare:
+                    apiTokenSecretRef:
+                      name: cf-token
+                      key: token
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          skipApiValidation: true
+          tls:
+            enabled: true
+      bi:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - documentIndex: 0
+        equal:
+          path: spec.secretName
+          value: shared-gateway-tls
+      - documentIndex: 0
+        equal:
+          path: spec.dnsNames[0]
+          value: "*.example.com"
+      - documentIndex: 0
+        equal:
+          path: spec.dnsNames[1]
+          value: example.com
+
+  - it: includes launchpad host when shared secret and global launchpad enabled
+    set:
+      global:
+        launchpad:
+          enabled: true
+        gateway:
+          enabled: true
+        certIssuer:
+          enabled: true
+          secretName: shared-gateway-tls
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          skipApiValidation: true
+          tls:
+            enabled: true
+      bi:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - documentIndex: 0
+        contains:
+          path: spec.dnsNames
+          content: launchpad.example.com
+
+  - it: uses per-service secretNameTpl when global template is set
+    set:
+      global:
+        certIssuer:
+          enabled: true
+          secretNameTpl: tls
+        bi:
+          enabled: true
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          skipApiValidation: true
+          tls:
+            enabled: true
+      bi:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - documentIndex: 0
+        equal:
+          path: spec.secretName
+          value: stardog-tls
+      - documentIndex: 0
+        contains:
+          path: spec.dnsNames
+          content: sparql.example.com
+      - documentIndex: 0
+        contains:
+          path: spec.dnsNames
+          content: bi.example.com
+
+  - it: does not render when TLS disabled
+    set:
+      certIssuer:
+        enabled: true
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          skipApiValidation: true
+          tls:
+            enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders certificate in custom namespace when cluster-scoped issuer
+    set:
+      certIssuer:
+        enabled: true
+        clusterScoped: true
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          skipApiValidation: true
+          createGateway: false
+          tls:
+            enabled: true
+            secretName: shared-envoy-tls
+            secretNamespace: envoy-gateway
+    asserts:
+      - documentIndex: 0
+        equal:
+          path: metadata.namespace
+          value: envoy-gateway
+
+  - it: fails when overriding secret namespace without cluster issuer
+    set:
+      certIssuer:
+        enabled: true
+        clusterScoped: false
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          skipApiValidation: true
+          createGateway: false
+          tls:
+            enabled: true
+            secretNamespace: envoy-gateway
+    asserts:
+      - failedTemplate:
+          errorMessage: "gateway.http.tls.secretNamespace outside the release namespace requires certIssuer.clusterScoped=true."

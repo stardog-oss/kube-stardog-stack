@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "zookeeper.fullname" . }}
+  labels:
+    {{- include "zookeeper.labels" . | nindent 4 }}
+    {{- with .Values.service.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "zookeeper.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: client
+      port: {{ .Values.ports.client }}
+      targetPort: client
+  {{- if and .Values.adminServerEnabled .Values.service.exposeAdmin }}
+    - name: admin
+      port: {{ .Values.ports.admin }}
+      targetPort: admin
+  {{- end }}
+  {{- if and .Values.metrics.enabled .Values.service.exposeMetrics }}
+    - name: metrics
+      port: {{ .Values.ports.metrics }}
+      targetPort: metrics
+  {{- end }}

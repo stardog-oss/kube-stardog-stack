@@ -1,0 +1,104 @@
+# global contains information on whether to render a subchart, and the following
+# * configuration used to couple two helm chart, for example
+#   * redirect sparql/ to Launchpad
+#   * connect Vbx to Launchpad
+# * common values.
+#
+# configuration specific to a particular helm chart, should be in their respective section,
+# and not under global.*
+global:
+  stardog:
+    enabled: true
+
+  #often you want to have a single launchpad and voicebox for several stardog instance. You can either use this
+  # umbrella chart where launchpad and voicebox are the only component enabled or you can install launchpad and voicebox separately.
+  launchpad:
+    enabled: true
+  voicebox:
+    enabled: false
+
+  zookeeper:
+    enabled: false
+
+  bi:
+    enabled: false
+
+  gateway:
+    enabled: false
+    name: "" # Defaults to "<release>-gateway" when empty
+    namespace: "" # Defaults to the release namespace when empty
+    className: "stardog-envoy-gateway-class" # Override when a different GatewayClass is required
+    domain: "" # Fully qualified base domain for Gateway hosts (required)
+    annotations: {}
+    addresses: []
+    http:
+      port: 443
+      httpPort: 80
+    tls:
+      enabled: true
+      # Optional shared secret for all HTTPS listeners.
+      # When global.certIssuer.secretName or secretNameTpl are set, leave this empty.
+      secretName: ""
+      # Optional override for sparql secret. Leave empty to use certIssuer-derived names.
+      sparqlSecretName: ""
+      # Optional override for launchpad secret. Leave empty to use certIssuer-derived names.
+      launchpadSecretName: ""
+      bootstrap:
+        enabled: true # Create placeholder TLS secrets for shared Gateway ACME HTTP-01
+    tcpBi:
+      port: 5806
+
+  certIssuer:
+    enabled: false
+    # Optional shared secret name for certificates issued by cert-manager.
+    # If set, overrides secretNameTpl.
+    secretName: ""
+    # Optional template suffix for per-service secrets. When set, charts will prefix
+    # the component name (stardog/launchpad) to this value.
+    secretNameTpl: ""
+    # false => namespaced Issuer, true => ClusterIssuer
+    clusterScoped: false
+    # One of: selfSigned, acme, ca, vault, cyberArk
+    type: acme
+
+    # =====================
+    # ACME (Let’s Encrypt / ZeroSSL / etc.)
+    # =====================
+    acme:
+      # REQUIRED for ACME
+      email: "helm-admin@stardog.com"
+      # Default is Let's Encrypt production. For staging, use:
+      # https://acme-staging-v02.api.letsencrypt.org/directory
+      server: "https://acme-v02.api.letsencrypt.org/directory"
+      # If empty, defaults to "<issuer-name>-account-key"
+      privateKeySecretName: ""
+
+      # Leave empty to auto-configure HTTP-01 solvers for enabled ingress/gateway controllers.
+      # Provide custom entries (e.g., DNS-01) to override the auto-generated solvers.
+      solvers: []
+
+    # =====================
+    # CA Issuer
+    # =====================
+    ca:
+      # REQUIRED for CA issuer (name of a Secret with a TLS keypair)
+      secretName: ""
+      # Optional X.509 extensions
+      crlDistributionPoints: []
+      ocspServers: []
+      issuingCertificateURLs: []
+
+    # =====================
+    # Vault Issuer (HashiCorp Vault PKI)
+    # =====================
+    vault:
+      # REQUIRED
+      server: "https://vault.local"
+      path: "pki_int/sign/example-dot-com"  # must be a *sign* endpoint
+      # Optional trust for Vault's TLS, base64-encoded PEM (or leave empty to use system roots)
+      caBundle: ""
+
+  # The umbrealla helm chart gives the convenience of installaling a a cache target from the umbrella charts.
+  # if you need more than one cache target, you can install additional cache target charts separately.
+  cachetarget:
+    enabled: false

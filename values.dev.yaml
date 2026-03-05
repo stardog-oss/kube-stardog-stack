@@ -1,0 +1,195 @@
+# ------------------------------------------------------------------------------
+# Simplified Dev/Test Values for Stardog + Launchpad
+# ------------------------------------------------------------------------------
+# This file provides a minimal configuration for installing Stardog and Launchpad
+# on AKS or local clusters like minikube without external dependencies.
+#
+# Note: You must have a license key and K8s secret called `stardog-license`!
+#
+# Usage: helm install <release-name> ./kube-stardog-stack -f values.dev.yaml
+
+# ------------------------------------------------------------------------------
+# Global Component Enablement
+# ------------------------------------------------------------------------------
+global:
+  stardog:
+    enabled: true
+
+# ------------------------------------------------------------------------------
+# Stardog Configuration
+# ------------------------------------------------------------------------------
+stardog:
+  # extra level of nesting to merge with (and override) child's values file
+  stardog:
+
+    # Single node setup for dev/test
+    cluster:
+      enabled: false
+      replicaCount: 1
+
+    # Minimal JVM settings for dev/test
+    jvm:
+      minHeap: 512m
+      maxHeap: 1g
+      directMem: 1g
+
+    # Use ClusterIP for internal access
+    service:
+      type: ClusterIP
+      annotations: {}
+
+    # Standard ports
+    ports:
+      server: 5820
+      sql: 5806
+
+    # Disable SSL for simplicity
+    ssl:
+      enabled: false
+
+    # Simple admin password
+    admin:
+      password: admin
+
+    # Use public Stardog image
+    image:
+      registry: docker.io
+      repository: stardog/stardog
+      tag: latest
+      pullPolicy: IfNotPresent
+      username: ""
+      password: ""
+      pullSecrets: []
+
+    # Minimal storage for dev/test
+    persistence:
+      storageClass: ""
+      annotations: {}
+      size: 5Gi
+
+    # Minimal resources for dev/test
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+    # Disable complex features for simplicity
+    bi:
+      enabled: false
+
+    # Disable certificate management
+    certificateManager:
+      enabled: false
+
+    # Disable ingress
+    ingress:
+      enabled: false
+
+    # Disable backup
+    backup:
+      enabled: false
+
+    # Disable JWT config
+    jwtConfig:
+      enabled: false
+
+# ------------------------------------------------------------------------------
+# Launchpad Configuration
+# ------------------------------------------------------------------------------
+launchpad:
+  enabled: true
+
+  # extra level of nesting to merge with (and override) child's values file
+  launchpad:
+    replicaCount: 1
+
+    # Use JFrog Launchpad image with authentication
+    image:
+      registry: stardog-stardog-apps.jfrog.io
+      repository: launchpad
+      tag: current
+      pullPolicy: IfNotPresent
+      username: "" # enter JFrog credentials here
+      password: "" # enter JFrog credentials here
+      pullSecrets: []
+
+    # Use ClusterIP for internal access
+    service:
+      type: ClusterIP
+      port: 8080
+      loadBalancerIP: ""
+      annotations: {}
+
+    # Disable SSL for simplicity
+    ssl:
+      enabled: false
+
+    # Disable certificate management
+    certificateManager:
+      enabled: false
+
+    # Disable ingress
+    ingress:
+      enabled: false
+
+    # Minimal resources for dev/test
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+    # Minimal storage for dev/test
+    persistence:
+      storageClass: ""
+      annotations: {}
+      size: 1Gi
+
+    # Basic environment configuration
+    env:
+      # Basic configurations
+      BASE_URL: ""
+      STARDOG_INTERNAL_ENDPOINT: "http://{{ .Release.Name }}-stardog:5820"
+      STARDOG_EXTERNAL_ENDPOINT: "http://{{ .Release.Name }}-stardog:5820"
+      FRIENDLY_NAME: "Stardog Applications"
+      GUNICORN_WORKERS: "2"
+
+      # Security configurations (disabled for dev/test)
+      SECURE: false
+      PASSWORD_AUTH_ENABLED: "true"
+      SESSION_EXPIRATION: "86400"
+      STARDOG_SERVER_CERT_PATH: ""
+      STARDOG_CLIENT_CERT_PATH: ""
+      STARDOG_CLIENT_CERT_PRIVATE_KEY_PATH: ""
+
+      # JWT Configurations (disabled for dev/test)
+      JWK_LOCATION: "/jwk"
+      JWT_ISSUER: ""
+      K8S_DEPLOYMENT: "true"
+
+      # Voicebox configurations (disabled)
+      VOICEBOX_SERVICE_ENDPOINT: ""
+
+# ------------------------------------------------------------------------------
+# Voicebox Configuration (Disabled)
+# ------------------------------------------------------------------------------
+voicebox:
+  enabled: false
+
+# ------------------------------------------------------------------------------
+# Note: This configuration disables all external dependencies including:
+# - Certificate management (cert-manager)
+# - Ingress controllers
+# - External CRDs
+# - SSL/TLS certificates
+# - Backup systems
+# - JWT authentication
+#
+# For production use, please refer to the full values.yaml file
+# and enable appropriate security features.
+# ------------------------------------------------------------------------------ 

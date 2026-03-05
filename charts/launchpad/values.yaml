@@ -1,0 +1,284 @@
+# ------------------------------------------------------------------------------
+# Launchpad Configuration
+# ------------------------------------------------------------------------------
+replicaCount: 1
+podAnnotations: {}
+service:
+  type: ClusterIP
+  port: 8080
+  loadBalancerIP: ""
+  annotations: {}
+ssl:
+  enabled: true # This is not yet supported, leave as true [ SAT-452 ]
+
+certIssuer:
+  enabled: false
+  # Optional per-chart override for the certificate secret name.
+  # When set, this overrides global.certIssuer.secretName/Tpl.
+  secretName: ""
+  # false => namespaced Issuer, true => ClusterIssuer
+  clusterScoped: false
+
+  # If empty, defaults to "{{ .Release.Name }}-issuer"
+  name: ""
+
+  # One of: selfSigned, acme, ca, vault, cyberArk
+  type: acme
+
+  # =====================
+  # SelfSigned
+  # =====================
+  selfSigned: {}
+
+  # =====================
+  # ACME (Let’s Encrypt / ZeroSSL / etc.)
+  # =====================
+  acme:
+    # REQUIRED for ACME
+    email: "helm-admin@stardog.com"
+    # Default is Let's Encrypt production. For staging, use:
+    # https://acme-staging-v02.api.letsencrypt.org/directory
+    server: "https://acme-v02.api.letsencrypt.org/directory"
+    # If empty, defaults to "<issuer-name>-account-key"
+    privateKeySecretName: ""
+
+    # Leave empty to auto-configure HTTP-01 solvers for enabled ingress/gateway controllers.
+    # Provide custom entries (e.g., DNS-01) to override the auto-generated solvers.
+    solvers: []
+      # - dns01:
+      #     cloudflare:
+      #       # Secret must contain key "api-token"
+      #       apiTokenSecretRef:
+      #         name: cloudflare-api-token-secret
+      #         key: api-token
+
+  # =====================
+  # CA Issuer
+  # =====================
+  ca:
+    # REQUIRED for CA issuer (name of a Secret with a TLS keypair)
+    secretName: ""
+    # Optional X.509 extensions
+    crlDistributionPoints: []
+    ocspServers: []
+    issuingCertificateURLs: []
+
+  # =====================
+  # Vault Issuer (HashiCorp Vault PKI)
+  # =====================
+  vault:
+    # REQUIRED
+    server: "https://vault.local"
+    path: "pki_int/sign/example-dot-com"  # must be a *sign* endpoint
+    # Optional trust for Vault's TLS, base64-encoded PEM (or leave empty to use system roots)
+    caBundle: ""
+    # Choose one auth mechanism below; leave the others empty
+    auth:
+      # 1) Token auth
+      tokenSecretRef:
+        name: ""
+        key: "token"
+      # 2) AppRole auth
+      appRole:
+        path: ""        # e.g. approle (optional)
+        roleId: ""
+        secretRef:
+          name: ""
+          key: "secretId"
+      # 3) Kubernetes/JWT auth
+      kubernetes:
+        mountPath: "/v1/auth/kubernetes"  # optional; default shown
+        role: ""
+        serviceAccountRef:
+          name: ""  # SA used for projected token; RBAC needed for serviceaccounts/token
+
+  # =====================
+  # CyberArk (Venafi) Issuer
+  # =====================
+  cyberArk:
+    # REQUIRED
+    zone: "My Application or My CIT"   # <Application Name>\<Issuing Template Alias>
+
+    # Choose ONE of these: `cloud` (CyberArk Certificate Manager SaaS) OR `tpp` (self-hosted)
+    cloud:
+      apiTokenSecretRef:
+        name: "api-key-secret"
+        key: "apikey"
+
+    tpp:
+      url: "https://tpp.example.com/vedsdk"
+      credentialsRef:
+        name: "tpp-credentials"   # Secret with key "access-token" (preferred) or legacy "username"/"password"
+      # Optionally trust a custom CA for TPP (use only one of the following)
+      caBundle: ""               # base64-encoded PEM string
+      caBundleSecretRef:
+        name: "custom-tpp-ca"    # Secret containing a PEM bundle
+        key: "ca.crt"
+
+# Optional utility to create Secrets referenced by issuers (DNS provider tokens, Venafi tokens, Vault tokens, etc.)
+  secrets:
+    create: false
+    # When creating a ClusterIssuer, secrets are typically placed in the cert-manager namespace
+    namespaceForClusterIssuer: "cert-manager"
+    items: []
+    # items example:
+    # items:
+    #   - name: cloudflare-api-token-secret
+    #     data:
+    #       api-token: "<your-token>"
+    #   - name: api-key-secret
+    #     data:
+    #       apikey: "<your-cyberark-saas-api-key>"
+    #   - name: tpp-credentials
+    #     data:
+    #       access-token: "<your-venafi-tpp-access-token>"
+    #       # or legacy:
+    #       # username: "<user>"
+    #       # password: "<pass>"
+    #   - name: custom-tpp-ca
+    #     data:
+    #       ca.crt: |-
+    #         -----BEGIN CERTIFICATE-----
+    #         ...
+    #         -----END CERTIFICATE-----
+    #   - name: vault-token
+    #     data:
+    #       token: "<vault-token>"
+
+
+
+route:
+  enabled: false
+  domain: ""
+ingress:
+  enabled: false # Deprecated: switch to gateway.*; ingress will be removed soon
+  className: "nginx" # Example ingress class name
+  subdomain: "launchpad" # Subdomain prefix for the ingress host
+  url: "launchpad.stardogcloud.com"
+  path: "/"
+  pathType: "Prefix"
+  annotations: {}
+  tls:
+    enabled: false
+    secretName: ""
+
+gateway:
+  enabled: false
+  http:
+    createGateway: true
+    name: "" # Defaults to "<release>-gateway" when empty
+    className: "" # Required when createGateway=true
+    domain: "" # Fully qualified base domain for Gateway hosts (required)
+    subdomain: "launchpad"
+    port: 443
+    path: "/"
+    pathType: "Prefix"
+    annotations: {}
+    addresses: []
+    parentRefs: [] # Required when createGateway=false
+    skipApiValidation: false
+    tls:
+      enabled: false
+      secretName: ""
+      certificateName: "" # Optional override for the Gateway TLS Certificate
+    redirect:
+      enabled: false
+      port: 80
+      statusCode: 301
+      parentRefs: []
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+persistence:
+  storageClass: ""
+  annotations: {}
+  size: 1Gi
+nodeSelector: {}
+affinity: {}
+tolerations: []
+#  - key: key1
+#    value: value1
+#    effect: NoSchedule
+securityContext:
+  seccompProfile:
+    type: RuntimeDefault
+  runAsNonRoot: true
+  runAsUser: 100000
+  runAsGroup: 100000
+  fsGroup: 100000
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true #Todo: not yet supported by launchpad image
+  # capabilities:
+  # drop:
+  #   - ALL
+image:
+  #You should not rely on Docker up for you production environment. You should ALWAYS use an implicit tag
+  registry: docker.io
+  repository: stardog/launchpad
+  tag: latest
+  pullPolicy: IfNotPresent
+  # Request user credentials to Stardog team.
+  username: ""
+  password: ""
+  pullSecrets: []
+environmentVariables:
+  # basic configurations
+  BASE_URL: ""
+  STARDOG_INTERNAL_ENDPOINT: ""
+  STARDOG_EXTERNAL_ENDPOINT: ""
+  FRIENDLY_NAME: "Stardog Applications"
+  GUNICORN_WORKERS: "2"
+
+  # Security configurations:
+  SECURE: false
+  PASSWORD_AUTH_ENABLED: "true"
+  SESSION_EXPIRATION: "86400"
+  STARDOG_SERVER_CERT_PATH: ""
+  STARDOG_CLIENT_CERT_PATH: ""
+  STARDOG_CLIENT_CERT_PRIVATE_KEY_PATH: ""
+
+  # JWT Configurations
+  JWK_LOCATION: "/jwk"
+  JWT_ISSUER: ""
+  K8S_DEPLOYMENT: "true"
+
+  # Azure Configurations:
+  # AZURE_AUTH_ENABLED: ""
+  # AZURE_TENANT: ""
+  # AZURE_CLIENT_ID: ""
+  # AZURE_CLIENT_SECRET: ""
+  # AZURE_CLIENT_PRIVATE_KEY_FILE: ""
+  # AZURE_CLIENT_CERTIFICATE_THUMBPRINT: ""
+  # AZURE_CLIENT_CERTIFICATE_FILE: ""
+
+  # AZURE_AUTH_TOKEN_TYPE: ""
+  # AZURE_STARDOG_SCOPE: ""
+
+  # Google Configurations:
+  # GOOGLE_AUTH_ENABLED: ""
+  # GOOGLE_CLIENT_ID: ""
+  # GOOGLE_CLIENT_SECRET: ""
+
+  # Keycloak Configurations:
+  # KEYCLOAK_AUTH_ENABLED: ""
+  # KEYCLOAK_CLIENT_ID: ""
+  # KEYCLOAK_CLIENT_SECRET: ""
+  # KEYCLOAK_ENDPOINT: ""
+  # KEYCLOAK_REALM: ""
+  # KEYCLOAK_TOKEN_ROLES_CLAIM: ""
+
+  #voice box configurations
+  VOICEBOX_SERVICE_ENDPOINT: ""

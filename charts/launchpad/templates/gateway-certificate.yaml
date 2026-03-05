@@ -1,0 +1,61 @@
+{{- $globalGatewayEnabled := eq (include "sdcommon.globalGatewayEnabled" .) "true" -}}
+{{- $globalValues := default (dict) .Values.global -}}
+{{- $globalGateway := default (dict) (index $globalValues "gateway") -}}
+{{- $globalTls := default (dict) (index $globalGateway "tls") -}}
+{{- $globalTlsEnabled := default true (index $globalTls "enabled") -}}
+{{- $tlsEnabled := or (default false .Values.gateway.http.tls.enabled) (and $globalGatewayEnabled $globalTlsEnabled) -}}
+{{- $issuer := (include "sdcommon.effectiveCertIssuer" . | fromYaml) -}}
+{{- $useGlobalSecret := eq (include "sdcommon.usesGlobalCertSecret" (dict "context" .)) "true" -}}
+{{- $globalStardog := default (dict) (index (default (dict) .Values.global) "stardog") -}}
+{{- $globalStardogEnabled := or (eq (index $globalStardog "enabled") true) (eq (toString (index $globalStardog "enabled")) "true") -}}
+{{- if and (eq (include "launchpad.gatewayEnabled" .) "true") $issuer.enabled $tlsEnabled (not (and $useGlobalSecret $globalStardogEnabled)) }}
+  {{- $rawGateway := default (dict) .Values.gateway }}
+  {{- $httpConfig := default (dict) $rawGateway.http }}
+  {{- $gatewayConfig := deepCopy $httpConfig }}
+  {{- if not $gatewayConfig.tls }}
+    {{- $_ := set $gatewayConfig "tls" (dict) }}
+  {{- end }}
+  {{- $globalGatewayNamespace := include "sdcommon.globalGatewayNamespace" . }}
+  {{- if and (eq (include "sdcommon.globalGatewayEnabled" .) "true") (ne $globalGatewayNamespace .Release.Namespace) }}
+    {{- $_ := set $gatewayConfig.tls "secretNamespace" $globalGatewayNamespace }}
+  {{- end }}
+  {{- $domain := trim (default "" $gatewayConfig.domain) }}
+  {{- $globalDomain := trim (default "" (index $globalGateway "domain")) }}
+  {{- if and (eq $domain "") (eq (include "sdcommon.globalGatewayEnabled" .) "true") (ne $globalDomain "") }}
+    {{- $domain = $globalDomain }}
+  {{- end }}
+  {{- if eq $domain "" }}
+    {{- fail "gateway.http.domain must be set to create the Gateway certificate." -}}
+  {{- end }}
+  {{- $tlsSecret := default "" $gatewayConfig.tls.secretName }}
+  {{- if eq (trim $tlsSecret) "" }}
+    {{- $_ := set $gatewayConfig.tls "secretName" (include "certIssuer.secretName.lp" .) }}
+    {{- $tlsSecret = $gatewayConfig.tls.secretName }}
+  {{- end }}
+  {{- $secretNamespace := default .Release.Namespace $gatewayConfig.tls.secretNamespace }}
+  {{- if and (ne $secretNamespace .Release.Namespace) (not $issuer.clusterScoped) }}
+    {{- fail "gateway.http.tls.secretNamespace outside the release namespace requires certIssuer.clusterScoped=true." -}}
+  {{- end }}
+  {{- $host := printf "%s.%s" (default "launchpad" $gatewayConfig.subdomain) $domain }}
+  {{- if and $useGlobalSecret (eq (include "sdcommon.acmeHasDns01" .) "true") }}
+    {{- $host = printf "*.%s" $domain }}
+  {{- end }}
+  {{- $certName := default (printf "%s-launchpad-gateway-cert" (include "sdcommon.fullname" .)) $gatewayConfig.tls.certificateName }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ $certName }}
+  namespace: {{ $secretNamespace }}
+  labels:
+{{ include "sdcommon.labels.standard" . | indent 4 }}
+spec:
+  secretName: {{ $tlsSecret }}
+  issuerRef:
+    name: {{ include "certIssuer.name.lp" . }}
+    kind: {{ include "certIssuer.kind" . }}
+  dnsNames:
+    - {{ $host | quote }}
+  {{- if and $useGlobalSecret (eq (include "sdcommon.acmeHasDns01" .) "true") }}
+    - {{ $domain | quote }}
+  {{- end }}
+{{- end }}

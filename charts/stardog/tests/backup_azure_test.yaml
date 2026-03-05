@@ -1,0 +1,159 @@
+suite: Stardog Azure Backup StorageClass
+templates:
+  - storage-class.yaml
+
+tests:
+  - it: renders StorageClass when Azure backup enabled
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        location:
+          azure:
+            enabled: true
+            accountName: mystorage
+            accountKey: dummy
+            containerName: backups
+            protocol: https
+            storageClass:
+              annotations:
+                foo: bar
+              parameters:
+                skuName: Premium_LRS
+              reclaimPolicy: Delete
+              volumeBindingMode: WaitForFirstConsumer
+              allowVolumeExpansion: true
+              mountOptions:
+                - -o allow_other
+    asserts:
+      - isKind:
+          of: StorageClass
+      - equal:
+          path: metadata.name
+          value: stardog-RELEASE-NAME-backup-sc
+      - equal:
+          path: metadata.annotations.foo
+          value: bar
+      - equal:
+          path: parameters.containerName
+          value: backups
+      - equal:
+          path: parameters.storageAccount
+          value: mystorage
+      - equal:
+          path: parameters.protocol
+          value: https
+      - equal:
+          path: parameters.skuName
+          value: Premium_LRS
+      - equal:
+          path: reclaimPolicy
+          value: Delete
+      - equal:
+          path: volumeBindingMode
+          value: WaitForFirstConsumer
+      - equal:
+          path: allowVolumeExpansion
+          value: true
+      - contains:
+          path: mountOptions
+          content: "-o allow_other"
+
+---
+suite: Stardog Azure Backup PersistentVolume
+templates:
+  - backup/persistent-volume.yaml
+
+tests:
+  - it: renders PersistentVolume when Azure backup enabled
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        location:
+          azure:
+            enabled: true
+            accountName: mystorage
+            accountKey: dummy
+            containerName: backups
+            protocol: nfs
+            persistentVolume:
+              annotations:
+                pv.kubernetes.io/provisioned-by: blob.csi.azure.com
+              capacity: 50Gi
+              accessModes: ["ReadWriteMany"]
+              reclaimPolicy: Retain
+              mountOptions:
+                - -o allow_other
+    asserts:
+      - isKind:
+          of: PersistentVolume
+      - equal:
+          path: metadata.name
+          value: stardog-RELEASE-NAME-backup-pv
+      - equal:
+          path: metadata.annotations["pv.kubernetes.io/provisioned-by"]
+          value: blob.csi.azure.com
+      - equal:
+          path: spec.capacity.storage
+          value: 50Gi
+      - equal:
+          path: spec.storageClassName
+          value: stardog-RELEASE-NAME-backup-sc
+      - equal:
+          path: spec.persistentVolumeReclaimPolicy
+          value: Retain
+      - equal:
+          path: spec.csi.volumeAttributes.containerName
+          value: backups
+      - equal:
+          path: spec.csi.volumeAttributes.protocol
+          value: nfs
+      - equal:
+          path: spec.csi.nodeStageSecretRef.name
+          value: RELEASE-NAME-backup-azure-secret
+      - contains:
+          path: spec.mountOptions
+          content: "-o allow_other"
+
+---
+suite: Stardog Azure Backup PersistentVolumeClaim
+templates:
+  - backup/persistent-volume-claim.yaml
+
+tests:
+  - it: renders PersistentVolumeClaim when Azure backup enabled
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        location:
+          azure:
+            enabled: true
+            accountName: mystorage
+            accountKey: dummy
+            containerName: backups
+            persistentVolumeClaim:
+              capacity: 50Gi
+              accessModes: ["ReadWriteMany"]
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: metadata.name
+          value: backup-azure-stardog-data-RELEASE-NAME
+      - equal:
+          path: spec.volumeName
+          value: stardog-RELEASE-NAME-backup-pv
+      - equal:
+          path: spec.storageClassName
+          value: stardog-RELEASE-NAME-backup-sc
+      - equal:
+          path: spec.resources.requests.storage
+          value: 50Gi
+      - contains:
+          path: spec.accessModes
+          content: ReadWriteMany

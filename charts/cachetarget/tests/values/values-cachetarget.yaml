@@ -1,0 +1,8 @@
+global:
+  stardog:
+    enabled: false
+  cachetarget:
+    enabled: true
+  __secretFixtures:
+    - metadata:
+        name: stardog-license
