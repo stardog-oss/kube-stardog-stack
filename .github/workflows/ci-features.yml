@@ -5,12 +5,11 @@ on:
     branches:
       - 'SAT-*'
       - 'CLOUD-*'
-    branches-ignore:
-      - 'SAT-*-RELEASE-*'
   workflow_dispatch:
 
 jobs:
   validate:
+    if: ${{ !startsWith(github.ref_name, 'SAT-') || !contains(github.ref_name, '-RELEASE-') }}
     uses: ./.github/workflows/helm-validate-reusable.yml
     with:
       charts: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/gateway","charts/voicebox","charts/cachetarget","."]'
@@ -21,6 +20,7 @@ jobs:
   #   secrets: inherit
 
   ci:
+    if: ${{ !startsWith(github.ref_name, 'SAT-') || !contains(github.ref_name, '-RELEASE-') }}
     needs: validate
     uses: ./.github/workflows/helm-package-reusable.yml
     secrets: inherit
