@@ -1,0 +1,180 @@
+apiVersion: v1
+entries:
+  cachetarget:
+  - apiVersion: v2
+    appVersion: latest
+    created: "2026-03-05T17:42:12.628437587Z"
+    dependencies:
+    - name: common
+      repository: file://../common
+      version: 0.1.5
+    description: Helm chart to deploy Stardog Cache Targets
+    digest: 3eef4ab6144f25668dd8060b72953eb04434f53355408fc0e6e14a02fd0d9a62
+    home: https://stardog-union.github.io/kube-stardog-stack/
+    icon: https://s3.amazonaws.com/stardog-logos.public/stardog-logo.png
+    maintainers:
+    - email: tech@stardog.com
+      name: Stardog Union
+      url: https://www.stardog.com
+    name: cachetarget
+    urls:
+    - https://stardog-oss.github.io/kube-stardog-stack/cachetarget-1.0.0.tgz
+    version: 1.0.0
+  gateway:
+  - apiVersion: v2
+    appVersion: latest
+    created: "2026-03-05T17:42:12.629051064Z"
+    dependencies:
+    - name: common
+      repository: file://../common
+      version: 0.1.5
+    description: Shared Gateway resources for the Stardog stack
+    digest: 2f74c9e6c8539cd9c4bbfc25ec5f4c28d8919e1c183c308a3b80e98d29a46221
+    home: https://stardog-union.github.io/kube-stardog-stack/
+    icon: https://s3.amazonaws.com/stardog-logos.public/stardog-logo.png
+    maintainers:
+    - email: tech@stardog.com
+      name: Stardog Union
+      url: https://www.stardog.com
+    name: gateway
+    urls:
+    - https://stardog-oss.github.io/kube-stardog-stack/gateway-1.0.0.tgz
+    version: 1.0.0
+  kube-stardog-stack:
+  - apiVersion: v2
+    appVersion: latest
+    created: "2026-03-05T17:42:12.636364122Z"
+    dependencies:
+    - name: common
+      repository: file://charts/common
+      version: 0.1.5
+    - condition: global.gateway.enabled
+      name: gateway
+      repository: file://charts/gateway
+      version: '>=1.0.0'
+    - condition: global.stardog.enabled
+      import-values:
+      - child: global
+        parent: global
+      name: stardog
+      repository: file://charts/stardog
+      version: '>=4.0.0'
+    - condition: global.zookeeper.enabled
+      name: zookeeper
+      repository: file://charts/zookeeper
+      version: '>=1.0.0'
+    - condition: global.launchpad.enabled
+      import-values:
+      - child: global
+        parent: global
+      name: launchpad
+      repository: file://charts/launchpad
+      version: '>=1.0.0'
+    - condition: global.voicebox.enabled
+      import-values:
+      - child: global
+        parent: global
+      name: voicebox
+      repository: file://charts/voicebox
+      version: '>=1.0.0'
+    - condition: global.cachetarget.enabled
+      import-values:
+      - child: global
+        parent: global
+      name: cachetarget
+      repository: file://charts/cachetarget
+      version: '>=1.0.0'
+    description: Helm chart to deploy the complete Stardog ecosystem, including Stardog,
+      Launchpad, and Voicebox
+    digest: cf68a5fafd1d3c61e5969cfe548af2e5c4dfe6ff600eaf1d3ab3ef4bfe3f4285
+    home: https://stardog-union.github.io/kube-stardog-stack/
+    icon: https://stardog-oss.github.io/kube-stardog-stack/stardog_open_source.png
+    maintainers:
+    - email: tech@stardog.com
+      name: Stardog Union
+      url: https://www.stardog.com
+    name: kube-stardog-stack
+    urls:
+    - https://stardog-oss.github.io/kube-stardog-stack/kube-stardog-stack-1.0.2.tgz
+    version: 1.0.2
+  launchpad:
+  - apiVersion: v2
+    appVersion: latest
+    created: "2026-03-05T17:42:12.637537177Z"
+    dependencies:
+    - name: common
+      repository: file://../common
+      version: 0.1.5
+    description: Helm chart to deploy Stardog Launchpad
+    digest: 4a4d66152b88137c594d1a5ed789d4ef9ee9d502bc6956c5dc6462b937c6c878
+    home: https://stardog-union.github.io/kube-stardog-stack/
+    icon: https://s3.amazonaws.com/stardog-logos.public/stardog-logo.png
+    maintainers:
+    - email: tech@stardog.com
+      name: Stardog Union
+      url: https://www.stardog.com
+    name: launchpad
+    urls:
+    - https://stardog-oss.github.io/kube-stardog-stack/launchpad-1.0.0.tgz
+    version: 1.0.0
+  stardog:
+  - apiVersion: v2
+    appVersion: latest
+    created: "2026-03-05T17:42:12.639895227Z"
+    dependencies:
+    - name: common
+      repository: file://../common
+      version: 0.1.5
+    description: Helm chart to deploy Stardog Cluster and associated services
+    digest: d734aa8ad1ad1bff73d4a86a76d9baeddcdf17f810866b9ee7672b2d3140e540
+    home: https://stardog-union.github.io/kube-stardog-stack/
+    icon: https://s3.amazonaws.com/stardog-logos.public/stardog-logo.png
+    maintainers:
+    - email: tech@stardog.com
+      name: Stardog Union
+      url: https://www.stardog.com
+    name: stardog
+    urls:
+    - https://stardog-oss.github.io/kube-stardog-stack/stardog-4.0.0.tgz
+    version: 4.0.0
+  voicebox:
+  - apiVersion: v2
+    appVersion: latest
+    created: "2026-03-05T17:42:12.640507051Z"
+    dependencies:
+    - name: common
+      repository: file://../common
+      version: 0.1.5
+    description: Helm chart to deploy Stardog Voicebox service
+    digest: 84e2ae9fbc846e55a706e4b689c0a48ea0003ec9a9ee678c4f12b44e417b6b90
+    home: https://stardog-union.github.io/kube-stardog-stack/
+    icon: https://s3.amazonaws.com/stardog-logos.public/stardog-logo.png
+    maintainers:
+    - email: tech@stardog.com
+      name: Stardog Union
+      url: https://www.stardog.com
+    name: voicebox
+    urls:
+    - https://stardog-oss.github.io/kube-stardog-stack/voicebox-1.0.0.tgz
+    version: 1.0.0
+  zookeeper:
+  - apiVersion: v2
+    appVersion: 3.9.4
+    created: "2026-03-05T17:42:12.641742051Z"
+    dependencies:
+    - name: common
+      repository: file://../common
+      version: 0.1.5
+    description: Helm chart to deploy Zookeper Cluster and associated services
+    digest: 798e8e01f7ff7a7eaaaeb7061c02db8b3b14309576e70327288d37ec3f031878
+    home: https://stardog-union.github.io/kube-stardog-stack/
+    icon: https://s3.amazonaws.com/stardog-logos.public/stardog-logo.png
+    maintainers:
+    - email: tech@stardog.com
+      name: Stardog Union
+      url: https://www.stardog.com
+    name: zookeeper
+    urls:
+    - https://stardog-oss.github.io/kube-stardog-stack/zookeeper-1.0.0.tgz
+    version: 1.0.0
+generated: "2026-03-05T17:42:12.626733189Z"
