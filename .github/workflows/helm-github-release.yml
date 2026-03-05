@@ -26,6 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: azure/setup-helm@v4
         with:
           version: ${{ inputs.helm_version }}
@@ -59,6 +61,24 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "umbrella_version=$umbrella_ver" >> "$GITHUB_OUTPUT"
 
+      - name: Prepare gh-pages worktree
+        id: pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          pages_dir="$GITHUB_WORKSPACE/gh-pages"
+          rm -rf "$pages_dir"
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git fetch origin gh-pages
+            git worktree add "$pages_dir" origin/gh-pages
+            git -C "$pages_dir" checkout -B gh-pages origin/gh-pages
+          else
+            mkdir "$pages_dir"
+            git -C "$pages_dir" init
+            git -C "$pages_dir" checkout -b gh-pages
+          fi
+          echo "pages_dir=$pages_dir" >> "$GITHUB_OUTPUT"
+
       - name: Package charts and build manifest
         id: package
         shell: bash
@@ -66,34 +86,86 @@ jobs:
           CHARTS_JSON: ${{ inputs.charts }}
           RELEASE_TAG: ${{ steps.meta.outputs.tag }}
           EXPECTED_UMBRELLA_VERSION: ${{ steps.meta.outputs.umbrella_version }}
+          PAGES_DIR: ${{ steps.pages.outputs.pages_dir }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
         run: |
           set -euo pipefail
 
           dist="$GITHUB_WORKSPACE/dist"
           rm -rf "$dist"
           mkdir -p "$dist"
+          new_pkgs_file="$GITHUB_WORKSPACE/new-packages.txt"
+          : > "$new_pkgs_file"
 
           declare -A versions
+          declare -A checksums
           umbrella_name=""
           umbrella_version=""
+          umbrella_checksum=""
           bundle_version=""
+          bundle_checksum=""
+
+          before_ok=false
+          if [[ -n "${BEFORE:-}" && "$BEFORE" != "0000000000000000000000000000000000000000" ]]; then
+            if git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+              before_ok=true
+            fi
+          fi
 
           while read -r chart; do
             [ -z "$chart" ] && continue
-            helm dependency build "$chart"
-
             chart_name=$(helm show chart "$chart" | awk '/^name:/{print $2}')
             chart_version=$(helm show chart "$chart" | awk '/^version:/{print $2}' | sed -E 's/^v//')
-
-            helm package "$chart" --dependency-update -d "$dist"
+            pkg_name="${chart_name}-${chart_version}.tgz"
+            if [[ -n "${PAGES_DIR:-}" && -f "$PAGES_DIR/$pkg_name" ]]; then
+              if [[ "$before_ok" == "true" ]]; then
+                if [[ "$chart" == "." ]]; then
+                  if git diff --name-only "$BEFORE" "$AFTER" -- . \
+                    ':(exclude).git' \
+                    ':(exclude).git/**' \
+                    ':(exclude).gitignore' \
+                    ':(exclude).DS_Store' \
+                    ':(exclude).idea/**' \
+                    ':(exclude).vscode/**' \
+                    ':(exclude).github/**' \
+                    ':(exclude)tests/**' \
+                    ':(exclude)charts/*/tests/**' \
+                    ':(exclude)scripts/**' \
+                    ':(exclude)*.tgz' \
+                    ':(exclude)*.tar.gz' \
+                    ':(exclude)node_modules/**' \
+                    ':(exclude)venv/**' \
+                    ':(exclude).env*' \
+                    ':(exclude)README_hook.md' | grep -q .; then
+                    echo "Repo content changed (package-relevant files) but umbrella version not bumped (package exists: $pkg_name)."
+                    exit 1
+                  fi
+                else
+                  if git diff --name-only "$BEFORE" "$AFTER" -- "$chart/" | grep -q .; then
+                    echo "Subchart $chart_name changed but version not bumped (package exists: $pkg_name)."
+                    exit 1
+                  fi
+                fi
+              fi
+              cp -f "$PAGES_DIR/$pkg_name" "$dist/"
+            else
+              helm dependency build "$chart"
+              helm package "$chart" --dependency-update -d "$dist"
+              echo "$pkg_name" >> "$new_pkgs_file"
+            fi
+            sha256="$(sha256sum "$dist/$pkg_name" | awk '{print $1}')"
 
             if [[ "$chart" == "." ]]; then
               umbrella_name="$chart_name"
               umbrella_version="$chart_version"
+              umbrella_checksum="$sha256"
             elif [[ "$chart_name" == "kube-stardog-stack-bundle" ]]; then
               bundle_version="$chart_version"
+              bundle_checksum="$sha256"
             else
               versions["$chart_name"]="$chart_version"
+              checksums["$chart_name"]="$sha256"
             fi
           done < <(python -c 'import json, os; print("\n".join(json.loads(os.environ["CHARTS_JSON"])))')
 
@@ -117,7 +189,14 @@ jobs:
           manifest="$GITHUB_WORKSPACE/release-manifest.yaml"
           notes="$GITHUB_WORKSPACE/release-notes.md"
 
-          printf 'release: %s\n\ncomponents:\n  stardog: %s\n  launchpad: %s\n  gateway: %s\n  zookeeper: %s\n  voicebox: %s\n  cachetarget: %s\n\numbrella:\n  %s: %s\n' \
+          bundle_umbrella_line=""
+          bundle_checksum_line=""
+          if [[ -n "$bundle_version" ]]; then
+            bundle_umbrella_line="  kube-stardog-stack-bundle: ${bundle_version}\n"
+            bundle_checksum_line="  kube-stardog-stack-bundle: ${bundle_checksum}\n"
+          fi
+
+          printf 'release: %s\n\ncomponents:\n  stardog: %s\n  launchpad: %s\n  gateway: %s\n  zookeeper: %s\n  voicebox: %s\n  cachetarget: %s\n\numbrella:\n  %s: %s\n%s\nchecksums:\n  stardog: %s\n  launchpad: %s\n  gateway: %s\n  zookeeper: %s\n  voicebox: %s\n  cachetarget: %s\n  %s: %s\n%s' \
             "$RELEASE_TAG" \
             "${versions[stardog]}" \
             "${versions[launchpad]}" \
@@ -127,11 +206,17 @@ jobs:
             "${versions[cachetarget]}" \
             "$umbrella_name" \
             "$umbrella_version" \
+            "$bundle_umbrella_line" \
+            "${checksums[stardog]}" \
+            "${checksums[launchpad]}" \
+            "${checksums[gateway]}" \
+            "${checksums[zookeeper]}" \
+            "${checksums[voicebox]}" \
+            "${checksums[cachetarget]}" \
+            "$umbrella_name" \
+            "$umbrella_checksum" \
+            "$bundle_checksum_line" \
             > "$manifest"
-
-          if [[ -n "$bundle_version" ]]; then
-            printf '  kube-stardog-stack-bundle: %s\n' "$bundle_version" >> "$manifest"
-          fi
 
           printf 'Release set: %s\n\nComponents:\n- stardog: %s\n- launchpad: %s\n- gateway: %s\n- zookeeper: %s\n- voicebox: %s\n- cachetarget: %s\n\nUmbrella:\n- %s: %s\n' \
             "$RELEASE_TAG" \
@@ -150,6 +235,7 @@ jobs:
           fi
 
           echo "dist_dir=$dist" >> "$GITHUB_OUTPUT"
+          echo "new_packages_file=$new_pkgs_file" >> "$GITHUB_OUTPUT"
 
       - name: Publish Helm repo (gh-pages)
         shell: bash
@@ -158,43 +244,68 @@ jobs:
           RELEASE_TAG: ${{ steps.meta.outputs.tag }}
           PAGES_URL: https://stardog-oss.github.io/kube-stardog-stack
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAGES_DIR: ${{ steps.pages.outputs.pages_dir }}
+          NEW_PACKAGES_FILE: ${{ steps.package.outputs.new_packages_file }}
         run: |
           set -euo pipefail
 
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
-            git fetch origin gh-pages
-            git worktree add gh-pages origin/gh-pages
-            git -C gh-pages checkout -B gh-pages origin/gh-pages
-          else
-            mkdir gh-pages
-            git -C gh-pages init
-            git -C gh-pages checkout -b gh-pages
+          pages_dir="${PAGES_DIR:-$GITHUB_WORKSPACE/gh-pages}"
+          touch "$pages_dir/.nojekyll"
+          if [[ -f "$NEW_PACKAGES_FILE" ]]; then
+            while read -r pkg; do
+              [ -z "$pkg" ] && continue
+              cp -f "$DIST_DIR/$pkg" "$pages_dir/"
+            done < "$NEW_PACKAGES_FILE"
           fi
-
-          touch gh-pages/.nojekyll
-          cp -f "$DIST_DIR"/*.tgz gh-pages/
           if [[ -f "$GITHUB_WORKSPACE/stardog_open_source.png" ]]; then
-            cp -f "$GITHUB_WORKSPACE/stardog_open_source.png" gh-pages/
+            cp -f "$GITHUB_WORKSPACE/stardog_open_source.png" "$pages_dir/"
           fi
 
-          if [[ -f gh-pages/index.yaml ]]; then
-            helm repo index gh-pages --url "$PAGES_URL" --merge gh-pages/index.yaml
+          if [[ -s "$NEW_PACKAGES_FILE" || ! -f "$pages_dir/index.yaml" ]]; then
+            if [[ -f "$pages_dir/index.yaml" ]]; then
+              helm repo index "$pages_dir" --url "$PAGES_URL" --merge "$pages_dir/index.yaml"
+            else
+              helm repo index "$pages_dir" --url "$PAGES_URL"
+            fi
           else
-            helm repo index gh-pages --url "$PAGES_URL"
+            echo "No new packages; skipping index regeneration."
           fi
 
-          git -C gh-pages add .
-          if git -C gh-pages status --porcelain | grep -q .; then
-            git -C gh-pages commit -m "Publish Helm repo ${RELEASE_TAG}"
+          git -C "$pages_dir" add .
+          if git -C "$pages_dir" status --porcelain | grep -q .; then
+            git -C "$pages_dir" commit -m "Publish Helm repo ${RELEASE_TAG}"
           else
             echo "No changes to commit"
           fi
-          git -C gh-pages push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages:gh-pages
+          git -C "$pages_dir" push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages:gh-pages
+
+      - name: Decide release upload
+        id: release_upload
+        shell: bash
+        env:
+          NEW_PACKAGES_FILE: ${{ steps.package.outputs.new_packages_file }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          has_new=false
+          if [[ -s "$NEW_PACKAGES_FILE" ]]; then
+            has_new=true
+          fi
+          tag_exists=false
+          if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            tag_exists=true
+          fi
+          if [[ "$has_new" == "false" && "$tag_exists" == "true" ]]; then
+            echo "skip_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip_release=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Create GitHub release
+        if: ${{ steps.release_upload.outputs.skip_release != 'true' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
