@@ -67,6 +67,20 @@ Configuration Parameters
 | `tolerations`                                | Taints the pods tolerate; match with `nodeSelector` to target dedicated pools |
 The default values are specified in `values.yaml`.
 
+### Prerequisites (Namespace + License)
+
+Create the namespace and the Stardog license secret before installing the chart:
+
+```bash
+export NAMESPACE=stardog
+export LICENSE_FILE=/path/to/stardog-license-key.bin
+
+kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret generic stardog-license \
+  --from-file=stardog-license-key.bin="${LICENSE_FILE}" \
+  -n "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+```
+
 ### Temporary storage (tmpDir)
 
 `tmpDir.path` replaces the legacy string-only `tmpDir` value. When `tmpDir.local=true` (default), the chart provisions an `emptyDir` volume and mounts it at the requested path so the Stardog JVM always has a writable, node-local scratch directory. If you prefer to reuse a directory that already lives on the main PVC (for example `/var/opt/stardog/tmp`), keep the `path` but set `tmpDir.local=false` so the chart reuses the PVC instead of creating an extra volume.
@@ -85,15 +99,58 @@ When `global.zookeeper.enabled=true`, the chart expects the ZooKeeper Service na
 
 Stardog and its hooks run under the same service account determined by `serviceAccount.create` and `serviceAccount.name`. Populate `environmentVariables` when you need to inject extra JVM flags or platform-specific settings—the chart renders them verbatim into the container spec while still managing the base PATH and Stardog variables on your behalf.
 
-### Gateway API (Traefik) exposure
+### JWT configuration
 
-If your cluster uses the Gateway API with Traefik (or another compatible controller), you can replace the classic ingress resources by enabling the `gateway` block:
+Below is an example configuration for JWT authentication with a local signer plus issuer definitions for Microsoft Entra ID and Okta. Replace the `${TENANT_ID}`, `${APP_ID}`, and `${OKTA_DOMAIN}` values to match your environment.
+
+```yaml
+jwtConfig:
+  enabled: true
+  # needed for better security or local user
+  signer:
+    enabled: true
+    algorithm: HS256
+    audience: stardog
+    secret: some-kind-of-secret-key-here
+    tokenTTL: P7D
+  # Microsoft Entra ID configuration
+  issuers:
+    - usernameField: preferred_username
+      issuer: "https://login.microsoftonline.com/${TENANT_ID}/v2.0"
+      audience: "api://${APP_ID}"
+      roleMappingSource: token
+      usernameTemplates:
+        - "{preferred_username}"
+        - "{sub}"
+      autoCreateUsers: true
+      rolesClaimPath: roles
+      algorithms:
+        - name: RS256
+          keyUrl: "https://login.microsoftonline.com/${TENANT_ID}/discovery/v2.0/keys"
+    # Okta configuration
+    - usernameField: preferred_username
+      issuer: "https://${OKTA_DOMAIN}/oauth2/default"
+      audience: "api://default"
+      roleMappingSource: token
+      usernameTemplates:
+        - "{preferred_username}"
+        - "{sub}"
+      autoCreateUsers: true
+      rolesClaimPath: roles
+      algorithms:
+        - name: RS256
+          keyUrl: "https://${OKTA_DOMAIN}/oauth2/default/v1/keys"
+```
+
+### Gateway API (Envoy Gateway) exposure
+
+If your cluster uses the Gateway API with Envoy Gateway (recommended for BI/TCPRoute support) or another compatible controller, you can replace the classic ingress resources by enabling the `gateway` block:
 
 ```yaml
 gateway:
   enabled: true
   http:
-    className: traefik
+    className: envoy-gateway
     domain: example.com
     tls:
       enabled: true
@@ -141,7 +198,7 @@ gateway:
     domain: example.com
   tcpBi:
     enabled: true        # defaults to true when bi.enabled=true
-    port: 5806     # Listener port exposed by Traefik/Gateway
+    port: 5806     # Listener port exposed by Envoy Gateway
     protocol: TCP   # keep TCP for MySQL start-TLS; terminate TLS at Stardog
 bi:
   enabled: true      # required so the Service exposes the SQL port

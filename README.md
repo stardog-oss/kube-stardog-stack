@@ -53,6 +53,20 @@ The ClusterIssuer resource for certificate management is managed by this umbrell
 
 ## Installation
 
+### Prerequisites (Namespace + License)
+
+Create the namespace and the Stardog license secret before installing the umbrella chart:
+
+```bash
+export NAMESPACE=stardog
+export LICENSE_FILE=/path/to/stardog-license-key.bin
+
+kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret generic stardog-license \
+  --from-file=stardog-license-key.bin="${LICENSE_FILE}" \
+  -n "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+```
+
 ### Distribution & Support
 
 This chart package is **fully vendored (air-gap ready)**. The umbrella chart includes all subcharts in the release artifact, so installs do not require external chart repositories at install time.
