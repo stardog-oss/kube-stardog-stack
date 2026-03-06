@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.4
+-- Do no include PNG in helm chart package (too big)
+
 ## 1.0.3
 - Fully Documented Public Release
 - Maintenance: update maintainer information and documentation assets.
