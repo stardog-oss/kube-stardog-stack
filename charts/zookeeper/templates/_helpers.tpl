@@ -16,6 +16,7 @@ Common helpers
 
 {{- define "zookeeper.labels" -}}
 {{ include "sdcommon.labels.standard" . }}
+{{ include "sdcommon.labels.component" . }}
 {{- with .Values.commonLabels }}
 {{ toYaml . }}
 {{- end }}
@@ -23,6 +24,7 @@ Common helpers
 
 {{- define "zookeeper.selectorLabels" -}}
 {{ include "sdcommon.labels.selector" . }}
+{{ include "sdcommon.labels.component" . }}
 {{- end -}}
 
 {{- define "zookeeper.serviceAccountName" -}}

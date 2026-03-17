@@ -79,7 +79,6 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "sdcommon.labels.standard" . | nindent 4 }}
-    app.kubernetes.io/component: server
 spec:
   serviceName: {{ include "sdcommon.fullname" . }}
   replicas: {{ .Values.replicaCount }}
@@ -92,7 +91,6 @@ spec:
       labels:
         app: {{ include "sdcommon.fullname" . }}
         {{- include "sdcommon.labels.standard" . | nindent 8 }}
-        app.kubernetes.io/component: server
         stardog.com/deployname: {{ .Release.Name }}-launchpad
         stardog.com/resource-type: stardog-apps
       annotations:

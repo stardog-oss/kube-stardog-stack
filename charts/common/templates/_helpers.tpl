@@ -20,6 +20,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* Standard recommended labels for all resources */}}
 {{- define "sdcommon.labels.standard" -}}
 {{ include "sdcommon.labels" . }}
+{{ include "sdcommon.labels.component" . }}
+{{- end -}}
+
+{{/* Component label based on chart name */}}
+{{- define "sdcommon.labels.component" -}}
+app.kubernetes.io/component: {{ .Chart.Name }}
 {{- end -}}
 
 {{/* Merge annotations: global.annotations + chart annotations + extra */}}

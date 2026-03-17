@@ -6,10 +6,7 @@ metadata:
   name: {{ include "stardog.fullname" . }}-backup-job
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
-    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    {{ include "sdcommon.labels.standard" . | nindent 4 }}
   {{- if .Values.backup.cronjob.timeZone }}
   annotations:
     cronjob.kubernetes.io/timezone: {{ .Values.backup.cronjob.timeZone | quote }}
@@ -23,8 +20,7 @@ spec:
       template:
         metadata:
           labels:
-            app.kubernetes.io/instance: {{ .Release.Name }}
-            app.kubernetes.io/managed-by: {{ .Release.Service }}
+            {{ include "sdcommon.labels.standard" . | nindent 12 }}
         spec:
           restartPolicy: Never
           securityContext:
