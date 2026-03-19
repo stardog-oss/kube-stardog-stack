@@ -51,6 +51,33 @@ The following table lists the configurable parameters of the Voicebox chart and 
 | `nodeSelector` | Node labels to pin Voicebox pods | `{}` |
 | `tolerations` | Taints Voicebox pods tolerate; coordinate with `nodeSelector` | `[]` |
 | `affinity` | Custom pod affinity/anti-affinity rules | `{}` |
+| `bitesService.enabled` | Enable Spark-based Bites integration | `false` |
+| `bitesService.image.registry` | Bites container registry | `docker.io` |
+| `bitesService.image.repository` | Bites container image repository | `stardog/voicebox-bites` |
+| `bitesService.image.tag` | Bites container image tag | `latest` |
+| `bitesService.image.pullPolicy` | Bites image pull policy | `IfNotPresent` |
+| `bitesService.image.username` | Bites registry username | `""` |
+| `bitesService.image.password` | Bites registry password | `""` |
+| `bitesService.sparkApplication.name` | SparkApplication name for Bites job | `voicebox-bites-job` |
+| `bitesService.sparkApplication.sparkVersion` | Spark version for Bites job | `"3.5.0"` |
+| `bitesService.sparkApplication.pythonVersion` | Python version for Spark job | `"3"` |
+| `bitesService.sparkApplication.mode` | Spark deployment mode | `cluster` |
+| `bitesService.sparkApplication.type` | Spark application type | `Python` |
+| `bitesService.sparkApplication.mainApplicationFile` | Main Spark application file path | `local:///app/src/voicebox_bites/etl/bulk_document_extraction.py` |
+| `bitesService.sparkApplication.sparkConf` | Spark configuration map | See `values.yaml` |
+| `bitesService.sparkApplication.volumes` | Spark volumes mounted for document input | See `values.yaml` |
+| `bitesService.sparkApplication.persistentVolumeClaim.name` | PVC name used by Bites | `voicebox-bites-docs-pvc` |
+| `bitesService.sparkApplication.persistentVolumeClaim.size` | PVC size used by Bites | `"20Gi"` |
+| `bitesService.sparkApplication.persistentVolumeClaim.storageClassName` | PVC storage class (empty uses cluster default) | `""` |
+| `bitesService.sparkApplication.driver.cores` | Spark driver cores | `2` |
+| `bitesService.sparkApplication.driver.coreLimit` | Spark driver CPU limit | `"2000m"` |
+| `bitesService.sparkApplication.driver.memory` | Spark driver memory | `"4g"` |
+| `bitesService.sparkApplication.driver.securityContext.*` | Spark driver security settings | See `values.yaml` |
+| `bitesService.sparkApplication.executor.cores` | Spark executor cores | `2` |
+| `bitesService.sparkApplication.executor.instances` | Spark executor instance count | `3` |
+| `bitesService.sparkApplication.executor.memory` | Spark executor memory | `"4g"` |
+| `bitesService.sparkApplication.executor.securityContext.*` | Spark executor security settings | See `values.yaml` |
+| `bitesService.sparkApplication.restartPolicy.type` | Spark restart policy | `Never` |
 
 ### Configuration File
 
