@@ -34,6 +34,9 @@ data:
       imagePullPolicy: {{ .Values.bitesService.image.pullPolicy }}
       mainApplicationFile: {{ .Values.bitesService.sparkApplication.mainApplicationFile | default "local:///app/src/voicebox_bites/etl/bulk_document_extraction.py" }}
       sparkVersion: {{ .Values.bitesService.sparkApplication.sparkVersion | default "3.5.0" | quote }}
+      {{- with .Values.bitesService.sparkApplication.timeToLiveSeconds }}
+      timeToLiveSeconds: {{ . }}
+      {{- end }}
       restartPolicy:
         type: {{ .Values.bitesService.sparkApplication.restartPolicy.type }}
       sparkConf:

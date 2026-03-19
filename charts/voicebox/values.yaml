@@ -79,6 +79,9 @@ bitesService:
     mode: cluster
     type: Python
     mainApplicationFile: "local:///app/src/voicebox_bites/etl/bulk_document_extraction.py"
+    # Optional TTL (seconds) for cleaning up finished SparkApplication resources.
+    # Set to null to leave SparkApplication resources after completion.
+    timeToLiveSeconds: 86400 # 24 hours 
     
     # Spark Configuration
     sparkConf:

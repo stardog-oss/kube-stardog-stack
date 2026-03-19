@@ -64,6 +64,7 @@ The following table lists the configurable parameters of the Voicebox chart and 
 | `bitesService.sparkApplication.mode` | Spark deployment mode | `cluster` |
 | `bitesService.sparkApplication.type` | Spark application type | `Python` |
 | `bitesService.sparkApplication.mainApplicationFile` | Main Spark application file path | `local:///app/src/voicebox_bites/etl/bulk_document_extraction.py` |
+| `bitesService.sparkApplication.timeToLiveSeconds` | Optional TTL in seconds to clean up finished SparkApplication resources | `3600` |
 | `bitesService.sparkApplication.sparkConf` | Spark configuration map | See `values.yaml` |
 | `bitesService.sparkApplication.volumes` | Spark volumes mounted for document input | See `values.yaml` |
 | `bitesService.sparkApplication.persistentVolumeClaim.name` | PVC name used by Bites | `voicebox-bites-docs-pvc` |
@@ -180,13 +181,13 @@ bitesService:
     pullPolicy: IfNotPresent
 
   sparkApplication:
-    enabled: true
     name: voicebox-bites-job
     sparkVersion: "3.5.0"
     pythonVersion: "3"
     mode: cluster
     type: Python
     mainApplicationFile: "local:///app/src/voicebox_bites/etl/bulk_document_extraction.py"
+    timeToLiveSeconds: 86400  # 24 h Optional TTL to clean up completed SparkApplication resources
 
     # PVC Configuration for document storage
     persistentVolumeClaim:

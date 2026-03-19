@@ -73,3 +73,13 @@ tests:
         matchRegex:
           path: data["vbx_bites_config.yaml"]
           pattern: '(?m)^\s*serviceAccount:\s*voicebox-sa$'
+
+  - it: should render bites SparkApplication timeToLiveSeconds when configured
+    set:
+      bitesService.enabled: true
+      bitesService.sparkApplication.timeToLiveSeconds: 3600
+    asserts:
+      - documentIndex: 1
+        matchRegex:
+          path: data["vbx_bites_config.yaml"]
+          pattern: '(?m)^\s*timeToLiveSeconds:\s*3600$'
