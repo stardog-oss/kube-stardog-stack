@@ -68,7 +68,7 @@ The following table lists the configurable parameters of the Voicebox chart and 
 | `bitesService.sparkApplication.volumes` | Spark volumes mounted for document input | See `values.yaml` |
 | `bitesService.sparkApplication.persistentVolumeClaim.name` | PVC name used by Bites | `voicebox-bites-docs-pvc` |
 | `bitesService.sparkApplication.persistentVolumeClaim.size` | PVC size used by Bites | `"20Gi"` |
-| `bitesService.sparkApplication.persistentVolumeClaim.storageClassName` | PVC storage class (empty uses cluster default) | `""` |
+| `bitesService.sparkApplication.persistentVolumeClaim.storageClassName` | PVC storage class (must support `ReadOnlyMany`; empty uses cluster default) | `""` |
 | `bitesService.sparkApplication.driver.cores` | Spark driver cores | `2` |
 | `bitesService.sparkApplication.driver.coreLimit` | Spark driver CPU limit | `"2000m"` |
 | `bitesService.sparkApplication.driver.memory` | Spark driver memory | `"4g"` |
@@ -192,7 +192,7 @@ bitesService:
     persistentVolumeClaim:
       name: voicebox-bites-docs-pvc
       size: "20Gi"
-      storageClassName: ""  # Uses default storage class
+      storageClassName: ""  # Uses default storage class (must support ReadOnlyMany)
 
     # Spark Configuration
     sparkConf:
@@ -212,6 +212,8 @@ bitesService:
     restartPolicy:
       type: Never
 ```
+
+The storage class selected for `bitesService.sparkApplication.persistentVolumeClaim.storageClassName` must support the `ReadOnlyMany` access mode.
 
 #### User Token Permissions
 
@@ -270,7 +272,7 @@ kubectl logs -f <spark-driver-pod>
 ### Bites Service Troubleshooting
 
 - **Spark Operator not found**: Ensure the Spark Operator is installed and the namespace is allowed in `spark.jobNamespaces`.
-- **PVC creation fails**: Check storage class availability and permissions.
+- **PVC creation fails**: Check storage class availability/permissions and confirm it supports `ReadOnlyMany`.
 - **Spark job fails**: Review SparkApplication logs and ensure the main application file path is correct.
 
 ### Bites Service Security Considerations
