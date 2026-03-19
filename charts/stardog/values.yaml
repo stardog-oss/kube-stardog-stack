@@ -198,6 +198,25 @@ readinessProbe:
 stardogProperties: |
   pack.node.join.retry.count=15
   pack.node.join.retry.delay=1m
+  query.timeout = 90m
+  spilling.max.file.length = 0B
+  password.length.min = 8
+  storage.wal.total.size = 104857600
+  logging.audit.enabled = false
+  upgrade.automatic = true
+  catalog.key.type = xor
+  storage.statistics.timing = true
+
+  logging.audit.type=json
+  logging.audit.file=audit.json
+
+  # Audit log rotation
+  logging.audit.rotation.type = size
+  # 1 GB
+  logging.audit.rotation.limit=1000000000
+  logging.audit.rotation.compress=true
+  logging.audit.rotation.file.count=3
+
 
 
 certIssuer:
