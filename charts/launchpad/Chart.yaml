@@ -8,8 +8,8 @@ maintainers:
   name: Stardog Open-Source Community
   url: https://www.stardog.com
 name: launchpad
-version: 1.0.1
+version: 1.0.2
 dependencies:
 - name: common
-  version: 0.1.5
+  version: 0.1.6
   repository: file://../common

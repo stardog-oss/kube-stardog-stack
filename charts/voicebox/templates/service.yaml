@@ -12,9 +12,9 @@ metadata:
   {{- end }}
 spec:
   ports:
-    - name: http
+    - name: {{ (index .Values.ports 0).name }}
       port: {{ include "voicebox.servicePort" . | int }}
-      targetPort: 8000
+      targetPort: {{ (index .Values.ports 0).port }}
       protocol: TCP
   type: {{ .Values.service.type }}
   selector:

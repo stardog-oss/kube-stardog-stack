@@ -744,10 +744,11 @@ livenessProbe:
     port: server
   {{- with .Values.livenessProbe }}
   {{- range $k, $v := . }}
-    {{- if and (not (eq $k "httpGet")) (not (eq $k "periodSeconds")) (not (eq $k "timeoutSeconds")) }}
+    {{- if and (not (eq $k "httpGet")) (not (eq $k "periodSeconds")) (not (eq $k "timeoutSeconds")) (not (eq $k "initialDelaySeconds")) }}
   {{ $k }}: {{ $v }}
     {{- end }}
   {{- end }}
+  initialDelaySeconds: {{ .initialDelaySeconds }}
   periodSeconds: {{ .periodSeconds }}
   timeoutSeconds: {{ .timeoutSeconds }}
   {{- end }}

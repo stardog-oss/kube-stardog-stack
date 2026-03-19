@@ -42,7 +42,7 @@
   {{- $vbEnabled = or (eq .Values.voicebox.enabled true) (eq (toString .Values.voicebox.enabled) "true") -}}
 {{- end -}}
 
-{{- $vbPort := 8080 -}}
+{{- $vbPort := 8000 -}}
 {{- if and (hasKey .Values "global") (hasKey .Values.global "voicebox") (hasKey .Values.global.voicebox "service") (hasKey .Values.global.voicebox.service "port") -}}
   {{- $vbPort = .Values.global.voicebox.service.port -}}
 {{- else if and (hasKey .Values "voicebox") (hasKey .Values.voicebox "service") (hasKey .Values.voicebox.service "port") -}}

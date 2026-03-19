@@ -1,4 +1,6 @@
 # Changelog
+## 4.0.2
+- Stardog properties default update.
 
 ## 4.0.1
 - Maintenance: update maintainer information.

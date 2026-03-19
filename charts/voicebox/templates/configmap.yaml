@@ -8,3 +8,83 @@ metadata:
     {{- include "sdcommon.labels.standard" . | nindent 4 }}
 data:
   vbx_config.json: {{ .Values.configFile | quote }}
+---
+{{- if and .Values.bitesService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sdcommon.fullname" . }}-bites-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdcommon.labels.standard" . | nindent 4 }}
+data:
+  vbx_bites_config.yaml: |2-
+    apiVersion: sparkoperator.k8s.io/v1beta2
+    kind: SparkApplication
+    metadata:
+      name: {{ .Values.bitesService.sparkApplication.name | default "voicebox-bites-job" }}
+      namespace: {{ .Release.Namespace }}
+      labels:
+        {{- include "sdcommon.labels.standard" . | nindent 8 }}
+    spec:
+      type: {{ .Values.bitesService.sparkApplication.type | default "Python" }}
+      pythonVersion: {{ .Values.bitesService.sparkApplication.pythonVersion | default "3" | quote }}
+      mode: {{ .Values.bitesService.sparkApplication.mode | default "cluster" }}
+      image: "{{ .Values.bitesService.image.registry }}/{{ .Values.bitesService.image.repository }}:{{ .Values.bitesService.image.tag }}"
+      imagePullPolicy: {{ .Values.bitesService.image.pullPolicy }}
+      mainApplicationFile: {{ .Values.bitesService.sparkApplication.mainApplicationFile | default "local:///app/src/voicebox_bites/etl/bulk_document_extraction.py" }}
+      sparkVersion: {{ .Values.bitesService.sparkApplication.sparkVersion | default "3.5.0" | quote }}
+      restartPolicy:
+        type: {{ .Values.bitesService.sparkApplication.restartPolicy.type }}
+      sparkConf:
+        {{- with .Values.bitesService.sparkApplication.sparkConf }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+
+      {{- with .Values.bitesService.sparkApplication.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      driver:
+        cores: {{ .Values.bitesService.sparkApplication.driver.cores }}
+        coreLimit: {{ .Values.bitesService.sparkApplication.driver.coreLimit | quote }}
+        memory: {{ .Values.bitesService.sparkApplication.driver.memory | quote }}
+        serviceAccount: {{ .Values.serviceAccountName | default "voicebox" }}
+        envVars:
+          HOME: "/tmp"
+        {{- if .Values.bitesService.sparkApplication.volumes }}
+        volumeMounts:
+          {{- range .Values.bitesService.sparkApplication.volumes }}
+          - name: {{ .name }}
+            mountPath: /mnt/data/documents
+            readOnly: true
+          {{- end }}
+        {{- end }}
+        {{- with .Values.bitesService.sparkApplication.driver.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      executor:
+        cores: {{ .Values.bitesService.sparkApplication.executor.cores }}
+        instances: {{ .Values.bitesService.sparkApplication.executor.instances }}
+        memory: {{ .Values.bitesService.sparkApplication.executor.memory | quote }}
+        envVars:
+          HOME: "/tmp"
+        {{- if .Values.bitesService.sparkApplication.volumes }}
+        volumeMounts:
+          {{- range .Values.bitesService.sparkApplication.volumes }}
+          - name: {{ .name }}
+            mountPath: /mnt/data/documents
+            readOnly: true
+          {{- end }}
+        {{- end }}
+        {{- with .Values.bitesService.sparkApplication.executor.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+{{- end }}
+
+
+
+      
