@@ -5,6 +5,10 @@ on:
     branches:
       - 'SAT-*'
       - 'CLOUD-*'
+      - '!SAT-*-release'
+      - '!SAT-*-release-*'
+      - '!SAT-*-hotfix'
+      - '!SAT-*-hotfix-*'
   workflow_dispatch:
 
 jobs:
