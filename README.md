@@ -75,6 +75,12 @@ https://github.com/stardog-oss/kube-stardog-stack/releases
 
 Each component chart maintains its own version. The release tag matches the umbrella chart version, and component versions may or may not change in a given release.
 
+Maintainer release process:
+
+```text
+RELEASE.md
+```
+
 **POC / DEV (Public Helm Repo)**
 It is fine to use the public Helm repo for evaluation environments, but no SLA is offered.
 
@@ -372,7 +378,7 @@ kubectl logs -l app=my-stardog-stack-voicebox
 
 ## Contributing
 
-We welcome contributions from the community. Please follow the workflow below:
+We use a fork-and-pull-request model for normal contributions.
 
 Requirements:
 
@@ -382,14 +388,26 @@ Requirements:
   helm plugin install https://github.com/helm-unittest/helm-unittest
   ```
 
-1. Clone the repository:
+1. Fork the repository on GitHub.
+2. Clone your fork:
    ```bash
    git clone https://github.com/stardog-oss/kube-stardog-stack
    ```
-2. Enable the pre-commit hook:
+3. Enable the pre-commit hook:
    ```bash
    git config core.hooksPath .githooks
    ```
-3. Create a branch and open a pull request.
+4. Create a branch in your fork for the change you want to propose.
+5. If the change is tied to a planned release or hotfix, contact the maintainers to confirm which target branch or release line to use.
+6. Open a pull request from your fork to the target branch in this repository.
 
-Maintainers may reach out to move your PR to a release branch depending on timing and release planning.
+What to expect:
+
+- Pull requests run validation only. They do not publish packages.
+- Local pre-commit checks changelogs, dependency locks, linting, and unit tests.
+- Final version-bump enforcement happens only during the release tag workflow.
+- Maintainers control release and hotfix branches and create the final `vX.Y.Z` tags.
+
+If a change is intended for a specific release train, maintainers may ask you to target a release or hotfix branch directly, or they may move or cherry-pick the change after review.
+
+For the maintainer release process, see `RELEASE.md`.

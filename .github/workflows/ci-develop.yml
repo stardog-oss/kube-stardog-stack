@@ -43,4 +43,5 @@ jobs:
     with:
       charts: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/gateway","charts/voicebox","charts/cachetarget","."]'
       oci_repo: 'oci://stardog-example-helm-chart.jfrog.io/'
-      versioning_mode: 'release'
+      versioning_mode: 'rc'
+      prerelease_label: 'rc'

@@ -11,7 +11,7 @@
       1) .Values.service.port
       2) .Values.global.voicebox.port
       3) .Values.global.voicebox.service.port (legacy)
-      4) 8080
+      4) 8000
 */}}
 {{- define "voicebox.servicePort" -}}
 {{- $service := .Values.service | default (dict) -}}
