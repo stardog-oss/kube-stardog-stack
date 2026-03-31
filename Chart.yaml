@@ -2,7 +2,7 @@ apiVersion: v2
 appVersion: latest
 dependencies:
 - name: common
-  version: 0.1.5
+  version: 0.1.6
   repository: file://charts/common
 - condition: global.gateway.enabled
   name: gateway

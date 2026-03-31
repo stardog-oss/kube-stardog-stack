@@ -12,6 +12,11 @@ securityContext:
 containerSecurityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
+serviceAccountName: voicebox-sa
+ports:
+  - name: http
+    port: 8000
+
 service:
   type: ClusterIP
   #port: 8080  #can be configure at the global.voicebox.port
@@ -53,3 +58,98 @@ resources:
 nodeSelector: {}
 affinity: {}
 tolerations: []
+
+bitesService:
+  enabled: false
+  image:
+    registry: docker.io
+    repository: stardog/voicebox-bites
+    tag: latest
+    pullPolicy: IfNotPresent
+    # Request user credentiasl to Stardog team.
+    username: ""
+    password: ""
+    pullSecrets: []
+  
+  # SparkApplication Configuration
+  sparkApplication:
+    name: voicebox-bites-job
+    sparkVersion: "3.5.0"
+    pythonVersion: "3"
+    mode: cluster
+    type: Python
+    mainApplicationFile: "local:///app/src/voicebox_bites/etl/bulk_document_extraction.py"
+    # Optional TTL (seconds) for cleaning up finished SparkApplication resources.
+    # Set to null to leave SparkApplication resources after completion.
+    timeToLiveSeconds: 86400 # 24 hours 
+    
+    # Spark Configuration
+    sparkConf:
+      "spark.jars.ivy": "/tmp/.ivy2"
+      "spark.local.dir": "/tmp/spark-local"
+    
+    # Volume Configuration
+    volumes:
+      - name: docs
+        persistentVolumeClaim:
+          claimName: voicebox-bites-docs-pvc
+    
+    # PVC Configuration
+    persistentVolumeClaim:
+      name: voicebox-bites-docs-pvc
+      size: "20Gi"
+      storageClassName: ""
+    
+    # Driver Configuration
+    driver:
+      cores: 2
+      coreLimit: "2000m"
+      memory: "4g"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100000
+        runAsGroup: 100000
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        seccompProfile:
+          type: RuntimeDefault
+    
+    # Executor Configuration
+    executor:
+      cores: 2
+      instances: 3
+      memory: "4g"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100000
+        runAsGroup: 100000
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        seccompProfile:
+          type: RuntimeDefault
+    
+    # Restart Policy
+    restartPolicy:
+      type: Never
+  
+startupProbe:
+  path: /system/health
+  periodSeconds: 30
+  timeoutSeconds: 15
+  failureThreshold: 10
+
+livenessProbe:
+  path: /system/health
+  initialDelaySeconds: 5
+  periodSeconds: 30
+  timeoutSeconds: 15
+
+readinessProbe:
+  path: /system/health
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 3

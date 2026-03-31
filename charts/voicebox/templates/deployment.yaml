@@ -31,6 +31,7 @@ spec:
       imagePullSecrets:
         - name: {{ .Release.Name }}-voicebox-image-pull-secret
       {{- end }}
+      serviceAccountName: {{ .Values.serviceAccountName | default "voicebox-sa" }}
       containers:
         - name: {{ include "sdcommon.fullname" . }}
           image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -38,21 +39,52 @@ spec:
           securityContext: 
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           ports:
-            - name: http
+            - name: {{ (index .Values.ports 0).name }}
               containerPort: {{ include "voicebox.servicePort" . | int }}
               protocol: TCP
           env:
             - name: VBX_CONFIG_FILE
               value: /voicebox-config/vbx_config.json
+          {{- if .Values.bitesService.enabled }}
+            - name: VBX_BITES_CONFIG_FILE
+              value: /bites-voicebox-config/vbx_bites_config.yaml
+          {{- end }}
           {{- range $key, $value := .Values.environmentVariables }}
             - name: {{ $key }}
               value: {{ $value | quote }}
           {{- end }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.startupProbe.path }}
+              port: http
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}          
           volumeMounts:
             - name: {{ include "sdcommon.fullname" . }}
               mountPath: /voicebox-config/vbx_config.json
               subPath: vbx_config.json
               readOnly: true
+            {{- if .Values.bitesService.enabled }}
+            - name: {{ include "sdcommon.fullname" . }}-bites-config
+              mountPath: /bites-voicebox-config/vbx_bites_config.yaml
+              subPath: vbx_bites_config.yaml
+              readOnly: true
+            {{- end }}
           {{- with .Values.resources }}
           resources:
           {{- toYaml . | nindent 12}}
@@ -86,3 +118,11 @@ spec:
             items:
               - key: vbx_config.json
                 path: vbx_config.json
+      {{- if .Values.bitesService.enabled }}
+        - name: {{ include "sdcommon.fullname" . }}-bites-config
+          configMap:
+            name: {{ include "sdcommon.fullname" . }}-bites-config
+            items:
+              - key: vbx_bites_config.yaml
+                path: vbx_bites_config.yaml
+      {{- end }}

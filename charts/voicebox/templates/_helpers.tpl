@@ -11,14 +11,14 @@
       1) .Values.service.port
       2) .Values.global.voicebox.port
       3) .Values.global.voicebox.service.port (legacy)
-      4) 8080
+      4) 8000
 */}}
 {{- define "voicebox.servicePort" -}}
 {{- $service := .Values.service | default (dict) -}}
 {{- $global := .Values.global | default (dict) -}}
 {{- $voicebox := index $global "voicebox" | default (dict) -}}
 {{- $legacySvc := index $voicebox "service" | default (dict) -}}
-{{- $svcPort := default 8080 (coalesce (index $service "port") (index $voicebox "port") (index $legacySvc "port")) -}}
+{{- $svcPort := default 8000 (coalesce (index $service "port") (index $voicebox "port") (index $legacySvc "port")) -}}
 {{- printf "%v" $svcPort -}}
 {{- end -}}
 

@@ -52,8 +52,8 @@ jobs:
       matrix:
         chart: ${{ fromJSON(inputs.charts) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v5
         with:
           version: ${{ inputs.helm_version }}
 

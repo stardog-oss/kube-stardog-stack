@@ -1,0 +1,21 @@
+{{- if .Values.bitesService.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.bitesService.sparkApplication.persistentVolumeClaim.name | default "voicebox-bites-docs-pvc" }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdcommon.labels.standard" . | nindent 4 }}
+  annotations:
+    meta.helm.sh/release-name: {{ .Release.Name }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+    - ReadOnlyMany
+  resources:
+    requests:
+      storage: {{ .Values.bitesService.sparkApplication.persistentVolumeClaim.size }}
+  {{- if .Values.bitesService.sparkApplication.persistentVolumeClaim.storageClassName }}
+  storageClassName: {{ .Values.bitesService.sparkApplication.persistentVolumeClaim.storageClassName | quote}}
+  {{- end }}
+{{- end }}

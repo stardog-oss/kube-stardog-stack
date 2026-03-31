@@ -26,7 +26,7 @@ tests:
           value: Always
       - equal:
           path: spec.template.spec.containers[0].ports[0].containerPort
-          value: 8080
+          value: 8000
       - equal:
           path: spec.template.spec.containers[0].ports[0].name
           value: http
@@ -159,6 +159,49 @@ tests:
       - equal:
           path: spec.template.spec.tolerations[0].effect
           value: NoSchedule
+
+  - it: should not include bites-specific env vars and volumes when disabled
+    set:
+      bitesService.enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: VBX_BITES_CONFIG_FILE
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: voicebox-RELEASE-NAME-bites-config
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: voicebox-RELEASE-NAME-bites-config
+
+  - it: should include bites-specific env vars and volumes when enabled
+    set:
+      bitesService.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: VBX_BITES_CONFIG_FILE
+            value: /bites-voicebox-config/vbx_bites_config.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: voicebox-RELEASE-NAME-bites-config
+            mountPath: /bites-voicebox-config/vbx_bites_config.yaml
+            subPath: vbx_bites_config.yaml
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: voicebox-RELEASE-NAME-bites-config
+            configMap:
+              name: voicebox-RELEASE-NAME-bites-config
+              items:
+                - key: vbx_bites_config.yaml
+                  path: vbx_bites_config.yaml
 
   - it: template labels match the selector labels
     asserts:

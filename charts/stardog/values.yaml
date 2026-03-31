@@ -196,8 +196,40 @@ readinessProbe:
   timeoutSeconds: 3
 
 stardogProperties: |
-  pack.node.join.retry.count=15
-  pack.node.join.retry.delay=1m
+  # Additional entries are appended verbatim to stardog.properties.
+  # Keep overrides here for DBMS properties that are not already managed by dedicated chart values.
+  #
+  # The chart already manages these when the corresponding features are enabled:
+  # - logging.audit.enabled=true
+  # - logging.audit.type=text
+  # - pack.enabled=true
+  # - pack.zookeeper.address=<zookeeper-service>
+  # - sql.server.enabled=true
+  # - javax.net.ssl.keyStore*
+  # - javax.net.ssl.trustStore*
+  #
+  # Common documented properties, shown commented out with Stardog defaults:
+  #
+  # Query behavior
+  #query.all.graphs=false
+  #query.timeout=5m
+  #query.update.timeout=10h
+  #strict.parsing=true
+  #
+  # Connection and HTTP
+  #database.connection.timeout=10m
+  #http.max.connections=200
+  #http.max.get.query.length=2000
+  #
+  # Watchdog
+  #watchdog.enabled=true
+  #watchdog.remote.access=true
+  #watchdog.port=5833
+  #
+  # Cluster join tuning
+  #pack.node.join.retry.count=20
+  #pack.node.join.retry.delay=5s
+  #pack.join.retry.count=3
 
 
 certIssuer:

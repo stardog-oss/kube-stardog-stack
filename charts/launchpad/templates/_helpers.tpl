@@ -101,6 +101,7 @@ Create launchpad host
 {{- define "certIssuer.labels" -}}
 app.kubernetes.io/name: {{ include "certIssuer.name.lp" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+{{ include "sdcommon.labels.component" . }}
 {{- end }}
 
 

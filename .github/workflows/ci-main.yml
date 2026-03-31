@@ -5,22 +5,8 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   validate:
     uses: ./.github/workflows/helm-validate-reusable.yml
-    with:
-      charts: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/gateway","charts/voicebox","charts/cachetarget","."]'
-
-  # smoke:
-  #   needs: validate
-  #   uses: ./.github/workflows/minikube-smoke.yml
-  #   secrets: inherit
-
-  release:
-    needs: validate
-    uses: ./.github/workflows/helm-github-release.yml
     with:
       charts: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/gateway","charts/voicebox","charts/cachetarget","."]'

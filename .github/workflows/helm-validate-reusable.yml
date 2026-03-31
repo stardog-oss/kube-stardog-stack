@@ -21,6 +21,11 @@ on:
         required: false
         type: string
         default: ''
+      version_check_mode:
+        description: 'none | release-tag'
+        required: false
+        type: string
+        default: 'none'
 
 jobs:
   validate:
@@ -30,17 +35,19 @@ jobs:
       matrix:
         chart: ${{ fromJSON(inputs.charts) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
         with:
           version: ${{ inputs.helm_version }}
-      - name: Validate changelog entries and umbrella bump
+      - name: Validate changelog entries and release versioning
         shell: bash
         env:
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.sha }}
+          CURRENT_REF_NAME: ${{ github.ref_name }}
+          VERSION_CHECK_MODE: ${{ inputs.version_check_mode }}
         run: |
           set -euo pipefail
 
@@ -68,60 +75,93 @@ jobs:
               echo "CHANGELOG entry missing: $changelog (version ${version})"
               exit 1
             fi
-          done < <(find . -maxdepth 2 -name Chart.yaml -print | sort)
+          done < <(find . -maxdepth 3 -name Chart.yaml -print | sort)
 
-          if [[ -z "${BEFORE:-}" || "$BEFORE" == "0000000000000000000000000000000000000000" ]]; then
-            echo "Skipping umbrella bump check (no BEFORE SHA)."
-            exit 0
-          fi
-          if ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-            echo "Skipping umbrella bump check (BEFORE commit not available)."
+          if [[ "${VERSION_CHECK_MODE}" != "release-tag" ]]; then
+            echo "Skipping release version comparison (mode: ${VERSION_CHECK_MODE})."
             exit 0
           fi
 
-          echo "Checking umbrella version bump when subcharts change..."
-          prev_umbrella="$(git show "${BEFORE}:Chart.yaml" 2>/dev/null | awk '/^version:/{print $2; exit}' | sed -E 's/^v//' || true)"
+          if [[ ! "${CURRENT_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag validation requires github.ref_name to match vX.Y.Z."
+            echo "Got: ${CURRENT_REF_NAME}"
+            exit 1
+          fi
+
+          expected_umbrella="${CURRENT_REF_NAME#v}"
           curr_umbrella="$(awk '/^version:/{print $2; exit}' Chart.yaml | sed -E 's/^v//')"
-
-          umbrella_changed=false
-          if [[ -n "$prev_umbrella" && "$prev_umbrella" != "$curr_umbrella" ]]; then
-            umbrella_changed=true
+          if [[ "${curr_umbrella}" != "${expected_umbrella}" ]]; then
+            echo "Umbrella Chart.yaml version must match the release tag."
+            echo "Tag: ${CURRENT_REF_NAME}"
+            echo "Umbrella version: ${curr_umbrella}"
+            exit 1
           fi
 
-          changed_subcharts="$(git diff --name-only "${BEFORE}" "${AFTER}" -- charts/*/Chart.yaml || true)"
-          if [[ -z "$changed_subcharts" ]]; then
-            echo "No subchart Chart.yaml changes detected."
+          previous_tag=""
+          while read -r tag; do
+            [[ -z "${tag}" ]] && continue
+            if [[ "${tag}" != "${CURRENT_REF_NAME}" ]]; then
+              previous_tag="${tag}"
+              break
+            fi
+          done < <(git tag --list 'v*' --sort=-version:refname)
+
+          if [[ -z "${previous_tag}" ]]; then
+            echo "No previous release tag found. Skipping previous-release comparison."
             exit 0
           fi
 
-          subchart_bumped=false
+          echo "Comparing chart versions against previous release tag: ${previous_tag}"
+          release_errors=0
           while read -r chart_yaml; do
-            [[ -z "$chart_yaml" ]] && continue
-            if [[ ! -f "$chart_yaml" ]]; then
-              subchart_bumped=true
-              echo "Detected removed subchart: $chart_yaml"
-              break
+            [[ -z "${chart_yaml}" ]] && continue
+            chart_dir="$(dirname "${chart_yaml}")"
+            curr_ver="$(awk '/^version:/{print $2; exit}' "${chart_yaml}" | sed -E 's/^v//')"
+            prev_ver="$(git show "${previous_tag}:${chart_yaml}" 2>/dev/null | awk '/^version:/{print $2; exit}' | sed -E 's/^v//' || true)"
+
+            chart_changed=false
+            if [[ "${chart_dir}" == "." ]]; then
+              if git diff --name-only "${previous_tag}" "${AFTER}" -- . \
+                ':(exclude).git' \
+                ':(exclude).git/**' \
+                ':(exclude).gitignore' \
+                ':(exclude).DS_Store' \
+                ':(exclude).idea/**' \
+                ':(exclude).vscode/**' \
+                ':(exclude).github/**' \
+                ':(exclude)tests/**' \
+                ':(exclude)charts/*/tests/**' \
+                ':(exclude)scripts/**' \
+                ':(exclude)*.tgz' \
+                ':(exclude)*.tar.gz' \
+                ':(exclude)node_modules/**' \
+                ':(exclude)venv/**' \
+                ':(exclude).env*' \
+                ':(exclude)README_hook.md' | grep -q .; then
+                chart_changed=true
+              fi
+            else
+              if git diff --name-only "${previous_tag}" "${AFTER}" -- "${chart_dir}/" | grep -q .; then
+                chart_changed=true
+              fi
             fi
 
-            curr_ver="$(awk '/^version:/{print $2; exit}' "$chart_yaml" | sed -E 's/^v//')"
-            prev_ver="$(git show "${BEFORE}:${chart_yaml}" 2>/dev/null | awk '/^version:/{print $2; exit}' | sed -E 's/^v//' || true)"
-
-            if [[ -z "$prev_ver" ]]; then
-              subchart_bumped=true
-              echo "Detected new subchart or missing previous version: $chart_yaml"
-              break
+            if [[ "${chart_changed}" != "true" ]]; then
+              continue
             fi
 
-            if [[ "$prev_ver" != "$curr_ver" ]]; then
-              subchart_bumped=true
-              echo "Detected subchart version bump: $chart_yaml (${prev_ver} -> ${curr_ver})"
-              break
+            if [[ -z "${prev_ver}" ]]; then
+              echo "Detected new chart or no previous version at ${previous_tag}: ${chart_yaml}"
+              continue
             fi
-          done <<< "$changed_subcharts"
 
-          if [[ "$subchart_bumped" == "true" && "$umbrella_changed" != "true" ]]; then
-            echo "Umbrella Chart.yaml version must be bumped when any subchart version changes."
-            echo "Umbrella version stayed at ${curr_umbrella}."
+            if [[ "${prev_ver}" == "${curr_ver}" ]]; then
+              echo "Changed chart content requires a version bump before tagging a release: ${chart_yaml} (${curr_ver})"
+              release_errors=1
+            fi
+          done < <(find . -maxdepth 3 -name Chart.yaml -print | sort)
+
+          if [[ "${release_errors}" -ne 0 ]]; then
             exit 1
           fi
       - name: Install helm-unittest
