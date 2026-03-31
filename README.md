@@ -29,6 +29,10 @@ Architecture is not one-size-fits-all, but this target architecture has worked w
 
 ![Target Architecture](docs/assets/target-architecture.png)
 
+Related architecture note:
+
+- [Per-pod Prometheus collection for external monitoring](docs/prometheus-option-1.md)
+
 ## Components
 
 ### Stardog
