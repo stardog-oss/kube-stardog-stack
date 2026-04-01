@@ -7,9 +7,9 @@ This bundle provides:
   - Also publishes a public Helm repo on GitHub Pages (`gh-pages`) with `index.yaml`.
 - Callers:
   - **ci-features.yml** — feature-style branches (`SAT-*`, `CLOUD-*`) → validation only: lint, template dry-run, and `helm unittest`.
-  - **ci-develop.yml** — release and hotfix branches (`SAT-<digits>-release[-...]`, `SAT-<digits>-hotfix[-...]`) → `X.Y.Z` (JFrog).
-  - **ci-main.yml** — `main` → GitHub release set `v<umbrella-version>` with assets + manifest.
-  - **ci-release-tags.yml** — `v*` tags → GitHub release set (manual tags only).
+  - **ci-develop.yml** — release and hotfix branches (`SAT-<digits>-release[-...]`, `SAT-<digits>-hotfix[-...]`) → `X.Y.Z-rc.<RUN>` (JFrog).
+  - **ci-main.yml** — `main` → validation only.
+  - **ci-release-tags.yml** — `v*` tags on `main` → final `X.Y.Z` release to JFrog.
 
 ## Required secrets
 These workflows do not currently declare a GitHub Actions `environment:`. That means:
@@ -24,19 +24,19 @@ These workflows do not currently declare a GitHub Actions `environment:`. That m
 GitHub release workflows use `GITHUB_TOKEN` (no extra secrets required).
 
 ## Chart version expectations
-Each chart's `Chart.yaml: version` must be **SemVer X.Y.Z** (no leading `v`). The reusable workflow derives:
+Each chart's `Chart.yaml: version` must be **SemVer X.Y.Z** (no leading `v`). The workflows derive:
 - `branch` → `X.Y.Z-<TICKET>.<RUN>`
 - `rc` → `X.Y.Z-rc.<RUN>`
 - `release` → `X.Y.Z`
 
-## Changelog + Umbrella Bump Checks
-- Every chart must have a matching `CHANGELOG.md` entry for its current `Chart.yaml` version.
-- If any subchart version changes, the umbrella chart version must also change.
-
 ## Release model
-- The GitHub release tag is derived from the umbrella chart version: `v<kube-stardog-stack version>`.
-- A release set bundles multiple chart artifacts. Each component chart keeps its own version and may or may not change in a given release.
-- `release-manifest.yaml` is the authoritative mapping from release tag to component/umbrella versions.
+- Feature branches and `main` do not force version bumps on every change.
+- Release and hotfix branches publish repeated RC builds from the same target version in `Chart.yaml`.
+- Final releases are created by manually pushing a `vX.Y.Z` tag that points to a commit on `main`.
+- On tag builds, validation compares the tagged commit against the previous release tag and fails if changed chart content kept the same chart version.
+
+## Changelog checks
+- Every chart must have a matching `CHANGELOG.md` entry for its current `Chart.yaml` version.
 
 ## Add more charts
 Edit the JSON array in the callers' `with.charts`.

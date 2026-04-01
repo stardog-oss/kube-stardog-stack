@@ -13,3 +13,4 @@ doc/private-notes/*
 .debug
 
 package/*
+.helm-hook/

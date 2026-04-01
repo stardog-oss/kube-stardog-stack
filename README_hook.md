@@ -1,14 +1,14 @@
 # Pre-commit hook for Helm charts (two‑phase, emoji/ASCII toggle)
 
-This merged pre-commit runs **version/changelog checks**, then two phases across **all charts** it finds (umbrella + subcharts):
+This merged pre-commit runs **changelog checks**, then two phases across **all charts** it finds (umbrella + subcharts):
 
 
-0. **Version + CHANGELOG** – Ensures each chart version appears in its `CHANGELOG.md`. Version bump checks compare your
-   staged changes against the **latest release tag** when available. If there are no release tags yet, the hook falls
-   back to checking staged version line changes only.
+0. **CHANGELOG** – Ensures each chart version appears in its `CHANGELOG.md`.
+   Version bump enforcement no longer happens in pre-commit. It happens in the release-tag workflow when you push `vX.Y.Z`.
 1. **Sync locks** – `helm dependency build` for each chart; if a lock is out of sync, it runs
    `helm dependency update` and rebuilds, then **stages the updated `Chart.lock`**.
 2. **Quality checks** – `helm lint` and `helm unittest --strict .` for each chart (only after Phase 1 succeeds).
+3. **Sandboxed Helm state** – the hook uses a repo-local Helm home under `.helm-hook/` so it does not depend on your global Helm repository configuration.
 
 Charts are discovered by scanning for `**/Chart.yaml` (excluding vendored deps under `*/charts/*/charts/*`).
 
@@ -84,6 +84,8 @@ git commit --no-verify -m "emergency"
   Keep them staged for the next commit or unstage with `git reset <chart>/Chart.lock`.
 - **Garbled icons / squares** – Set `USE_EMOJI=0` for ASCII output.
 - **Only some charts are checked** – The hook looks for tracked `Chart.yaml`. Ensure the charts are committed and not nested under a vendored `*/charts/*/charts/*` path.
+- **Version bump was not enforced locally** – This is expected. Version bump enforcement now happens only during the final release tag workflow.
+- **Many unrelated Helm repos are being updated** – This should no longer happen. The hook now uses a repo-local Helm sandbox and only adds repositories referenced by the charts.
 
 ---
 

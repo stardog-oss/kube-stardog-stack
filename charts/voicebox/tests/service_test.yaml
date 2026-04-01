@@ -17,7 +17,7 @@ tests:
           pattern: "^voicebox-.+"
       - equal:
           path: spec.ports[0].port
-          value: 8080
+          value: 8000
       - equal:
           path: spec.ports[0].targetPort
           value: 8000

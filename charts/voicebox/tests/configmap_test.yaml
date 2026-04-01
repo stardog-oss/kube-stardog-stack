@@ -5,6 +5,13 @@ templates:
   - configmap.yaml
 
 tests:
+  - it: should not create bites ConfigMap when bites service is disabled
+    set:
+      bitesService.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 1
+
   # Test 1: Ensure the ConfigMap is created with basic configuration
   - it: should create a Voicebox ConfigMap with basic configuration
     values:
@@ -32,4 +39,47 @@ tests:
           path: data
       - equal:
           path: data["vbx_config.json"]
-          value: "" 
+          value: ""
+
+  - it: should create bites ConfigMap when bites service is enabled
+    set:
+      bitesService.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 1
+        isKind:
+          of: ConfigMap
+      - documentIndex: 1
+        equal:
+          path: metadata.name
+          value: voicebox-RELEASE-NAME-bites-config
+      - documentIndex: 1
+        exists:
+          path: data["vbx_bites_config.yaml"]
+      - documentIndex: 1
+        matchRegex:
+          path: data["vbx_bites_config.yaml"]
+          pattern: '(?m)^\s*kind:\s*SparkApplication$'
+      - documentIndex: 1
+        matchRegex:
+          path: data["vbx_bites_config.yaml"]
+          pattern: '(?m)^\s*name:\s*voicebox-bites-job$'
+      - documentIndex: 1
+        matchRegex:
+          path: data["vbx_bites_config.yaml"]
+          pattern: '(?m)^\s*image:\s*"docker\.io/stardog/voicebox-bites:latest"$'
+      - documentIndex: 1
+        matchRegex:
+          path: data["vbx_bites_config.yaml"]
+          pattern: '(?m)^\s*serviceAccount:\s*voicebox-sa$'
+
+  - it: should render bites SparkApplication timeToLiveSeconds when configured
+    set:
+      bitesService.enabled: true
+      bitesService.sparkApplication.timeToLiveSeconds: 3600
+    asserts:
+      - documentIndex: 1
+        matchRegex:
+          path: data["vbx_bites_config.yaml"]
+          pattern: '(?m)^\s*timeToLiveSeconds:\s*3600$'
