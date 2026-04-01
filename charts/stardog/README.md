@@ -67,6 +67,17 @@ Configuration Parameters
 | `tolerations`                                | Taints the pods tolerate; match with `nodeSelector` to target dedicated pools |
 The default values are specified in `values.yaml`.
 
+### Resource naming
+
+By default, the chart uses the shared `sdcommon.fullname` helper to name Stardog resources. If the Helm release name already contains `stardog`, the chart uses the release name as-is. Otherwise it prefixes the release name with the chart name, producing `<chart>-<release>`.
+
+Examples:
+
+- Release `stardog-0` renders as `stardog-0`
+- Release `sd-stack-0` renders as `stardog-sd-stack-0`
+
+If you need a fixed name or want a different naming scheme for multiple installs, set `fullnameOverride` in your values file. That value is then used directly for the chart's resource names.
+
 ### Prerequisites (Namespace + License)
 
 Create the namespace and the Stardog license secret before installing the chart:
