@@ -16,9 +16,9 @@ dependencies:
   version: 1.0.2
 - name: voicebox
   repository: file://charts/voicebox
-  version: 1.0.2
+  version: 1.1.0
 - name: cachetarget
   repository: file://charts/cachetarget
   version: 1.0.1
-digest: sha256:c272c9a626a8932e667783fc30263deb84f44b7b0b5152843cb1a7e9efd22716
-generated: "2026-03-27T10:31:25.309876-04:00"
+digest: sha256:914d4402f9ceef0640d0d22109eb6bfb65b255746e4224a6110bcb6112c43ca9
+generated: "2026-04-01T18:45:01.578692-04:00"

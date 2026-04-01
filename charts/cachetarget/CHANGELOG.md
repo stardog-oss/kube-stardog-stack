@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- Adopt the shared standard component label from the common library chart.
+
 ## 1.0.1
 - Maintenance: update maintainer information.
 
