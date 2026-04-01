@@ -92,3 +92,33 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "certIssuer.acme.solvers is empty. Provide certIssuer.acme.solvers or enable ingress/gateway to auto-configure HTTP-01 solvers."
+
+  - it: auto-promotes to ClusterIssuer for external gateway TLS secret namespaces
+    values:
+      - values/values-stardog.yaml
+    set:
+      certIssuer:
+        enabled: true
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          createGateway: false
+          parentRefs:
+            - name: shared-https
+              namespace: gateway-system
+              sectionName: https
+          tls:
+            enabled: true
+            secretName: platform-gw-tls
+            secretNamespace: gateway-system
+          redirect:
+            enabled: false
+      ingress:
+        enabled: false
+    asserts:
+      - equal:
+          path: kind
+          value: ClusterIssuer
+      - notExists:
+          path: metadata.namespace
