@@ -25,10 +25,16 @@ global:
 
   gateway:
     enabled: false
+    createGateway: true # false => reuse an existing shared Gateway instead of creating one
     name: "" # Defaults to "<release>-gateway" when empty
     namespace: "" # Defaults to the release namespace when empty
     className: "stardog-envoy-gateway-class" # Override when a different GatewayClass is required
     domain: "" # Fully qualified base domain for Gateway hosts (required)
+    sparqlSectionName: "sparql" # Shared HTTPS listener name for Stardog HTTPRoute attachments
+    sparqlHttpSectionName: "sparql-http" # Shared HTTP listener name for Stardog redirect/HTTP-01 attachments
+    launchpadSectionName: "launchpad" # Shared HTTPS listener name for Launchpad HTTPRoute attachments
+    launchpadHttpSectionName: "launchpad-http" # Shared HTTP listener name for Launchpad redirect/HTTP-01 attachments
+    biTcpSectionName: "bi-tcp" # Shared TCP/TLS listener name for Stardog BI route attachments
     annotations: {}
     addresses: []
     http:

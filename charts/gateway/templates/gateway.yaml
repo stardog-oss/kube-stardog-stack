@@ -1,13 +1,13 @@
-{{- $globalGatewayEnabled := eq (include "sdcommon.globalGatewayEnabled" .) "true" -}}
-{{- if $globalGatewayEnabled }}
+{{- $globalGatewayManaged := eq (include "sdcommon.globalGatewayManaged" .) "true" -}}
+{{- if $globalGatewayManaged }}
   {{- $globalGateway := default (dict) .Values.global.gateway }}
   {{- $className := trim (default "" (index $globalGateway "className")) }}
   {{- if eq $className "" }}
-    {{- fail "global.gateway.className must be set when global.gateway.enabled=true." -}}
+    {{- fail "global.gateway.className must be set when global.gateway.enabled=true and global.gateway.createGateway=true." -}}
   {{- end }}
   {{- $domain := trim (default "" (index $globalGateway "domain")) }}
   {{- if eq $domain "" }}
-    {{- fail "global.gateway.domain must be set when global.gateway.enabled=true." -}}
+    {{- fail "global.gateway.domain must be set when global.gateway.enabled=true and global.gateway.createGateway=true." -}}
   {{- end }}
   {{- $gatewayName := include "sdcommon.globalGatewayName" . }}
   {{- $gatewayNamespace := include "sdcommon.globalGatewayNamespace" . }}
@@ -74,7 +74,7 @@
 
   {{- $hasTcpListener := and $stardogEnabled $biEnabled -}}
   {{- if not (or $stardogEnabled $launchpadEnabled $hasTcpListener) }}
-    {{- fail "global.gateway.enabled requires global.stardog.enabled or global.launchpad.enabled to create listeners." -}}
+    {{- fail "global.gateway.enabled requires global.stardog.enabled or global.launchpad.enabled to create listeners when global.gateway.createGateway=true." -}}
   {{- end }}
 
   {{- $tcpBi := default (dict) (index $globalGateway "tcpBi") }}

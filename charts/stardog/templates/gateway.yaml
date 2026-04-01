@@ -1,4 +1,5 @@
 {{- $globalGatewayEnabled := eq (include "sdcommon.globalGatewayEnabled" .) "true" -}}
+{{- $globalGatewayManaged := eq (include "sdcommon.globalGatewayManaged" .) "true" -}}
 {{- $gatewayEnabled := or (eq .Values.gateway.enabled true) (eq (toString .Values.gateway.enabled) "true") $globalGatewayEnabled -}}
 {{- if $gatewayEnabled }}
   {{- if .Values.ingress.enabled }}
@@ -14,6 +15,9 @@
   {{- $globalGateway := default (dict) (index $globalValues "gateway") }}
   {{- $globalGatewayName := include "sdcommon.globalGatewayName" . }}
   {{- $globalGatewayNamespace := include "sdcommon.globalGatewayNamespace" . }}
+  {{- $globalSparqlSectionName := include "sdcommon.globalGatewaySparqlSectionName" . }}
+  {{- $globalSparqlHttpSectionName := include "sdcommon.globalGatewaySparqlHttpSectionName" . }}
+  {{- $globalBiTcpSectionName := include "sdcommon.globalGatewayBiTcpSectionName" . }}
   {{- $globalDomain := trim (default "" (index $globalGateway "domain")) }}
   {{- $globalTls := default (dict) (index $globalGateway "tls") }}
   {{- $globalTlsEnabled := default true (index $globalTls "enabled") }}
@@ -38,7 +42,7 @@
     {{- $_ := set $gatewayConfig "createGateway" false }}
   {{- end }}
   {{- if and $globalGatewayEnabled (not (gt (len (default (list) $gatewayConfig.parentRefs)) 0)) }}
-    {{- $_ := set $gatewayConfig "parentRefs" (list (dict "name" $globalGatewayName "namespace" $globalGatewayNamespace "sectionName" "sparql")) }}
+    {{- $_ := set $gatewayConfig "parentRefs" (list (dict "name" $globalGatewayName "namespace" $globalGatewayNamespace "sectionName" $globalSparqlSectionName)) }}
   {{- end }}
   {{- $baseParentRefs := list }}
   {{- if $createGateway }}
@@ -57,7 +61,7 @@
   {{- $httpRedirectCfg := deepCopy (default (dict) $gatewayConfig.redirect) }}
   {{- $httpRedirectEnabled := default false $httpRedirectCfg.enabled }}
   {{- if and $globalGatewayEnabled $httpRedirectEnabled (not (gt (len (default (list) $httpRedirectCfg.parentRefs)) 0)) }}
-    {{- $_ := set $httpRedirectCfg "parentRefs" (list (dict "name" $globalGatewayName "namespace" $globalGatewayNamespace "sectionName" "sparql-http")) }}
+    {{- $_ := set $httpRedirectCfg "parentRefs" (list (dict "name" $globalGatewayName "namespace" $globalGatewayNamespace "sectionName" $globalSparqlHttpSectionName)) }}
   {{- end }}
   {{- if and $httpRedirectEnabled $createGateway (not $gatewayConfig.tls.enabled) }}
     {{- fail "gateway.http.redirect.enabled requires gateway.http.tls.enabled when the chart creates the Gateway." -}}
@@ -74,10 +78,10 @@
   {{- if not $gatewayConfig.tls }}
     {{- $_ := set $gatewayConfig "tls" (dict) }}
   {{- end }}
-  {{- if and $globalGatewayEnabled $globalTlsEnabled }}
+  {{- if and $globalGatewayManaged $globalTlsEnabled }}
     {{- $_ := set $gatewayConfig.tls "enabled" true }}
   {{- end }}
-  {{- if and $globalGatewayEnabled (ne $globalGatewayNamespace .Release.Namespace) }}
+  {{- if and $globalGatewayManaged (ne $globalGatewayNamespace .Release.Namespace) }}
     {{- $_ := set $gatewayConfig.tls "secretNamespace" $globalGatewayNamespace }}
   {{- end }}
   {{- $tlsSecret := default "" $gatewayConfig.tls.secretName }}
@@ -170,7 +174,7 @@
   {{- if and $tcpBiEnabled $biEnabled }}
     {{- $tcpParentRefs := $baseParentRefs }}
     {{- if $globalGatewayEnabled }}
-      {{- $tcpParentRefs = list (dict "name" $globalGatewayName "namespace" $globalGatewayNamespace "sectionName" "bi-tcp") }}
+      {{- $tcpParentRefs = list (dict "name" $globalGatewayName "namespace" $globalGatewayNamespace "sectionName" $globalBiTcpSectionName) }}
     {{- end }}
     {{- $tcpTlsEnabled := and (hasKey $tcpBiConfig "tls") $tcpBiConfig.tls.enabled }}
     {{- if and $tcpTlsEnabled (not $createGateway) }}
