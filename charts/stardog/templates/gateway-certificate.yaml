@@ -1,5 +1,7 @@
 {{- $globalGatewayEnabled := eq (include "sdcommon.globalGatewayEnabled" .) "true" -}}
-{{- $globalTls := default (dict) (index (default (dict) .Values.global.gateway) "tls") -}}
+{{- $globalValues := default (dict) .Values.global -}}
+{{- $globalGateway := default (dict) (index $globalValues "gateway") -}}
+{{- $globalTls := default (dict) (index $globalGateway "tls") -}}
 {{- $globalTlsEnabled := default true (index $globalTls "enabled") -}}
 {{- $tlsEnabled := or (default false .Values.gateway.http.tls.enabled) (and $globalGatewayEnabled $globalTlsEnabled) -}}
   {{- $issuer := (include "sdcommon.effectiveCertIssuer" . | fromYaml) -}}
@@ -20,7 +22,7 @@
     {{- $_ := set $gatewayConfig.tls "secretNamespace" $globalGatewayNamespace }}
   {{- end }}
   {{- $domain := trim (default "" $gatewayConfig.domain) }}
-  {{- $globalDomain := trim (default "" (index (default (dict) .Values.global.gateway) "domain")) }}
+  {{- $globalDomain := trim (default "" (index $globalGateway "domain")) }}
   {{- if and (eq $domain "") (eq (include "sdcommon.globalGatewayEnabled" .) "true") (ne $globalDomain "") }}
     {{- $domain = $globalDomain }}
   {{- end }}

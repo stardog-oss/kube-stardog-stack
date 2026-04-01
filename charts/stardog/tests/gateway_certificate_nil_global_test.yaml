@@ -1,0 +1,9 @@
+suite: Gateway certificate tolerates missing global values
+templates:
+  - gateway-certificate.yaml
+
+tests:
+  - it: does not fail when gateway is disabled and global is undefined
+    asserts:
+      - hasDocuments:
+          count: 0
