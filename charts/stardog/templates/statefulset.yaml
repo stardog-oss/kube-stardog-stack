@@ -11,6 +11,7 @@
 {{- $debugSleep := int (default 0 (index $debugCfg "sleepOnFailureSeconds")) -}}
 {{- $debugJavaSsl := or (eq (index $debugCfg "javaSsl") true) (eq (toString (index $debugCfg "javaSsl")) "true") -}}
 {{- include "stardog.validateClusterConfig" . }}
+{{- include "stardog.validateUpgradeConfig" . }}
 {{- if and $sparqlTlsRequired (not $sparqlTlsEnabled) }}
   {{- fail "tls.sparql.required=true requires tls.sparql.enabled=true." -}}
 {{- end }}

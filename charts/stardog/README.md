@@ -41,6 +41,7 @@ Configuration Parameters
 | `gateway.http.*`                             | Configures the HTTP/HTTPS Gateway listeners and HTTPRoute resources |
 | `gateway.http.redirectToLaunchpad.*`         | Optional root-path proxy/redirect (Gateway) to Launchpad (service or external URL) |
 | `gateway.tcpBi.*`                            | Enables TCPRoute exposure for the BI/SQL port via the Gateway |
+| `upgrade.approval.targetVersion`             | One-time version-scoped approval for storage upgrades; when it matches `image.tag`, the chart injects `upgrade.automatic=true` |
 | `javaArgs`                                   | Java args for Stardog server |
 | `log4jConfig.content`                        | New Log4j configuration when overriding the default |
 | `log4jConfig.override`                       | Whether to override the default Log4j config |
@@ -84,6 +85,21 @@ When `global.zookeeper.enabled=true`, the chart expects the ZooKeeper Service na
 ### Service accounts and custom environment variables
 
 Stardog and its hooks run under the same service account determined by `serviceAccount.create` and `serviceAccount.name`. Populate `environmentVariables` when you need to inject extra JVM flags or platform-specific settings—the chart renders them verbatim into the container spec while still managing the base PATH and Stardog variables on your behalf.
+
+### Version-scoped upgrade approval
+
+For storage upgrades that require `upgrade.automatic=true`, do not set that property directly in `stardogProperties`. Instead, set `upgrade.approval.targetVersion` to the exact `image.tag` you are deploying.
+
+```yaml
+image:
+  tag: 9.2.1
+
+upgrade:
+  approval:
+    targetVersion: 9.2.1
+```
+
+When the two values match, the chart injects `upgrade.automatic=true` into the generated `stardog.properties`. If they do not match, rendering fails. This makes the approval specific to a single target version and prevents accidental reuse on later upgrades.
 
 ### Gateway API (Traefik) exposure
 

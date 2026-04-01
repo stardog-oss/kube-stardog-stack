@@ -207,6 +207,7 @@ stardogProperties: |
   # - sql.server.enabled=true
   # - javax.net.ssl.keyStore*
   # - javax.net.ssl.trustStore*
+  # - upgrade.automatic=true
   #
   # Common documented properties, shown commented out with Stardog defaults:
   #
@@ -230,6 +231,13 @@ stardogProperties: |
   #pack.node.join.retry.count=20
   #pack.node.join.retry.delay=5s
   #pack.join.retry.count=3
+
+upgrade:
+  approval:
+    # Set this to the exact image.tag being deployed when a one-way data upgrade
+    # must be approved for this specific release. The chart then injects
+    # upgrade.automatic=true into stardog.properties for that target version only.
+    targetVersion: ""
 
 
 certIssuer:

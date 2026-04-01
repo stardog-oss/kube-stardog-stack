@@ -1,6 +1,10 @@
 # Changelog
 
 ## 4.0.2
+
+- Gated Upgrade
+  - Add `upgrade.approval.targetVersion` as a version-scoped replacement for setting `upgrade.automatic` directly in `stardogProperties`.
+  - Fail chart rendering when `upgrade.automatic` is set directly in `stardogProperties` or when `upgrade.approval.targetVersion` does not match `image.tag`.
 - Stardog properties default update.
   - Removed pack.node.join.retry.count=15,  default 20
   - Removed pack.node.join.retry.delay=1m,  defualt 3s

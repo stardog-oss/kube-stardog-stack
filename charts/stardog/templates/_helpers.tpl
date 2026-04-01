@@ -154,6 +154,32 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- end -}}
 {{- end -}}
 
+{{- define "stardog.validateUpgradeConfig" -}}
+{{- $upgrade := .Values.upgrade | default dict -}}
+{{- $approval := $upgrade.approval | default dict -}}
+{{- $targetVersion := trim (default "" $approval.targetVersion) -}}
+{{- $image := .Values.image | default dict -}}
+{{- $imageTag := trim (default "" $image.tag) -}}
+{{- $properties := default "" .Values.stardogProperties -}}
+{{- if regexMatch `(?m)^\s*upgrade\.automatic\s*=` $properties -}}
+{{- fail "Do not set upgrade.automatic in stardogProperties; use upgrade.approval.targetVersion instead." -}}
+{{- end -}}
+{{- if and (ne $targetVersion "") (ne $targetVersion $imageTag) -}}
+{{- fail (printf "upgrade.approval.targetVersion (%s) must match image.tag (%s) exactly." $targetVersion $imageTag) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "stardog.upgradeProperties" -}}
+{{- $upgrade := .Values.upgrade | default dict -}}
+{{- $approval := $upgrade.approval | default dict -}}
+{{- $targetVersion := trim (default "" $approval.targetVersion) -}}
+{{- $image := .Values.image | default dict -}}
+{{- $imageTag := trim (default "" $image.tag) -}}
+{{- if and (ne $targetVersion "") (eq $targetVersion $imageTag) -}}
+upgrade.automatic=true
+{{- end -}}
+{{- end -}}
+
 {{- define "stardog.zookeeperService" -}}
 {{- $cluster := default dict .Values.cluster -}}
 {{- $service := trim (default "" $cluster.zookeeperService) -}}
