@@ -1,4 +1,8 @@
 # Changelog
+## 4.0.3
+- Add `upgrade.approval.targetVersion` as a version-scoped replacement for setting `upgrade.automatic` directly in `stardogProperties`.
+- Fail chart rendering when `upgrade.automatic` is set directly in `stardogProperties` or when `upgrade.approval.targetVersion` does not match `image.tag`.
+
 ## 4.0.2
 - Stardog properties default update.
   - Removed pack.node.join.retry.count=15,  default 20

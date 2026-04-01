@@ -88,6 +88,46 @@ tests:
           path: data["stardog.properties"]
           pattern: "javax\\.net\\.ssl\\.trustStoreType=PKCS12"
 
+  - it: injects upgrade.automatic when upgrade approval targetVersion matches image.tag
+    values:
+      - values/values-stardog.yaml
+    set:
+      image:
+        tag: 9.2.1
+      upgrade:
+        approval:
+          targetVersion: 9.2.1
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "upgrade\\.automatic=true"
+
+  - it: fails when upgrade approval targetVersion does not match image.tag
+    values:
+      - values/values-stardog.yaml
+    set:
+      image:
+        tag: 9.2.1
+      upgrade:
+        approval:
+          targetVersion: 9.2.2
+    asserts:
+      - failedTemplate:
+          errorMessage: "upgrade.approval.targetVersion (9.2.2) must match image.tag (9.2.1) exactly."
+
+  - it: fails when upgrade.automatic is set directly in stardogProperties
+    values:
+      - values/values-stardog.yaml
+    set:
+      stardogProperties: |
+        upgrade.automatic=true
+    asserts:
+      - failedTemplate:
+          errorMessage: "Do not set upgrade.automatic in stardogProperties; use upgrade.approval.targetVersion instead."
+
   - it: renders JWT config map when jwtConfig enabled
     values:
       - values/values-stardog.yaml

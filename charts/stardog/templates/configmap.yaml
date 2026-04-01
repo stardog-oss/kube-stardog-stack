@@ -1,3 +1,4 @@
+{{- include "stardog.validateUpgradeConfig" . }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -43,6 +44,10 @@ data:
     javax.net.ssl.trustStorePassword={{ default .Values.tls.keystore.pass .Values.tls.truststore.pass }}
     javax.net.ssl.trustStoreType={{ default "PKCS12" .Values.tls.truststore.type }}
     {{- end }}
+    {{- end }}
+    {{- $upgradeProps := include "stardog.upgradeProperties" . | trim }}
+    {{- if ne $upgradeProps "" }}
+    {{- $upgradeProps | nindent 4 }}
     {{- end }}
     {{- .Values.stardogProperties | nindent 4 }}
 
