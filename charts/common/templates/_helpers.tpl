@@ -204,11 +204,29 @@ storageClassName: {{ $value | quote }}
     {{- $useGlobal = true -}}
   {{- end -}}
 {{- end -}}
-{{- if $useGlobal -}}
-{{- toYaml $global -}}
-{{- else -}}
-{{- toYaml (default dict .Values.certIssuer) -}}
+{{- $issuer := ternary $global (deepCopy (default dict .Values.certIssuer)) $useGlobal -}}
+{{- $gateway := default (dict) .Values.gateway -}}
+{{- $http := default (dict) (index $gateway "http") -}}
+{{- $gatewayTls := default (dict) (index $http "tls") -}}
+{{- $gatewaySecretName := trim (default "" (index $gatewayTls "secretName")) -}}
+{{- $gatewaySecretNamespace := trim (default .Release.Namespace (index $gatewayTls "secretNamespace")) -}}
+{{- $gatewayTlsEnabled := default false (index $gatewayTls "enabled") -}}
+{{- $createGateway := true -}}
+{{- if hasKey $http "createGateway" -}}
+  {{- $createGateway = index $http "createGateway" -}}
 {{- end -}}
+{{- $parentRefs := default (list) (index $http "parentRefs") -}}
+{{- $externalGatewayTls := and (or (eq $createGateway false) (eq (toString $createGateway) "false")) (gt (len $parentRefs) 0) $gatewayTlsEnabled (ne $gatewaySecretName "") -}}
+{{- if $externalGatewayTls -}}
+  {{- $issuerSecretName := trim (default "" (index $issuer "secretName")) -}}
+  {{- if eq $issuerSecretName "" -}}
+    {{- $_ := set $issuer "secretName" $gatewaySecretName -}}
+  {{- end -}}
+  {{- if ne $gatewaySecretNamespace .Release.Namespace -}}
+    {{- $_ := set $issuer "clusterScoped" true -}}
+  {{- end -}}
+{{- end -}}
+{{- toYaml $issuer -}}
 {{- end -}}
 
 {{- define "sdcommon.certIssuerEnabled" -}}

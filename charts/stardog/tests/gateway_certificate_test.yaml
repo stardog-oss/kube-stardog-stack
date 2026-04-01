@@ -201,20 +201,30 @@ tests:
           path: metadata.namespace
           value: envoy-gateway
 
-  - it: fails when overriding secret namespace without cluster issuer
+  - it: auto-promotes issuer scope and secret name for external gateway TLS
     set:
       certIssuer:
         enabled: true
-        clusterScoped: false
       gateway:
         enabled: true
         http:
           domain: example.com
           skipApiValidation: true
           createGateway: false
+          parentRefs:
+            - name: platform-gw
+              namespace: gateway-system
+              sectionName: https
           tls:
             enabled: true
+            secretName: platform-gw-tls
             secretNamespace: envoy-gateway
     asserts:
-      - failedTemplate:
-          errorMessage: "gateway.http.tls.secretNamespace outside the release namespace requires certIssuer.clusterScoped=true."
+      - documentIndex: 0
+        equal:
+          path: metadata.namespace
+          value: envoy-gateway
+      - documentIndex: 0
+        equal:
+          path: spec.secretName
+          value: platform-gw-tls
