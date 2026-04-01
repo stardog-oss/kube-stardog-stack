@@ -405,6 +405,7 @@ Generate the internal URL for a service.
 {{- define "certIssuer.labels" -}}
 app.kubernetes.io/name: {{ include "certIssuer.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+{{ include "sdcommon.labels.component" . }}
 {{- end }}
 
 {{- define "stardog.configmapChecksum" -}}

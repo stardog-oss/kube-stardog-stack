@@ -2,7 +2,7 @@ apiVersion: v2
 appVersion: 3.9.4
 dependencies:
   - name: common
-    version: 0.1.5
+    version: 0.1.6
     repository: file://../common
 description: Helm chart to deploy Zookeper Cluster and associated services
 home: https://stardog-union.github.io/kube-stardog-stack/

@@ -118,6 +118,38 @@ add_unique() {
   fi
 }
 
+# -------- Isolated Helm sandbox --------
+global_helm_plugins="$(helm env HELM_PLUGINS 2>/dev/null | tr -d '"')"
+helm_sandbox="${repo_root}/.helm-hook"
+mkdir -p "${helm_sandbox}/config" "${helm_sandbox}/cache" "${helm_sandbox}/data"
+export HELM_CONFIG_HOME="${helm_sandbox}/config"
+export HELM_CACHE_HOME="${helm_sandbox}/cache"
+export HELM_DATA_HOME="${helm_sandbox}/data"
+if [[ -n "${global_helm_plugins}" ]]; then
+  export HELM_PLUGINS="${global_helm_plugins}"
+fi
+
+external_repo_urls=()
+while IFS= read -r repo; do
+  [[ -z "${repo}" ]] && continue
+  case "${repo}" in
+    file://*|alias:*|@*) continue ;;
+  esac
+  add_unique external_repo_urls "${repo}"
+done < <(awk '/repository:/{print $2}' Chart.yaml charts/*/Chart.yaml 2>/dev/null | tr -d '"' | sort -u)
+
+if [[ ${#external_repo_urls[@]} -gt 0 ]]; then
+  say "🔒" "--" "Using isolated Helm sandbox at ${helm_sandbox}"
+  repo_index=0
+  for repo in "${external_repo_urls[@]}"; do
+    repo_index=$((repo_index + 1))
+    helm repo add "hook-${repo_index}" "${repo}" >/dev/null
+  done
+  helm repo update >/dev/null
+else
+  say "🔒" "--" "Using isolated Helm sandbox at ${helm_sandbox} (file dependencies only)"
+fi
+
 # Ensure each chart version exists in its CHANGELOG
 for c in "${charts[@]}"; do
   chart_yaml="${c}/Chart.yaml"
@@ -137,104 +169,7 @@ for c in "${charts[@]}"; do
   fi
 done
 
-# Enforce version bumps for changed charts (staged)
-staged_files="$(git diff --cached --name-only --diff-filter=ACMRTD)"
-if [[ -n "$staged_files" ]]; then
-  # Compare against latest release tag when available
-  latest_tag="$(git tag --list 'v*' --sort=-version:refname | head -n1)"
-  if [[ -z "${latest_tag}" ]]; then
-    latest_tag="$(git tag --list '[0-9]*' --sort=-version:refname | head -n1)"
-  fi
-
-  if [[ -n "${latest_tag}" ]]; then
-    say "ℹ️" "INFO" "Checking version bumps against latest release tag: ${latest_tag}"
-
-    tag_files="$(git diff --name-only --cached "${latest_tag}" --diff-filter=ACMRTD)"
-    changed_subcharts=()
-    umbrella_changed=0
-
-    while IFS= read -r f; do
-      if [[ "$f" == charts/*/* ]]; then
-        name="${f#charts/}"
-        name="${name%%/*}"
-        rel="${f#charts/${name}/}"
-        if ! is_ignored_by_helmignore "charts/${name}" "$rel"; then
-          add_unique changed_subcharts "$name"
-        fi
-      else
-        if ! is_ignored_by_helmignore "." "$f"; then
-          umbrella_changed=1
-        fi
-      fi
-    done <<< "$tag_files"
-
-    get_version_from_index() {
-      local path="$1"
-      if git cat-file -e ":${path}" 2>/dev/null; then
-        git show ":${path}" | awk '/^version:/{print $2; exit}' | sed -E 's/^v//'
-      else
-        awk '/^version:/{print $2; exit}' "$path" | sed -E 's/^v//'
-      fi
-    }
-
-    get_version_from_tag() {
-      local path="$1"
-      if git cat-file -e "${latest_tag}:${path}" 2>/dev/null; then
-        git show "${latest_tag}:${path}" | awk '/^version:/{print $2; exit}' | sed -E 's/^v//'
-      else
-        echo ""
-      fi
-    }
-
-    # Require version bumps when package content changed since last release tag
-    for name in "${changed_subcharts[@]}"; do
-      prev_ver="$(get_version_from_tag "charts/${name}/Chart.yaml")"
-      curr_ver="$(get_version_from_index "charts/${name}/Chart.yaml")"
-      if [[ -n "${prev_ver}" && -n "${curr_ver}" && "${prev_ver}" == "${curr_ver}" ]]; then
-        say "❌" "ERR" "Subchart content changed since ${latest_tag} but version not bumped: charts/${name}/Chart.yaml"
-        exit 1
-      fi
-    done
-
-    if [[ $umbrella_changed -eq 1 ]]; then
-      prev_ver="$(get_version_from_tag "Chart.yaml")"
-      curr_ver="$(get_version_from_index "Chart.yaml")"
-      if [[ -n "${prev_ver}" && -n "${curr_ver}" && "${prev_ver}" == "${curr_ver}" ]]; then
-        say "❌" "ERR" "Umbrella content changed since ${latest_tag} but version not bumped: Chart.yaml"
-        exit 1
-      fi
-    fi
-
-    # If any subchart version differs from last tag, umbrella must also differ
-    subchart_ver_diff=0
-    for c in "${charts[@]}"; do
-      [[ "$c" == "." ]] && continue
-      prev_ver="$(get_version_from_tag "${c}/Chart.yaml")"
-      curr_ver="$(get_version_from_index "${c}/Chart.yaml")"
-      if [[ -n "${prev_ver}" && -n "${curr_ver}" && "${prev_ver}" != "${curr_ver}" ]]; then
-        subchart_ver_diff=1
-      fi
-    done
-    if [[ $subchart_ver_diff -eq 1 ]]; then
-      prev_ver="$(get_version_from_tag "Chart.yaml")"
-      curr_ver="$(get_version_from_index "Chart.yaml")"
-      if [[ -n "${prev_ver}" && -n "${curr_ver}" && "${prev_ver}" == "${curr_ver}" ]]; then
-        say "❌" "ERR" "Umbrella Chart.yaml version must be bumped when any subchart version changes."
-        exit 1
-      fi
-    fi
-  else
-    # Fallback: only enforce umbrella bump when any subchart version changes in the staged diff
-    if git diff --cached -- charts/*/Chart.yaml | grep -E '^[+-][[:space:]]*version:' >/dev/null 2>&1; then
-      if ! version_line_changed "Chart.yaml"; then
-        say "❌" "ERR" "Umbrella Chart.yaml version must be bumped when any subchart version changes."
-        exit 1
-      fi
-    fi
-  fi
-else
-  say "ℹ️" "INFO" "No staged changes; skipping version bump checks."
-fi
+say "ℹ️" "INFO" "Skipping local version bump enforcement. Release tags enforce version bumps against the previous release."
 
 # -------- Phase 1: Sync locks --------
 locks_updated=0

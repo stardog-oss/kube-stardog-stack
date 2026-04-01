@@ -1,12 +1,32 @@
-name: CI (release branches)
+name: CI (release/hotfix branches)
 
 on:
   push:
     branches:
-      - 'SAT-*-RELEASE-*'
+      - 'SAT-*-release'
+      - 'SAT-*-release-*'
+      - 'SAT-*-hotfix'
+      - 'SAT-*-hotfix-*'
+  workflow_dispatch:
 
 jobs:
+  branch-name:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch naming
+        shell: bash
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$BRANCH_NAME" =~ ^SAT-[0-9]+-(release|hotfix)(-.+)?$ ]]; then
+            echo "Branch name must match ^SAT-[0-9]+-(release|hotfix)(-.+)?$"
+            echo "Got: $BRANCH_NAME"
+            exit 1
+          fi
+
   validate:
+    needs: branch-name
     uses: ./.github/workflows/helm-validate-reusable.yml
     with:
       charts: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/gateway","charts/voicebox","charts/cachetarget","."]'

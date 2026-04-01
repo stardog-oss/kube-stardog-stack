@@ -20,6 +20,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* Standard recommended labels for all resources */}}
 {{- define "sdcommon.labels.standard" -}}
 {{ include "sdcommon.labels" . }}
+{{ include "sdcommon.labels.component" . }}
+{{- end -}}
+
+{{/* Component label based on chart name */}}
+{{- define "sdcommon.labels.component" -}}
+app.kubernetes.io/component: {{ .Chart.Name }}
 {{- end -}}
 
 {{/* Merge annotations: global.annotations + chart annotations + extra */}}
@@ -166,7 +172,7 @@ storageClassName: {{ $value | quote }}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
-{{/* Fullname: honors fullnameOverride; else <release>-<name> with dup guard */}}
+{{/* Fullname: honors fullnameOverride; else <name>-<release> with dup guard */}}
 {{- define "sdcommon.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
@@ -738,10 +744,11 @@ livenessProbe:
     port: server
   {{- with .Values.livenessProbe }}
   {{- range $k, $v := . }}
-    {{- if and (not (eq $k "httpGet")) (not (eq $k "periodSeconds")) (not (eq $k "timeoutSeconds")) }}
+    {{- if and (not (eq $k "httpGet")) (not (eq $k "periodSeconds")) (not (eq $k "timeoutSeconds")) (not (eq $k "initialDelaySeconds")) }}
   {{ $k }}: {{ $v }}
     {{- end }}
   {{- end }}
+  initialDelaySeconds: {{ .initialDelaySeconds }}
   periodSeconds: {{ .periodSeconds }}
   timeoutSeconds: {{ .timeoutSeconds }}
   {{- end }}

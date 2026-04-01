@@ -1,0 +1,38 @@
+suite: Test Voicebox Bites PVC
+values:
+  - values/values-voicebox.yaml
+templates:
+  - pvc.yaml
+
+tests:
+  - it: should not create bites PVC when bites service is disabled
+    set:
+      bitesService.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create bites PVC when bites service is enabled
+    set:
+      bitesService.enabled: true
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: metadata.name
+          value: voicebox-bites-docs-pvc
+      - equal:
+          path: spec.accessModes[0]
+          value: ReadOnlyMany
+      - equal:
+          path: spec.resources.requests.storage
+          value: 20Gi
+
+  - it: should set storageClassName when configured
+    set:
+      bitesService.enabled: true
+      bitesService.sparkApplication.persistentVolumeClaim.storageClassName: fast-ssd
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: fast-ssd

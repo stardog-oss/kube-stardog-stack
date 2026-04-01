@@ -42,7 +42,7 @@
   {{- $vbEnabled = or (eq .Values.voicebox.enabled true) (eq (toString .Values.voicebox.enabled) "true") -}}
 {{- end -}}
 
-{{- $vbPort := 8080 -}}
+{{- $vbPort := 8000 -}}
 {{- if and (hasKey .Values "global") (hasKey .Values.global "voicebox") (hasKey .Values.global.voicebox "service") (hasKey .Values.global.voicebox.service "port") -}}
   {{- $vbPort = .Values.global.voicebox.service.port -}}
 {{- else if and (hasKey .Values "voicebox") (hasKey .Values.voicebox "service") (hasKey .Values.voicebox.service "port") -}}
@@ -79,7 +79,6 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "sdcommon.labels.standard" . | nindent 4 }}
-    app.kubernetes.io/component: server
 spec:
   serviceName: {{ include "sdcommon.fullname" . }}
   replicas: {{ .Values.replicaCount }}
@@ -92,7 +91,6 @@ spec:
       labels:
         app: {{ include "sdcommon.fullname" . }}
         {{- include "sdcommon.labels.standard" . | nindent 8 }}
-        app.kubernetes.io/component: server
         stardog.com/deployname: {{ .Release.Name }}-launchpad
         stardog.com/resource-type: stardog-apps
       annotations:

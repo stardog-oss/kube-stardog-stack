@@ -1,4 +1,12 @@
 # Changelog
+## 4.0.2
+- Stardog properties default update.
+  - Removed pack.node.join.retry.count=15,  default 20
+  - Removed pack.node.join.retry.delay=1m,  defualt 3s
+- Improvement to documentation
+  - Improve install prerequisites and Stardog JWT documentation
+  - Document namespace and license prerequisites; add JWT examples
+  - Clarify install prerequisites and Gateway/JWT documentation
 
 ## 4.0.1
 - Maintenance: update maintainer information.

@@ -105,7 +105,7 @@ tests:
       path: spec.template.spec.containers[0].env
       content:
         name: "VOICEBOX_SERVICE_ENDPOINT"
-        value: "http://voicebox-RELEASE-NAME.NAMESPACE.svc.cluster.local:8080"
+        value: "http://voicebox-RELEASE-NAME.NAMESPACE.svc.cluster.local:8000"
 
 - it: should auto-generate voicebox service endpoint when voicebox is enabled in global, with port override
   set:

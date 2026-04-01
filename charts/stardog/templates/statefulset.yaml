@@ -24,7 +24,6 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{ include "sdcommon.labels.standard" . | nindent 4 }}
-    app.kubernetes.io/component: server
 spec:
   selector:
     matchLabels:
@@ -38,7 +37,6 @@ spec:
       labels:
         {{ include "sdcommon.labels.standard" . | nindent 8 }}
         app: {{ include "sdcommon.fullname" . }}
-        app.kubernetes.io/component: server
         stardog.com/deployname: {{ .Release.Name }}
         stardog.com/resource-type: cluster-node
       annotations:
