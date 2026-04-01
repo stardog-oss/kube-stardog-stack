@@ -93,6 +93,38 @@ tests:
           path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].sectionName
           value: http
 
+  - it: uses external shared gateway redirect listener from global config
+    set:
+      certIssuer:
+        enabled: true
+        type: acme
+      global:
+        gateway:
+          enabled: true
+          createGateway: false
+          name: shared-gw
+          namespace: gateway-system
+          launchpadSectionName: shared-launchpad-https
+          launchpadHttpSectionName: shared-launchpad-http
+      gateway:
+        enabled: false
+        http:
+          domain: example.com
+          redirect:
+            enabled: true
+      ingress:
+        enabled: false
+    asserts:
+      - equal:
+          path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].name
+          value: shared-gw
+      - equal:
+          path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].namespace
+          value: gateway-system
+      - equal:
+          path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].sectionName
+          value: shared-launchpad-http
+
   - it: renders Issuer for CA type
     set:
       certIssuer:

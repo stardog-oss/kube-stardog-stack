@@ -80,3 +80,20 @@ tests:
         equal:
           path: spec.listeners[0].tls.certificateRefs[0].name
           value: stardog-tls
+
+  - it: does not render a Gateway when reusing an external shared gateway
+    capabilities:
+      apiVersions:
+        - gateway.networking.k8s.io/v1
+    set:
+      global:
+        stardog:
+          enabled: true
+        gateway:
+          enabled: true
+          createGateway: false
+          name: existing-shared-gateway
+          namespace: gateway-system
+    asserts:
+      - hasDocuments:
+          count: 0

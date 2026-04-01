@@ -133,3 +133,36 @@ tests:
         equal:
           path: spec.rules[0].backendRefs[0].port
           value: 80
+
+  - it: reuses external shared gateway refs from global config
+    set:
+      gateway:
+        enabled: false
+        http:
+          skipApiValidation: true
+          redirect:
+            enabled: true
+      global:
+        gateway:
+          enabled: true
+          createGateway: false
+          name: shared-gw
+          namespace: gateway-system
+          domain: example.com
+          launchpadSectionName: shared-launchpad-https
+          launchpadHttpSectionName: shared-launchpad-http
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        equal:
+          path: spec.parentRefs[0].name
+          value: shared-gw
+      - documentIndex: 0
+        equal:
+          path: spec.parentRefs[0].sectionName
+          value: shared-launchpad-https
+      - documentIndex: 1
+        equal:
+          path: spec.parentRefs[0].sectionName
+          value: shared-launchpad-http

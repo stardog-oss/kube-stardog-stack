@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0
+- Add umbrella-level external shared Gateway mode.
+  - Support `global.gateway.createGateway=false` to reuse an existing shared `Gateway`.
+  - Auto-wire shared listener references for Stardog and Launchpad routes from `global.gateway.*`.
+  - Skip `Gateway` creation and bootstrap shared-Gateway TLS resources in external mode.
+
 ## 1.0.4
 -- Do no include PNG in helm chart package (too big)
 

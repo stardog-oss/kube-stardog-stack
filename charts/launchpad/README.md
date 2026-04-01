@@ -171,6 +171,8 @@ gateway:
 
 Set `gateway.http.domain` to the base domain (e.g., `example.com`) so the chart can derive the Launchpad hostname (`launchpad.example.com`). Disable `ingress.enabled` when turning on the block above. The chart creates a Gateway and HTTPRoute targeting the Launchpad service; provide a TLS secret so Traefik can terminate HTTPS. If `certIssuer.enabled=true` and you leave `gateway.http.tls.secretName` empty, the chart automatically reuses the cert-manager secret that ingress consumed (`launchpad-<release>-tls` by default).
 
+When the umbrella chart enables `global.gateway.enabled=true`, Launchpad automatically attaches to the shared umbrella-level `Gateway`. With `global.gateway.createGateway=true`, the shared `Gateway` is created by Helm. With `global.gateway.createGateway=false`, Helm does not create a `Gateway`; Launchpad instead derives its HTTPS and HTTP redirect listener `parentRefs` from `global.gateway.name`, `global.gateway.namespace`, `global.gateway.launchpadSectionName`, and `global.gateway.launchpadHttpSectionName`.
+
 ACME issuers automatically add HTTP-01 solvers for whichever exposure (ingress or gateway) you enable. When `gateway.http.redirect.enabled=true` and redirect parentRefs are set, the solver targets those HTTP listener parentRefs so HTTP-01 can complete. Override `certIssuer.acme.solvers` if you need to force DNS-01 or supply custom solver options.
 
 > **Ingress deprecation:** The `ingress.*` options are maintained only for backwards compatibility, emit a warning during rendering, and will be removed after Gateway adoption is complete.
