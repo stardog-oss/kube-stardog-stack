@@ -47,7 +47,10 @@ configFile: |
   #   }
   # }
 environmentVariables:
+  VBX_CONFIG_FILE: /voicebox-config/vbx_config.json
+  TMPDIR: /tmp
   PRODUCTION: 1 # 0 for development, 1 for production
+  # VBX_BITES_CONFIG_FILE: /bites-voicebox-config/vbx_bites_config.yaml
 resources: 
   requests:
     memory: "1000Mi"
