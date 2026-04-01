@@ -15,11 +15,10 @@ securityContext:
   runAsNonRoot: true
   runAsUser: 1000
   runAsGroup: 1000
-env:
-  - name: VBX_CONFIG_FILE
-    value: /voicebox-config/vbx_config.json
-  - name: PRODUCTION
-    value: "1"
+environmentVariables:
+  VBX_CONFIG_FILE: /voicebox-config/vbx_config.json
+  TMPDIR: /tmp
+  PRODUCTION: "1"
 nodeSelector:
   disktype: ssd
 affinity:

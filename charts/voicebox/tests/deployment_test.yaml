@@ -42,24 +42,26 @@ tests:
       environmentVariables:
         AZURE_API_KEY: "azure-api-key"
     asserts:
-      - equal:
-          path: spec.template.spec.containers[0].env[0].name
-          value: VBX_CONFIG_FILE
-      - equal:
-          path: spec.template.spec.containers[0].env[0].value
-          value: /voicebox-config/vbx_config.json
-      - equal:
-          path: spec.template.spec.containers[0].env[1].name
-          value: AZURE_API_KEY
-      - equal:
-          path: spec.template.spec.containers[0].env[1].value
-          value: "azure-api-key"
-      - equal:
-          path: spec.template.spec.containers[0].env[2].name
-          value: PRODUCTION
-      - equal:
-          path: spec.template.spec.containers[0].env[2].value
-          value: "1"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: VBX_CONFIG_FILE
+            value: /voicebox-config/vbx_config.json
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TMPDIR
+            value: /tmp
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AZURE_API_KEY
+            value: "azure-api-key"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PRODUCTION
+            value: "1"
 
   # Test 3: Validate resources
   - it: should set correct resource limits and requests
@@ -84,36 +86,76 @@ tests:
     values:
       - values/values-voicebox.yaml
     asserts:
-      - equal:
-          path: spec.template.spec.containers[0].volumeMounts[0].name
-          value: voicebox-RELEASE-NAME
-      - equal:
-          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
-          value: /voicebox-config/vbx_config.json
-      - equal:
-          path: spec.template.spec.containers[0].volumeMounts[0].subPath
-          value: vbx_config.json
-      - equal:
-          path: spec.template.spec.containers[0].volumeMounts[0].readOnly
-          value: true
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: voicebox-RELEASE-NAME
+            mountPath: /voicebox-config/vbx_config.json
+            subPath: vbx_config.json
+            readOnly: true
 
   # Test 5: Validate volumes
   - it: should create config volume
     values:
       - values/values-voicebox.yaml
     asserts:
-      - equal:
-          path: spec.template.spec.volumes[0].name
-          value: voicebox-RELEASE-NAME
-      - equal:
-          path: spec.template.spec.volumes[0].configMap.name
-          value: voicebox-RELEASE-NAME
-      - equal:
-          path: spec.template.spec.volumes[0].configMap.items[0].key
-          value: vbx_config.json
-      - equal:
-          path: spec.template.spec.volumes[0].configMap.items[0].path
-          value: vbx_config.json
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tmp
+            emptyDir: {}
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: voicebox-RELEASE-NAME
+            configMap:
+              name: voicebox-RELEASE-NAME
+              items:
+                - key: vbx_config.json
+                  path: vbx_config.json
+
+  - it: should use environmentVariables.TMPDIR for the temp mount path
+    values:
+      - values/values-voicebox.yaml
+    set:
+      environmentVariables:
+        TMPDIR: /var/tmp/voicebox
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TMPDIR
+            value: /var/tmp/voicebox
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /var/tmp/voicebox
+
+  - it: should use environmentVariables.VBX_CONFIG_FILE for the config mount path
+    values:
+      - values/values-voicebox.yaml
+    set:
+      environmentVariables:
+        VBX_CONFIG_FILE: /custom-config/voicebox.json
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: VBX_CONFIG_FILE
+            value: /custom-config/voicebox.json
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: voicebox-RELEASE-NAME
+            mountPath: /custom-config/voicebox.json
+            subPath: vbx_config.json
+            readOnly: true
 
   # Test 6: Validate security context
   - it: should set security context
@@ -202,6 +244,25 @@ tests:
               items:
                 - key: vbx_bites_config.yaml
                   path: vbx_bites_config.yaml
+
+  - it: should use environmentVariables.VBX_BITES_CONFIG_FILE for the bites config mount path
+    set:
+      bitesService.enabled: true
+      environmentVariables:
+        VBX_BITES_CONFIG_FILE: /custom-bites/config.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: VBX_BITES_CONFIG_FILE
+            value: /custom-bites/config.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: voicebox-RELEASE-NAME-bites-config
+            mountPath: /custom-bites/config.yaml
+            subPath: vbx_bites_config.yaml
+            readOnly: true
 
   - it: template labels match the selector labels
     asserts:
