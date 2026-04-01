@@ -2,21 +2,44 @@ CHART NAME: {{ .Chart.Name }}
 CHART VERSION: {{ .Chart.Version }}
 APP VERSION: {{ .Chart.AppVersion }}
 
+{{- $gatewayEnabled := default false .Values.gateway.enabled -}}
+{{- $gatewayHttp := default (dict) .Values.gateway.http -}}
+{{- $gatewayDomain := default "" $gatewayHttp.domain -}}
+{{- $ingressEnabled := default false .Values.ingress.enabled -}}
+{{- $routeEnabled := default false .Values.route.enabled -}}
+{{- $biEnabled := eq (include "stardog.effectiveBiEnabled" .) "true" -}}
+{{- $sparqlEndpoint := "" -}}
+{{- $biEndpoint := "" -}}
+{{- if and $gatewayEnabled (ne $gatewayDomain "") -}}
+  {{- $sparqlEndpoint = printf "%s.%s" (default "sparql" $gatewayHttp.sparqlSubdomain) $gatewayDomain -}}
+  {{- if $biEnabled -}}
+    {{- $tcpBi := default (dict) .Values.gateway.tcpBi -}}
+    {{- $biPort := int (default 5806 $tcpBi.port) -}}
+    {{- $biEndpoint = printf "%s.%s:%d" (default "bi" $gatewayHttp.biSubdomain) $gatewayDomain $biPort -}}
+  {{- end -}}
+{{- else if $ingressEnabled -}}
+  {{- $sparqlEndpoint = printf "%s.%s" (default "sparql" .Values.ingress.sparqlSubdomain) .Values.ingress.url -}}
+  {{- if $biEnabled -}}
+    {{- $biEndpoint = printf "%s.%s:%v" (default "bi" .Values.ingress.biSubdomain) .Values.ingress.url .Values.ports.sql -}}
+  {{- end -}}
+{{- else if $routeEnabled -}}
+  {{- $sparqlEndpoint = printf "sparql.%s.%s" (include "stardog.fullname" .) .Values.route.domain -}}
+{{- end }}
+
 ** Please be patient while the chart is being deployed **
 
 Your application is now deployed and can be accessed via:
 
-Stardog endpoint: {{ printf "%s.%s" (.Values.ingress.sparqlSubdomain | default "sparql") .Values.ingress.url }}
+{{- if ne $sparqlEndpoint "" }}
+Stardog endpoint: {{ $sparqlEndpoint }}
+{{- end }}
 
-{{- if and .Values.ingress.nabled (eq (include "stardog.effectiveBiEnabled" .) "true") }}
-BI endpoint: {{ printf "%s.%s" (.Values.ingress.biSubdomain | default "bi") .Values.ingress.url }}:{{ .Values.ports.sql }}
+{{- if ne $biEndpoint "" }}
+BI endpoint: {{ $biEndpoint }}
 {{- else }}
 {{- if eq .Values.service.type "ClusterIP" }}
 
-  {{- if .Values.route.enabled }}
-  Use the following URLs to access Stardog:
-SPARQL endpoint: sparql.{{ include "stardog.fullname" . }}.{{ .Values.route.domain }}
-  {{- else }}
+  {{- if eq $sparqlEndpoint "" }}
 
   Use `kubectl` to port-forward or proxy to your pod:
 

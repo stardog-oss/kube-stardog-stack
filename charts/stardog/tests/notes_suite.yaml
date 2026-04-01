@@ -1,0 +1,63 @@
+suite: Stardog Notes
+templates:
+  - templates/NOTES.txt
+
+tests:
+  - it: falls back to port-forward guidance when no external endpoint is configured
+    asserts:
+      - matchRegex:
+          path: raw
+          pattern: 'kubectl port-forward svc/RELEASE-NAME-stardog 5820:5820'
+      - notMatchRegex:
+          path: raw
+          pattern: 'sparql\.stardogcloud\.com'
+
+  - it: shows ingress-derived SPARQL and BI endpoints
+    set:
+      ingress:
+        enabled: true
+        url: training.sd-testlab.com
+        sparqlSubdomain: sparql
+        biSubdomain: bi
+      bi:
+        enabled: true
+      global:
+        bi:
+          enabled: true
+    asserts:
+      - matchRegex:
+          path: raw
+          pattern: 'Stardog endpoint: sparql\.training\.sd-testlab\.com'
+      - matchRegex:
+          path: raw
+          pattern: 'BI endpoint: bi\.training\.sd-testlab\.com:5806'
+      - notMatchRegex:
+          path: raw
+          pattern: 'kubectl port-forward'
+
+  - it: shows Gateway-derived SPARQL and BI endpoints
+    set:
+      gateway:
+        enabled: true
+        http:
+          domain: training.sd-testlab.com
+          sparqlSubdomain: sparql
+          biSubdomain: bi
+      bi:
+        enabled: true
+      global:
+        bi:
+          enabled: true
+    asserts:
+      - matchRegex:
+          path: raw
+          pattern: 'Stardog endpoint: sparql\.training\.sd-testlab\.com'
+      - matchRegex:
+          path: raw
+          pattern: 'BI endpoint: bi\.training\.sd-testlab\.com:5806'
+      - notMatchRegex:
+          path: raw
+          pattern: 'sparql\.stardogcloud\.com'
+      - notMatchRegex:
+          path: raw
+          pattern: 'kubectl port-forward'
