@@ -10,7 +10,8 @@
   {{- if hasKey $rawGateway "redirectToLaunchpad" }}
     {{- $_ := set $gatewayConfig "redirectToLaunchpad" (index $rawGateway "redirectToLaunchpad") }}
   {{- end }}
-  {{- $globalGateway := default (dict) .Values.global.gateway }}
+  {{- $globalValues := default (dict) .Values.global }}
+  {{- $globalGateway := default (dict) (index $globalValues "gateway") }}
   {{- $globalGatewayName := include "sdcommon.globalGatewayName" . }}
   {{- $globalGatewayNamespace := include "sdcommon.globalGatewayNamespace" . }}
   {{- $globalDomain := trim (default "" (index $globalGateway "domain")) }}
@@ -155,7 +156,7 @@
   {{- $tcpListeners := list }}
   {{- $tcpRoutes := list }}
   {{- $manualTcpRoutes := list }}
-  {{- $tcpApiVersion := default "" (index (default (dict) .Values.global.gateway) "tcpRouteApiVersion") }}
+  {{- $tcpApiVersion := default "" (index $globalGateway "tcpRouteApiVersion") }}
   {{- if eq $tcpApiVersion "" }}
     {{- $tcpApiVersion = default "" (index (default (dict) .Values.gateway) "tcpRouteApiVersion") }}
   {{- end }}
