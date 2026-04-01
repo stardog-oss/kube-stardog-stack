@@ -79,6 +79,39 @@ tests:
           path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].sectionName
           value: http
 
+  - it: uses external shared gateway redirect listener from global config
+    values:
+      - values/values-stardog.yaml
+    set:
+      certIssuer:
+        enabled: true
+      global:
+        gateway:
+          enabled: true
+          createGateway: false
+          name: shared-gw
+          namespace: gateway-system
+          sparqlSectionName: shared-https
+          sparqlHttpSectionName: shared-http
+      gateway:
+        enabled: false
+        http:
+          domain: example.com
+          redirect:
+            enabled: true
+      ingress:
+        enabled: false
+    asserts:
+      - equal:
+          path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].name
+          value: shared-gw
+      - equal:
+          path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].namespace
+          value: gateway-system
+      - equal:
+          path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].sectionName
+          value: shared-http
+
   - it: fails when ACME solvers unavailable
     values:
       - values/values-stardog.yaml

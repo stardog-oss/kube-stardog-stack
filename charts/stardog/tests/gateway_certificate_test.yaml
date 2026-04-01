@@ -228,3 +228,18 @@ tests:
         equal:
           path: spec.secretName
           value: platform-gw-tls
+
+  - it: does not render a certificate for external shared gateway mode
+    set:
+      certIssuer:
+        enabled: true
+      global:
+        gateway:
+          enabled: true
+          createGateway: false
+          domain: example.com
+      gateway:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

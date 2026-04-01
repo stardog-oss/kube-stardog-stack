@@ -258,6 +258,56 @@ tests:
           path: spec.rules[0].filters[0].requestRedirect.port
           value: 443
 
+  - it: reuses external shared gateway refs from global config
+    set:
+      gateway:
+        enabled: false
+        http:
+          skipApiValidation: true
+          redirect:
+            enabled: true
+      global:
+        gateway:
+          enabled: true
+          createGateway: false
+          name: shared-gw
+          namespace: gateway-system
+          domain: example.com
+          sparqlSectionName: shared-https
+          sparqlHttpSectionName: shared-http
+          biTcpSectionName: shared-bi
+        bi:
+          enabled: true
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - hasDocuments:
+          count: 3
+      - documentIndex: 0
+        equal:
+          path: spec.parentRefs[0].name
+          value: shared-gw
+      - documentIndex: 0
+        equal:
+          path: spec.parentRefs[0].namespace
+          value: gateway-system
+      - documentIndex: 0
+        equal:
+          path: spec.parentRefs[0].sectionName
+          value: shared-https
+      - documentIndex: 1
+        equal:
+          path: spec.parentRefs[0].sectionName
+          value: shared-http
+      - documentIndex: 2
+        isKind:
+          of: TCPRoute
+      - documentIndex: 2
+        equal:
+          path: spec.parentRefs[0].sectionName
+          value: shared-bi
+
   - it: routes root path to redirect backend when mode backend
     set:
       gateway:

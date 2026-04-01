@@ -55,6 +55,12 @@ Coordination service for clustered Stardog deployments. Enable with `global.zook
 ### ClusterIssuer
 The ClusterIssuer resource for certificate management is managed by this umbrella chart and will be created if either Stardog or Launchpad has certificate management enabled. This ensures that both components can share the same certificate issuer without conflicts.
 
+### Shared Gateway
+The umbrella chart supports two shared Gateway patterns under `global.gateway.*`:
+
+- managed shared Gateway: the umbrella chart creates and owns the `Gateway`
+- external shared Gateway: the `Gateway` already exists and the umbrella chart only renders routes that attach to it
+
 ## Installation
 
 ### Distribution & Support
@@ -177,6 +183,45 @@ launchpad:
 ```
 
 **Note**: Replace `RELEASE-NAME` with your actual Helm release name and `NAMESPACE` with your Kubernetes namespace.
+
+#### Shared Gateway Reuse
+
+Use `global.gateway.enabled=true` to turn on umbrella-level shared Gateway wiring. Then choose one of these modes:
+
+- `global.gateway.createGateway=true`: render and manage the shared `Gateway` through the `gateway` subchart
+- `global.gateway.createGateway=false`: reuse an existing shared `Gateway` and render only subchart routes
+
+Managed shared Gateway example:
+
+```yaml
+global:
+  gateway:
+    enabled: true
+    createGateway: true
+    name: platform-gateway
+    namespace: shared-gateway
+    className: cilium
+    domain: example.com
+```
+
+External shared Gateway example:
+
+```yaml
+global:
+  gateway:
+    enabled: true
+    createGateway: false
+    name: platform-gateway
+    namespace: shared-gateway
+    domain: example.com
+    sparqlSectionName: sparql-https
+    sparqlHttpSectionName: sparql-http
+    launchpadSectionName: launchpad-https
+    launchpadHttpSectionName: launchpad-http
+    biTcpSectionName: bi-tcp
+```
+
+In external mode, subcharts such as Stardog and Launchpad automatically reuse those shared listener references. You do not need to repeat `parentRefs` in each subchart values block unless you want an explicit per-chart override.
 
 ### Component Enablement
 

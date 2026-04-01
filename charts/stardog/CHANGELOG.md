@@ -1,8 +1,11 @@
 # Changelog
+
 ## 4.0.2
 - Stardog properties default update.
   - Removed pack.node.join.retry.count=15,  default 20
   - Removed pack.node.join.retry.delay=1m,  defualt 3s
+- Add support for umbrella-managed external shared Gateway references via `global.gateway.*`.
+- Auto-populate shared HTTPS, HTTP redirect, and BI TCP listener `parentRefs` from umbrella values.
 
 ## 4.0.1
 - Maintenance: update maintainer information.
