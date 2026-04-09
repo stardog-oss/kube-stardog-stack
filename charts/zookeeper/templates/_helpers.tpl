@@ -23,6 +23,7 @@ Common helpers
 
 {{- define "zookeeper.selectorLabels" -}}
 {{ include "sdcommon.labels.selector" . }}
+{{ include "sdcommon.labels.component" . }}
 {{- end -}}
 
 {{- define "zookeeper.serviceAccountName" -}}
