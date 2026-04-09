@@ -33,6 +33,12 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].ports[0].protocol
           value: TCP
+      - equal:
+          path: spec.template.spec.containers[0].command[5]
+          value: --port
+      - equal:
+          path: spec.template.spec.containers[0].command[6]
+          value: "8000"
 
   # Test 2: Validate environment variables
   - it: should set required environment variables
@@ -263,6 +269,33 @@ tests:
             mountPath: /custom-bites/config.yaml
             subPath: vbx_bites_config.yaml
             readOnly: true
+
+  - it: should pass a non-default service port to the container command and probes
+    set:
+      service:
+        port: 8081
+      ports:
+        - name: api
+          port: 8081
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command[6]
+          value: "8081"
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8081
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].name
+          value: api
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.port
+          value: api
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: api
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: api
 
   - it: template labels match the selector labels
     asserts:

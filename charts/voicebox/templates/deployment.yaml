@@ -2,6 +2,7 @@
 {{- $tmpDir := get $envVars "TMPDIR" | default "/tmp" -}}
 {{- $vbxConfigFile := get $envVars "VBX_CONFIG_FILE" | default "/voicebox-config/vbx_config.json" -}}
 {{- $vbxBitesConfigFile := get $envVars "VBX_BITES_CONFIG_FILE" | default "/bites-voicebox-config/vbx_bites_config.yaml" -}}
+{{- $servicePort := include "voicebox.servicePort" . | int -}}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -42,9 +43,19 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
           securityContext: 
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          command:
+            - /opt/venv/bin/python
+            - /opt/venv/bin/uvicorn
+            - api.main:app
+            - --host
+            - 0.0.0.0
+            - --port
+            - {{ $servicePort | quote }}
+            - --log-config
+            - src/api/logging/config.json
           ports:
             - name: {{ (index .Values.ports 0).name }}
-              containerPort: {{ include "voicebox.servicePort" . | int }}
+              containerPort: {{ $servicePort }}
               protocol: TCP
           env:
             - name: VBX_CONFIG_FILE
