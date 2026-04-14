@@ -2,6 +2,9 @@
 .git
 .git/*
 .gitignore
+.githooks
+.githooks/*
+.helmignore
 .DS_Store
 .idea
 .vscode
@@ -9,8 +12,11 @@
 # Ignore CI/test/support files to keep chart payload small
 .github
 .github/*
+INTEGRATION_TESTS.md
 tests
 tests/*
+tests/values/integration
+tests/values/integration/*
 charts/*/tests
 charts/*/tests/*
 scripts
@@ -29,3 +35,4 @@ venv
 
 # Keep top-level docs in the chart package, except hook notes
 README_hook.md
+RELEASE.md

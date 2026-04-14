@@ -1,0 +1,36 @@
+# Integration scenario file ID: IT-028-035
+# Covers tests: 28, 29, 30, 31, 32, 33, 34, 35
+# Purpose: Voicebox with Bites, SparkApplication, PVC, and explicit writable/config paths.
+# Run as-is: conditional
+# Limitations:
+# - Assumes the Spark Operator is installed.
+# - Assumes the cluster can provision the requested PVC.
+# - Assumes the Voicebox and Bites images are pullable by the active cluster.
+# Update before use:
+# - Verify the Spark Operator is installed before deploying this scenario.
+# - Update storage class or PVC settings if the target cluster requires them.
+# - Override images if the active cluster cannot pull the chart defaults.
+
+global:
+  stardog:
+    enabled: false
+  launchpad:
+    enabled: false
+  voicebox:
+    enabled: true
+  bi:
+    enabled: false
+  gateway:
+    enabled: false
+
+voicebox:
+  bitesService:
+    enabled: true
+#    sparkApplication:
+#      name: voicebox-bites-job
+#      persistentVolumeClaim:
+#        name: voicebox-bites-docs-pvc
+#      volumes:
+#        - name: docs
+#          persistentVolumeClaim:
+#            claimName: voicebox-bites-docs-pvc

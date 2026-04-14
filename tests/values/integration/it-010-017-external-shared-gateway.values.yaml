@@ -1,0 +1,62 @@
+# Integration scenario file ID: IT-010-017
+# Covers tests: 10, 11, 12, 13, 14, 15, 16, 17
+# Purpose: umbrella install attaching to a pre-created external shared Gateway.
+# Requires: `stardog-license` secret in the target namespace.
+# Run as-is: no
+# Limitations:
+# - Assumes the external shared Gateway already exists.
+# - Assumes the listener section names on that external Gateway match this file.
+# - Assumes `training.sd-testlab.com` is a valid domain for the target cluster.
+# - Assumes the external Gateway lives in `gateway-system`.
+# Update before use:
+# - Replace `global.gateway.name` and `global.gateway.namespace` with the real shared Gateway reference.
+# - Replace `global.gateway.domain` with a real domain for the active cluster.
+# - Adjust shared listener names if the platform Gateway uses different `sectionName` values.
+# - Ensure the `stardog-license` secret exists in the release namespace.
+
+global:
+  stardog:
+    enabled: true
+  launchpad:
+    enabled: true
+  voicebox:
+    enabled: false
+  bi:
+    enabled: true
+  gateway:
+    enabled: true
+    createGateway: false
+    name: platform-gw
+    namespace: gateway-system
+    domain: training.sd-testlab.com
+    sparqlSectionName: sparql
+    sparqlHttpSectionName: sparql-http
+    launchpadSectionName: launchpad
+    launchpadHttpSectionName: launchpad-http
+    biTcpSectionName: bi-tcp
+  certIssuer:
+    enabled: false
+
+stardog:
+  bi:
+    enabled: true
+  ingress:
+    enabled: false
+  route:
+    enabled: false
+  gateway:
+    http:
+      skipApiValidation: true
+      redirect:
+        enabled: true
+
+launchpad:
+  ingress:
+    enabled: false
+  route:
+    enabled: false
+  gateway:
+    http:
+      skipApiValidation: true
+      redirect:
+        enabled: true

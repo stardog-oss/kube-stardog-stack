@@ -1,0 +1,31 @@
+# Integration scenario file ID: IT-022-and-036
+# Covers tests: 22, 36
+# Purpose: baseline Stardog-only install with no ingress, route, or gateway.
+# Requires: `stardog-license` secret in the target namespace.
+# Run as-is: mostly
+# Limitations:
+# - Requires the `stardog-license` secret in the release namespace.
+# - This is an internal-only baseline. It does not expose Stardog externally.
+# Update before use:
+# - Ensure the `stardog-license` secret exists in the release namespace.
+# - Add ingress, route, or gateway values only if you intentionally want external access.
+
+global:
+  stardog:
+    enabled: true
+  launchpad:
+    enabled: false
+  voicebox:
+    enabled: false
+  bi:
+    enabled: false
+  gateway:
+    enabled: false
+
+stardog:
+  ingress:
+    enabled: false
+  route:
+    enabled: false
+  gateway:
+    enabled: false

@@ -1,0 +1,98 @@
+{{- $global := default (dict) .Values.global -}}
+{{- $stardogEnabled := default false (index (default (dict) (index $global "stardog")) "enabled") -}}
+{{- $launchpadEnabled := default false (index (default (dict) (index $global "launchpad")) "enabled") -}}
+{{- $biEnabled := default false (index $global "bi") -}}
+
+{{- $globalGateway := default (dict) (index $global "gateway") -}}
+{{- $globalGatewayEnabled := default false (index $globalGateway "enabled") -}}
+{{- $globalGatewayDomain := trim (default "" (index $globalGateway "domain")) -}}
+
+{{- $stardogVals := default (dict) .Values.stardog -}}
+{{- $stardogIngress := default (dict) (index $stardogVals "ingress") -}}
+{{- $stardogGateway := default (dict) (index $stardogVals "gateway") -}}
+{{- $stardogRoute := default (dict) (index $stardogVals "route") -}}
+
+{{- $launchpadVals := default (dict) .Values.launchpad -}}
+{{- $launchpadIngress := default (dict) (index $launchpadVals "ingress") -}}
+{{- $launchpadGateway := default (dict) (index $launchpadVals "gateway") -}}
+{{- $launchpadRoute := default (dict) (index $launchpadVals "route") -}}
+
+{{- $stardogEndpoint := "" -}}
+{{- $launchpadEndpoint := "" -}}
+{{- $biEndpoint := "" -}}
+
+{{- if $stardogEnabled -}}
+  {{- $stardogGatewayEnabled := default false (index $stardogGateway "enabled") -}}
+  {{- $stardogGatewayHttp := default (dict) (index $stardogGateway "http") -}}
+  {{- $stardogGatewayDomain := trim (default "" (index $stardogGatewayHttp "domain")) -}}
+  {{- if and $globalGatewayEnabled (eq $stardogGatewayDomain "") -}}
+    {{- $stardogGatewayDomain = $globalGatewayDomain -}}
+  {{- end -}}
+  {{- if and $stardogGatewayEnabled (ne $stardogGatewayDomain "") -}}
+    {{- $stardogEndpoint = printf "%s.%s" (default "sparql" (index $stardogGatewayHttp "sparqlSubdomain")) $stardogGatewayDomain -}}
+    {{- if $biEnabled -}}
+      {{- $tcpBi := default (dict) (index $stardogGateway "tcpBi") -}}
+      {{- $biPort := int (default 5806 (index $tcpBi "port")) -}}
+      {{- $biEndpoint = printf "%s.%s:%d" (default "bi" (index $stardogGatewayHttp "biSubdomain")) $stardogGatewayDomain $biPort -}}
+    {{- end -}}
+  {{- else if (default false (index $stardogIngress "enabled")) -}}
+    {{- $stardogEndpoint = printf "%s.%s" (default "sparql" (index $stardogIngress "sparqlSubdomain")) (default "" (index $stardogIngress "url")) -}}
+    {{- if $biEnabled -}}
+      {{- $ports := default (dict) (index $stardogVals "ports") -}}
+      {{- $biEndpoint = printf "%s.%s:%v" (default "bi" (index $stardogIngress "biSubdomain")) (default "" (index $stardogIngress "url")) (default 5806 (index $ports "sql")) -}}
+    {{- end -}}
+  {{- else if (default false (index $stardogRoute "enabled")) -}}
+    {{- $routeDomain := trim (default "" (index $stardogRoute "domain")) -}}
+    {{- if ne $routeDomain "" -}}
+      {{- $stardogEndpoint = printf "sparql.%s.%s" (printf "stardog-%s" .Release.Name) $routeDomain -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- if $launchpadEnabled -}}
+  {{- $launchpadGatewayEnabled := default false (index $launchpadGateway "enabled") -}}
+  {{- $launchpadGatewayHttp := default (dict) (index $launchpadGateway "http") -}}
+  {{- $launchpadGatewayDomain := trim (default "" (index $launchpadGatewayHttp "domain")) -}}
+  {{- if and $globalGatewayEnabled (eq $launchpadGatewayDomain "") -}}
+    {{- $launchpadGatewayDomain = $globalGatewayDomain -}}
+  {{- end -}}
+  {{- if and $launchpadGatewayEnabled (ne $launchpadGatewayDomain "") -}}
+    {{- $launchpadEndpoint = printf "%s.%s" (default "launchpad" (index $launchpadGatewayHttp "subdomain")) $launchpadGatewayDomain -}}
+  {{- else if (default false (index $launchpadIngress "enabled")) -}}
+    {{- $launchpadEndpoint = printf "%s.%s" (default "launchpad" (index $launchpadIngress "subdomain")) (default "" (index $launchpadIngress "url")) -}}
+  {{- else if (default false (index $launchpadRoute "enabled")) -}}
+    {{- $routeDomain := trim (default "" (index $launchpadRoute "domain")) -}}
+    {{- if ne $routeDomain "" -}}
+      {{- $launchpadEndpoint = printf "launchpad.%s.%s" (printf "launchpad-%s" .Release.Name) $routeDomain -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+** Please be patient while the chart is being deployed **
+
+Your application is now deployed and can be accessed via:
+
+{{- if ne $stardogEndpoint "" }}
+Stardog endpoint: {{ $stardogEndpoint }}
+{{- end }}
+{{- if ne $launchpadEndpoint "" }}
+Launchpad endpoint: {{ $launchpadEndpoint }}
+{{- end }}
+{{- if ne $biEndpoint "" }}
+BI endpoint: {{ $biEndpoint }}
+{{- end }}
+
+{{- if and $stardogEnabled (eq $stardogEndpoint "") }}
+
+Use `kubectl` to port-forward Stardog:
+
+kubectl port-forward svc/stardog-{{ .Release.Name }} 5820:5820
+{{- end }}
+
+{{- if and $launchpadEnabled (eq $launchpadEndpoint "") }}
+
+Use `kubectl` to port-forward Launchpad:
+
+kubectl port-forward svc/launchpad-{{ .Release.Name }} 8080:8080
+{{- end }}
+

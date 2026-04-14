@@ -1,0 +1,59 @@
+# Integration scenario file ID: IT-001-009
+# Covers tests: 1, 2, 3, 4, 5, 6, 7, 8, 9
+# Purpose: umbrella install in managed shared-Gateway mode.
+# Requires: `stardog-license` secret in the target namespace.
+# Run as-is: no
+# Limitations:
+# - Assumes a Gateway API controller is installed.
+# - Assumes cert-manager is installed and ACME issuance is intended.
+# - Assumes `training.sd-testlab.com` is a valid domain for the target cluster.
+# - Assumes the configured GatewayClass `stardog-envoy-gateway-class` exists.
+# Update before use:
+# - Replace `global.gateway.domain` with a real domain for the active cluster.
+# - Replace `global.gateway.className` if the cluster uses a different GatewayClass.
+# - Replace `global.certIssuer.acme.email` with a real operator email.
+# - Ensure the `stardog-license` secret exists in the release namespace.
+
+global:
+  stardog:
+    enabled: true
+  launchpad:
+    enabled: true
+  voicebox:
+    enabled: false
+  bi:
+    enabled: true
+  gateway:
+    enabled: true
+    createGateway: true
+    className: stardog-envoy-gateway-class
+    domain: training.sd-testlab.com
+  certIssuer:
+    enabled: true
+    type: acme
+    acme:
+      email: admin@example.com
+
+stardog:
+  bi:
+    enabled: true
+  ingress:
+    enabled: false
+  route:
+    enabled: false
+  gateway:
+    http:
+      skipApiValidation: true
+      redirect:
+        enabled: true
+
+launchpad:
+  ingress:
+    enabled: false
+  route:
+    enabled: false
+  gateway:
+    http:
+      skipApiValidation: true
+      redirect:
+        enabled: true
