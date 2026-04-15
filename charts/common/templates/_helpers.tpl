@@ -172,7 +172,7 @@ storageClassName: {{ $value | quote }}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
-{{/* Fullname: honors fullnameOverride; else <release>-<name> with dup guard */}}
+{{/* Fullname: honors fullnameOverride; else <name>-<release> with dup guard */}}
 {{- define "sdcommon.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}

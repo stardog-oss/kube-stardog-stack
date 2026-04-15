@@ -49,7 +49,7 @@ The following table lists the configurable parameters of the Launchpad chart and
 | `ingress.url` | Ingress URL | `launchpad.stardogcloud.com` |
 | `ingress.path` | Ingress path | `/` |
 | `ingress.pathType` | Ingress path type | `Prefix` |
-| `gateway.*` | Enable Gateway API (e.g., Traefik) exposure instead of classic ingress | See `values.yaml` |
+| `gateway.*` | Enable Gateway API (e.g., Envoy Gateway) exposure instead of classic ingress | See `values.yaml` |
 | `persistence.storageClass` | Storage class for PVC | `""` |
 | `persistence.size` | Size of data volume | `1Gi` |
 | `resources.requests.cpu` | CPU resource requests | `500m` |
@@ -152,9 +152,9 @@ head -c32 /dev/urandom | base64
 
 Launchpad shares the same scheduling helpers as the rest of the stack. Combine `nodeSelector` and `tolerations` to place the pods on pre-tainted pools, and either let the chart create a scoped service account (`serviceAccount.create=true`) or point at an existing identity via `serviceAccount.name` when cluster administrators manage RBAC centrally. All of the defaults follow Kubernetes hardening guidance (RuntimeDefault seccomp, non-root UID/GID 100000, and a read-only root filesystem), so only override the security context knobs when the container image explicitly requires it.
 
-### Gateway API (Traefik) exposure
+### Gateway API (Envoy Gateway) exposure
 
-Clusters running Traefik or another Gateway API controller can skip the legacy ingress objects entirely:
+Clusters running Envoy Gateway (recommended) or another Gateway API controller can skip the legacy ingress objects entirely:
 
 ```yaml
 gateway:
@@ -169,7 +169,7 @@ gateway:
       enabled: true
 ```
 
-Set `gateway.http.domain` to the base domain (e.g., `example.com`) so the chart can derive the Launchpad hostname (`launchpad.example.com`). Disable `ingress.enabled` when turning on the block above. The chart creates a Gateway and HTTPRoute targeting the Launchpad service; provide a TLS secret so Traefik can terminate HTTPS. If `certIssuer.enabled=true` and you leave `gateway.http.tls.secretName` empty, the chart automatically reuses the cert-manager secret that ingress consumed (`launchpad-<release>-tls` by default).
+Set `gateway.http.domain` to the base domain (e.g., `example.com`) so the chart can derive the Launchpad hostname (`launchpad.example.com`). Disable `ingress.enabled` when turning on the block above. The chart creates a Gateway and HTTPRoute targeting the Launchpad service; provide a TLS secret so Envoy Gateway can terminate HTTPS. If `certIssuer.enabled=true` and you leave `gateway.http.tls.secretName` empty, the chart automatically reuses the cert-manager secret that ingress consumed (`launchpad-<release>-tls` by default).
 
 When the umbrella chart enables `global.gateway.enabled=true`, Launchpad automatically attaches to the shared umbrella-level `Gateway`. With `global.gateway.createGateway=true`, the shared `Gateway` is created by Helm. With `global.gateway.createGateway=false`, Helm does not create a `Gateway`; Launchpad instead derives its HTTPS and HTTP redirect listener `parentRefs` from `global.gateway.name`, `global.gateway.namespace`, `global.gateway.launchpadSectionName`, and `global.gateway.launchpadHttpSectionName`.
 
