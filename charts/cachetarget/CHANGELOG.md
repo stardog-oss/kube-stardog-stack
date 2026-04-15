@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.2
 - Adopt the shared standard component label from the common library chart.
 
 ## 1.0.1

@@ -1,7 +1,6 @@
 # Changelog
 
 ## 4.0.2
-
 - Gated Upgrade
   - Add `upgrade.approval.targetVersion` as a version-scoped replacement for setting `upgrade.automatic` directly in `stardogProperties`.
   - Fail chart rendering when `upgrade.automatic` is set directly in `stardogProperties` or when `upgrade.approval.targetVersion` does not match `image.tag`.

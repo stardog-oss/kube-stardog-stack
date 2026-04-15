@@ -5,15 +5,15 @@
 - Update release automation and validation for release and hotfix branches, release tags, and release process documentation.
 - Update bundled subcharts:
   - Common: 0.1.6
-  - Gateway: 1.0.1
+  - Gateway: 1.0.2
   - Stardog: 4.0.2
   - Launchpad: 1.0.2
   - Voicebox: 1.1.0
-  - CacheTarget: 1.0.1
-  - Zookeeper: 1.0.1
+  - CacheTarget: 1.0.2
+  - Zookeeper: 1.0.2
 
 ## 1.0.4
--- Do no include PNG in helm chart package (too big)
+- Do not include PNG in helm chart package (too big)
 
 ## 1.0.3
 - Fully Documented Public Release
