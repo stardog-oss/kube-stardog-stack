@@ -33,6 +33,10 @@ Related architecture note:
 
 - [Per-pod Prometheus collection for external monitoring](docs/prometheus-option-1.md)
 
+Operational documentation:
+
+- [FAQ and how-to articles](docs/faq/README.md)
+
 ## Components
 
 ### Stardog
@@ -387,6 +391,8 @@ For detailed configuration options for each component, see:
 5. **Independent Charts**: Each component can still be deployed independently
 
 ## Troubleshooting
+
+For detailed operational procedures, see the [FAQ and how-to articles](docs/faq/README.md).
 
 ### Common Issues
 
