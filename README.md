@@ -453,6 +453,8 @@ Requirements:
 What to expect:
 
 - Pull requests run validation only. They do not publish packages.
+- Pushes to `main` publish `X.Y.Z-rc.<run>` chart packages to JFrog.
+- Pushes to release and hotfix branches publish `X.Y.Z-dev.<run>` chart packages to JFrog.
 - Local pre-commit checks changelogs, dependency locks, linting, and unit tests.
 - Final version-bump enforcement happens only during the release tag workflow.
 - Maintainers control release and hotfix branches and create the final `vX.Y.Z` tags.

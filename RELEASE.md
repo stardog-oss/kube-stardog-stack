@@ -5,8 +5,8 @@ This document explains how to produce release candidates and official releases f
 ## Summary
 
 - Feature branches run validation only.
-- `main` runs validation only.
-- Release and hotfix branches publish release candidates to JFrog.
+- `main` publishes release candidate packages to JFrog.
+- Release and hotfix branches publish dev packages to JFrog.
 - A manual `vX.Y.Z` tag on `main` publishes the final `X.Y.Z` release to JFrog.
 
 ## Branch types
@@ -24,7 +24,8 @@ The release and hotfix workflow accepts branch names that match:
 ## Versioning model
 
 - `Chart.yaml` stores the target final version, for example `1.1.0`
-- Release candidate builds derive `1.1.0-rc.<run>`
+- `main` builds derive `1.1.0-rc.<run>`
+- Release and hotfix builds derive `1.1.0-dev.<run>`
 - Final tagged releases publish exact `1.1.0`
 
 This means you bump the version once for the release line, not for every release candidate build.
@@ -35,23 +36,33 @@ This means you bump the version once for the release line, not for every release
 flowchart TD
     A[Feature branch] --> B[Validation only]
     B --> C[Merge to main or prepare release branch]
-    C --> D[Release or hotfix branch]
-    D --> E[Push commits]
-    E --> F[Publish X.Y.Z-rc.N to JFrog]
-    F --> G[Merge release branch to main]
-    G --> H[Create tag vX.Y.Z on main]
+    C --> D[Push to main]
+    D --> E[Publish X.Y.Z-rc.N to JFrog]
+    C --> F[Push to release or hotfix branch]
+    F --> G[Publish X.Y.Z-dev.N to JFrog]
+    E --> H[Create tag vX.Y.Z on main]
+    G --> H
     H --> I[Validate tag and versions]
     I --> J[Publish X.Y.Z to JFrog]
 ```
 
 ## Release candidate process
 
-1. Create a release or hotfix branch from the appropriate base.
-2. Bump the target chart versions in `Chart.yaml`.
+1. Merge the intended release content to `main`.
+2. Ensure target chart versions in `Chart.yaml` are the intended final versions.
 3. Update the matching `CHANGELOG.md` entries.
-4. Push commits to the release or hotfix branch.
+4. Push commits to `main`.
 5. The workflow publishes `X.Y.Z-rc.<run>` packages to JFrog.
-6. Continue iterating on the same branch without bumping versions for each RC.
+6. Continue iterating on `main` until the release content is ready to tag.
+
+## Dev package process
+
+1. Create a release or hotfix branch from the appropriate base.
+2. Keep the target chart versions in `Chart.yaml` at the intended final versions.
+3. Update the matching `CHANGELOG.md` entries as needed.
+4. Push commits to the release or hotfix branch.
+5. The workflow publishes `X.Y.Z-dev.<run>` packages to JFrog.
+6. Use those packages for branch-level testing before the final release tag.
 
 ## Official release process
 
@@ -96,8 +107,8 @@ Strict version-bump enforcement happens only in the final release tag workflow.
 ## Workflow map
 
 - `.github/workflows/ci-features.yml`: feature validation
-- `.github/workflows/ci-main.yml`: main validation
-- `.github/workflows/ci-develop.yml`: release and hotfix RC publishing
+- `.github/workflows/ci-main.yml`: main RC packaging and publish
+- `.github/workflows/ci-develop.yml`: release and hotfix dev packaging and publish
 - `.github/workflows/ci-release-tags.yml`: final tagged releases
 - `.github/workflows/helm-validate-reusable.yml`: shared validation logic
 - `.github/workflows/helm-package-reusable.yml`: shared JFrog packaging and push logic

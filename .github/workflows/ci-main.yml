@@ -10,3 +10,12 @@ jobs:
     uses: ./.github/workflows/helm-validate-reusable.yml
     with:
       charts: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/gateway","charts/voicebox","charts/cachetarget","."]'
+
+  ci:
+    needs: validate
+    uses: ./.github/workflows/helm-package-reusable.yml
+    secrets: inherit
+    with:
+      charts: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/gateway","charts/voicebox","charts/cachetarget","."]'
+      oci_repo: 'oci://stardog-example-helm-chart.jfrog.io/'
+      versioning_mode: 'rc'

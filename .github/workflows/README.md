@@ -2,13 +2,13 @@
 
 This bundle provides:
 - **helm-validate-reusable.yml**: matrix dependency build + lint + template dry-run + unit tests (no push).
-- **helm-package-reusable.yml**: matrix package & push to OCI (branch/rc/release modes).
+- **helm-package-reusable.yml**: matrix package & push to OCI (branch/dev/rc/release modes).
 - **helm-github-release.yml**: package charts + create GitHub release assets + release-manifest.yaml.
   - Also publishes a public Helm repo on GitHub Pages (`gh-pages`) with `index.yaml`.
 - Callers:
   - **ci-features.yml** — feature-style branches (`SAT-*`, `CLOUD-*`) → validation only: lint, template dry-run, and `helm unittest`.
-  - **ci-develop.yml** — release and hotfix branches (`SAT-<digits>-release[-...]`, `SAT-<digits>-hotfix[-...]`) → `X.Y.Z-rc.<RUN>` (JFrog).
-  - **ci-main.yml** — `main` → validation only.
+  - **ci-develop.yml** — release and hotfix branches (`SAT-<digits>-release[-...]`, `SAT-<digits>-hotfix[-...]`) → `X.Y.Z-dev.<RUN>` (JFrog).
+  - **ci-main.yml** — `main` → `X.Y.Z-rc.<RUN>` (JFrog).
   - **ci-release-tags.yml** — `v*` tags on `main` → final `X.Y.Z` release to JFrog.
 
 ## Required secrets
@@ -26,12 +26,14 @@ GitHub release workflows use `GITHUB_TOKEN` (no extra secrets required).
 ## Chart version expectations
 Each chart's `Chart.yaml: version` must be **SemVer X.Y.Z** (no leading `v`). The workflows derive:
 - `branch` → `X.Y.Z-<TICKET>.<RUN>`
+- `dev` → `X.Y.Z-dev.<RUN>`
 - `rc` → `X.Y.Z-rc.<RUN>`
 - `release` → `X.Y.Z`
 
 ## Release model
 - Feature branches and `main` do not force version bumps on every change.
-- Release and hotfix branches publish repeated RC builds from the same target version in `Chart.yaml`.
+- `main` publishes repeated RC builds from the target version in `Chart.yaml`.
+- Release and hotfix branches publish repeated dev builds from the same target version in `Chart.yaml`.
 - Final releases are created by manually pushing a `vX.Y.Z` tag that points to a commit on `main`.
 - On tag builds, validation compares the tagged commit against the previous release tag and fails if changed chart content kept the same chart version.
 
