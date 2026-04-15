@@ -1,6 +1,21 @@
 name: Helm Release (GitHub)
 
 on:
+  workflow_dispatch:
+    inputs:
+      charts:
+        description: 'JSON array of chart paths'
+        required: false
+        type: string
+        default: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/gateway","charts/voicebox","charts/cachetarget","."]'
+      helm_version:
+        required: false
+        type: string
+        default: 'v3.19.4'
+      release_tag:
+        description: 'Tag to publish (v<umbrella-version>).'
+        required: true
+        type: string
   workflow_call:
     inputs:
       charts:
@@ -28,6 +43,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: azure/setup-helm@v5
         with:
           version: ${{ inputs.helm_version }}

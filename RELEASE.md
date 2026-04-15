@@ -8,7 +8,7 @@ This document explains how to produce release candidates and official releases f
 - Pull requests to `main` run validation, and same-repository pull requests publish RC packages after validation succeeds.
 - `main` publishes release candidate packages to JFrog.
 - Release and hotfix branches publish dev packages to JFrog.
-- A manual `vX.Y.Z` tag on `main` publishes the final `X.Y.Z` release to JFrog.
+- A manual `vX.Y.Z` tag on `main` creates the official GitHub Release and updates the GitHub Pages Helm repo.
 
 ## Branch types
 
@@ -44,7 +44,7 @@ flowchart TD
     E --> H[Create tag vX.Y.Z on main]
     G --> H
     H --> I[Validate tag and versions]
-    I --> J[Publish X.Y.Z to JFrog]
+    I --> J[Create GitHub Release and update GitHub Pages Helm repo]
 ```
 
 ## Release candidate process
@@ -81,7 +81,9 @@ git tag v1.1.0
 git push origin v1.1.0
 ```
 
-4. The tag workflow validates the release and publishes exact `X.Y.Z` packages to JFrog.
+4. The tag workflow validates the release, creates the GitHub Release assets, and updates the GitHub Pages Helm repo.
+
+If the tag already exists and the tag workflow did not publish the GitHub release, run the `Helm Release (GitHub)` workflow manually with `release_tag` set to the existing tag, for example `v1.1.0`.
 
 ## Release safety checks
 
@@ -111,6 +113,7 @@ Strict version-bump enforcement happens only in the final release tag workflow.
 - `.github/workflows/ci-features.yml`: feature validation
 - `.github/workflows/ci-main.yml`: main validation plus RC packaging for `main` and same-repository PRs to `main`
 - `.github/workflows/ci-develop.yml`: release and hotfix dev packaging and publish
-- `.github/workflows/ci-release-tags.yml`: final tagged releases
+- `.github/workflows/ci-release-tags.yml`: final tagged GitHub releases
 - `.github/workflows/helm-validate-reusable.yml`: shared validation logic
 - `.github/workflows/helm-package-reusable.yml`: shared JFrog packaging and push logic
+- `.github/workflows/helm-github-release.yml`: shared GitHub Release and GitHub Pages Helm repo publishing logic

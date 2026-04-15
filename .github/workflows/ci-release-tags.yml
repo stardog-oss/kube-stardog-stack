@@ -42,9 +42,10 @@ jobs:
   release:
     if: ${{ github.actor != 'github-actions[bot]' }}
     needs: validate
-    uses: ./.github/workflows/helm-package-reusable.yml
+    uses: ./.github/workflows/helm-github-release.yml
+    permissions:
+      contents: write
     secrets: inherit
     with:
       charts: '["charts/stardog","charts/zookeeper","charts/launchpad","charts/gateway","charts/voicebox","charts/cachetarget","."]'
-      oci_repo: 'oci://stardog-example-helm-chart.jfrog.io/'
-      versioning_mode: 'release'
+      release_tag: ${{ github.ref_name }}

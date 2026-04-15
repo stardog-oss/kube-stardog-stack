@@ -459,7 +459,7 @@ What to expect:
 - Pushes to release and hotfix branches publish `X.Y.Z-dev.<run>` chart packages to JFrog.
 - Local pre-commit checks changelogs, dependency locks, linting, and unit tests.
 - Final version-bump enforcement happens only during the release tag workflow.
-- Maintainers control release and hotfix branches and create the final `vX.Y.Z` tags.
+- Maintainers control release and hotfix branches and create the final `vX.Y.Z` tags, which publish the official GitHub Release and GitHub Pages Helm repo.
 
 If a change is intended for a specific release train, maintainers may ask you to target a release or hotfix branch directly, or they may move or cherry-pick the change after review.
 
