@@ -1,7 +1,4 @@
 # Changelog
-## 1.0.2
-- Add Bites Service support. 
-- Use default port for voicebox.
 
 ## 1.1.0
 - Add Bites Service support. 
