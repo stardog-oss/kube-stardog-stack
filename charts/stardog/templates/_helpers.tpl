@@ -154,6 +154,29 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- end -}}
 {{- end -}}
 
+{{- define "stardog.validateUpgradeConfig" -}}
+{{- $upgrade := .Values.upgrade | default dict -}}
+{{- $approval := $upgrade.approval | default dict -}}
+{{- $targetVersion := trim (default "" $approval.targetVersion) -}}
+{{- $image := .Values.image | default dict -}}
+{{- $imageTag := trim (default "" $image.tag) -}}
+{{- $properties := default "" .Values.stardogProperties -}}
+{{- if regexMatch `(?m)^\s*upgrade\.automatic\s*=` $properties -}}
+{{- fail "Do not set upgrade.automatic in stardogProperties; use upgrade.approval.targetVersion instead." -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "stardog.upgradeProperties" -}}
+{{- $upgrade := .Values.upgrade | default dict -}}
+{{- $approval := $upgrade.approval | default dict -}}
+{{- $targetVersion := trim (default "" $approval.targetVersion) -}}
+{{- $image := .Values.image | default dict -}}
+{{- $imageTag := trim (default "" $image.tag) -}}
+{{- if and (ne $targetVersion "") (eq $targetVersion $imageTag) -}}
+upgrade.automatic=true
+{{- end -}}
+{{- end -}}
+
 {{- define "stardog.zookeeperService" -}}
 {{- $cluster := default dict .Values.cluster -}}
 {{- $service := trim (default "" $cluster.zookeeperService) -}}
@@ -334,7 +357,24 @@ Generate the internal URL for a service.
 {{- end }}
 
 {{- define "certIssuer.secretName" -}}
-{{- include "sdcommon.certIssuerSecretName" (dict "context" . "component" "stardog" "defaultName" (printf "sparql-%s-tls" .Release.Name)) -}}
+{{- $defaultName := printf "sparql-%s-tls" .Release.Name -}}
+{{- $secretName := trim (include "sdcommon.certIssuerSecretName" (dict "context" . "component" "stardog" "defaultName" $defaultName)) -}}
+{{- if eq $secretName $defaultName -}}
+  {{- $gateway := default (dict) .Values.gateway -}}
+  {{- $http := default (dict) (index $gateway "http") -}}
+  {{- $gatewayTls := default (dict) (index $http "tls") -}}
+  {{- $gatewaySecretName := trim (default "" (index $gatewayTls "secretName")) -}}
+  {{- $gatewayTlsEnabled := default false (index $gatewayTls "enabled") -}}
+  {{- $createGateway := true -}}
+  {{- if hasKey $http "createGateway" -}}
+    {{- $createGateway = index $http "createGateway" -}}
+  {{- end -}}
+  {{- $parentRefs := default (list) (index $http "parentRefs") -}}
+  {{- if and (or (eq $createGateway false) (eq (toString $createGateway) "false")) (gt (len $parentRefs) 0) $gatewayTlsEnabled (ne $gatewaySecretName "") -}}
+    {{- $secretName = $gatewaySecretName -}}
+  {{- end -}}
+{{- end -}}
+{{- $secretName -}}
 {{- end -}}
 
 {{- define "stardog.sparqlTlsSecretName" -}}

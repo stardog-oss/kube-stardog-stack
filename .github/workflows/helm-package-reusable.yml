@@ -13,7 +13,7 @@ on:
         required: true
         type: string
       versioning_mode:
-        description: 'branch | rc | release'
+        description: 'branch | dev | rc | release'
         required: true
         type: string
         default: 'branch'
@@ -116,6 +116,7 @@ jobs:
           case "$VERSIONING_MODE" in
             release) new_ver="$base_ver" ;;
             rc)      new_ver="${base_ver}-${PRERELEASE_LABEL}.${RUN_NUM}" ;;
+            dev)     new_ver="${base_ver}-dev.${RUN_NUM}" ;;
             branch|*)
               prefix=$(echo "$BRANCH_NAME" | grep -oE "$BRANCH_RE" || true)
               [ -z "$prefix" ] && prefix="dev"

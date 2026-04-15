@@ -1,0 +1,26 @@
+suite: Gateway renders without global.gateway
+templates:
+  - gateway.yaml
+
+tests:
+  - it: renders gateway resources when chart gateway is enabled without global.gateway
+    set:
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          className: traefik
+          skipApiValidation: true
+          redirect:
+            enabled: false
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        equal:
+          path: spec.listeners[0].hostname
+          value: sparql.example.com
+      - documentIndex: 1
+        equal:
+          path: spec.hostnames[0]
+          value: sparql.example.com

@@ -169,3 +169,18 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "gateway.http.tls.secretNamespace outside the release namespace requires certIssuer.clusterScoped=true."
+
+  - it: does not render a certificate for external shared gateway mode
+    set:
+      certIssuer:
+        enabled: true
+      global:
+        gateway:
+          enabled: true
+          createGateway: false
+          domain: example.com
+      gateway:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

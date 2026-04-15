@@ -41,6 +41,7 @@ Configuration Parameters
 | `gateway.http.*`                             | Configures the HTTP/HTTPS Gateway listeners and HTTPRoute resources |
 | `gateway.http.redirectToLaunchpad.*`         | Optional root-path proxy/redirect (Gateway) to Launchpad (service or external URL) |
 | `gateway.tcpBi.*`                            | Enables TCPRoute exposure for the BI/SQL port via the Gateway |
+| `upgrade.approval.targetVersion`             | One-time version-scoped approval for storage upgrades; when it matches `image.tag`, the chart injects `upgrade.automatic=true` |
 | `javaArgs`                                   | Java args for Stardog server |
 | `log4jConfig.content`                        | New Log4j configuration when overriding the default |
 | `log4jConfig.override`                       | Whether to override the default Log4j config |
@@ -67,31 +68,6 @@ Configuration Parameters
 | `tolerations`                                | Taints the pods tolerate; match with `nodeSelector` to target dedicated pools |
 The default values are specified in `values.yaml`.
 
-### Resource naming
-
-By default, the chart uses the shared `sdcommon.fullname` helper to name Stardog resources. If the Helm release name already contains `stardog`, the chart uses the release name as-is. Otherwise it prefixes the release name with the chart name, producing `<chart>-<release>`.
-
-Examples:
-
-- Release `stardog-0` renders as `stardog-0`
-- Release `sd-stack-0` renders as `stardog-sd-stack-0`
-
-If you need a fixed name or want a different naming scheme for multiple installs, set `fullnameOverride` in your values file. That value is then used directly for the chart's resource names.
-
-### Prerequisites (Namespace + License)
-
-Create the namespace and the Stardog license secret before installing the chart:
-
-```bash
-export NAMESPACE=stardog
-export LICENSE_FILE=/path/to/stardog-license-key.bin
-
-kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
-kubectl create secret generic stardog-license \
-  --from-file=stardog-license-key.bin="${LICENSE_FILE}" \
-  -n "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
-```
-
 ### Temporary storage (tmpDir)
 
 `tmpDir.path` replaces the legacy string-only `tmpDir` value. When `tmpDir.local=true` (default), the chart provisions an `emptyDir` volume and mounts it at the requested path so the Stardog JVM always has a writable, node-local scratch directory. If you prefer to reuse a directory that already lives on the main PVC (for example `/var/opt/stardog/tmp`), keep the `path` but set `tmpDir.local=false` so the chart reuses the PVC instead of creating an extra volume.
@@ -110,58 +86,30 @@ When `global.zookeeper.enabled=true`, the chart expects the ZooKeeper Service na
 
 Stardog and its hooks run under the same service account determined by `serviceAccount.create` and `serviceAccount.name`. Populate `environmentVariables` when you need to inject extra JVM flags or platform-specific settings—the chart renders them verbatim into the container spec while still managing the base PATH and Stardog variables on your behalf.
 
-### JWT configuration
+### Version-scoped upgrade approval
 
-Below is an example configuration for JWT authentication with a local signer plus issuer definitions for Microsoft Entra ID and Okta. Replace the `${TENANT_ID}`, `${APP_ID}`, and `${OKTA_DOMAIN}` values to match your environment.
+For storage upgrades that require `upgrade.automatic=true`, do not set that property directly in `stardogProperties`. Instead, set `upgrade.approval.targetVersion` to the exact `image.tag` you are deploying.
 
 ```yaml
-jwtConfig:
-  enabled: true
-  # needed for better security or local user
-  signer:
-    enabled: true
-    algorithm: HS256
-    audience: stardog
-    secret: some-kind-of-secret-key-here
-    tokenTTL: P7D
-  # Microsoft Entra ID configuration
-  issuers:
-    - usernameField: preferred_username
-      issuer: "https://login.microsoftonline.com/${TENANT_ID}/v2.0"
-      audience: "api://${APP_ID}"
-      roleMappingSource: token
-      usernameTemplates:
-        - "{preferred_username}"
-        - "{sub}"
-      autoCreateUsers: true
-      rolesClaimPath: roles
-      algorithms:
-        - name: RS256
-          keyUrl: "https://login.microsoftonline.com/${TENANT_ID}/discovery/v2.0/keys"
-    # Okta configuration
-    - usernameField: preferred_username
-      issuer: "https://${OKTA_DOMAIN}/oauth2/default"
-      audience: "api://default"
-      roleMappingSource: token
-      usernameTemplates:
-        - "{preferred_username}"
-        - "{sub}"
-      autoCreateUsers: true
-      rolesClaimPath: roles
-      algorithms:
-        - name: RS256
-          keyUrl: "https://${OKTA_DOMAIN}/oauth2/default/v1/keys"
+image:
+  tag: 9.2.1
+
+upgrade:
+  approval:
+    targetVersion: 9.2.1
 ```
 
-### Gateway API (Envoy Gateway) exposure
+When the two values match, the chart injects `upgrade.automatic=true` into the generated `stardog.properties`. If `upgrade.approval.targetVersion` is empty or does not match `image.tag`, the chart renders without injecting `upgrade.automatic=true`. This makes the approval a one-off safety valve for the target version, without blocking upgrades that do not need Stardog's automatic data-upgrade flag.
 
-If your cluster uses the Gateway API with Envoy Gateway (recommended for BI/TCPRoute support) or another compatible controller, you can replace the classic ingress resources by enabling the `gateway` block:
+### Gateway API (Traefik) exposure
+
+If your cluster uses the Gateway API with Traefik (or another compatible controller), you can replace the classic ingress resources by enabling the `gateway` block:
 
 ```yaml
 gateway:
   enabled: true
   http:
-    className: envoy-gateway
+    className: traefik
     domain: example.com
     tls:
       enabled: true
@@ -169,6 +117,8 @@ gateway:
 ```
 
 When this flag is on the chart renders a Gateway plus the required `HTTPRoute` objects. Set `gateway.http.domain` to the base domain (for example `example.com`) so the chart can generate the SPARQL (`sparql.example.com`) and BI (`bi.example.com`) hostnames. Disable the legacy ingress (`ingress.enabled=false`) and be sure the TLS secret named above exists in the release namespace. If you omit `gateway.http.tls.secretName` while `certIssuer.enabled=true`, the chart automatically reuses the cert-manager secret that ingress relied on (`sparql-<release>-tls` by default).
+
+When the umbrella chart enables `global.gateway.enabled=true`, Stardog automatically switches to shared-Gateway attachment mode. With `global.gateway.createGateway=true`, the umbrella-managed shared `Gateway` is created by the `gateway` subchart and Stardog routes attach to it automatically. With `global.gateway.createGateway=false`, no `Gateway` resource is created by Helm; instead, Stardog derives its HTTPS, HTTP redirect, and BI TCP listener `parentRefs` from `global.gateway.name`, `global.gateway.namespace`, `global.gateway.sparqlSectionName`, `global.gateway.sparqlHttpSectionName`, and `global.gateway.biTcpSectionName`.
 
 ACME issuers auto-configure HTTP-01 solvers for whichever front door (ingress or gateway) you enable. When `gateway.http.redirect.enabled=true` and redirect parentRefs are set, the solver targets those HTTP listener parentRefs so HTTP-01 can complete. Override `certIssuer.acme.solvers` when you prefer a DNS-01 provider or need custom solver settings.
 
@@ -209,7 +159,7 @@ gateway:
     domain: example.com
   tcpBi:
     enabled: true        # defaults to true when bi.enabled=true
-    port: 5806     # Listener port exposed by Envoy Gateway
+    port: 5806     # Listener port exposed by Traefik/Gateway
     protocol: TCP   # keep TCP for MySQL start-TLS; terminate TLS at Stardog
 bi:
   enabled: true      # required so the Service exposes the SQL port

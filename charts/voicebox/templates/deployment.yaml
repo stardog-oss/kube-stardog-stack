@@ -1,3 +1,8 @@
+{{- $envVars := .Values.environmentVariables | default (dict) -}}
+{{- $tmpDir := get $envVars "TMPDIR" | default "/tmp" -}}
+{{- $vbxConfigFile := get $envVars "VBX_CONFIG_FILE" | default "/voicebox-config/vbx_config.json" -}}
+{{- $vbxBitesConfigFile := get $envVars "VBX_BITES_CONFIG_FILE" | default "/bites-voicebox-config/vbx_bites_config.yaml" -}}
+{{- $servicePort := include "voicebox.servicePort" . | int -}}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -38,50 +43,66 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
           securityContext: 
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          command:
+            - /opt/venv/bin/python
+            - /opt/venv/bin/uvicorn
+            - api.main:app
+            - --host
+            - 0.0.0.0
+            - --port
+            - {{ $servicePort | quote }}
+            - --log-config
+            - src/api/logging/config.json
           ports:
             - name: {{ (index .Values.ports 0).name }}
-              containerPort: {{ include "voicebox.servicePort" . | int }}
+              containerPort: {{ $servicePort }}
               protocol: TCP
           env:
             - name: VBX_CONFIG_FILE
-              value: /voicebox-config/vbx_config.json
+              value: {{ $vbxConfigFile | quote }}
+            - name: TMPDIR
+              value: {{ $tmpDir | quote }}
           {{- if .Values.bitesService.enabled }}
             - name: VBX_BITES_CONFIG_FILE
-              value: /bites-voicebox-config/vbx_bites_config.yaml
+              value: {{ $vbxBitesConfigFile | quote }}
           {{- end }}
-          {{- range $key, $value := .Values.environmentVariables }}
+          {{- range $key, $value := $envVars }}
+          {{- if and (ne $key "TMPDIR") (ne $key "VBX_CONFIG_FILE") (ne $key "VBX_BITES_CONFIG_FILE") }}
             - name: {{ $key }}
               value: {{ $value | quote }}
+          {{- end }}
           {{- end }}
           startupProbe:
             httpGet:
               path: {{ .Values.startupProbe.path }}
-              port: http
+              port: {{ (index .Values.ports 0).name }}
             periodSeconds: {{ .Values.startupProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
             failureThreshold: {{ .Values.startupProbe.failureThreshold }}
           livenessProbe:
             httpGet:
               path: {{ .Values.livenessProbe.path }}
-              port: http
+              port: {{ (index .Values.ports 0).name }}
             initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
           readinessProbe:
             httpGet:
               path: {{ .Values.readinessProbe.path }}
-              port: http
+              port: {{ (index .Values.ports 0).name }}
             initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}          
           volumeMounts:
+            - name: tmp
+              mountPath: {{ $tmpDir | quote }}
             - name: {{ include "sdcommon.fullname" . }}
-              mountPath: /voicebox-config/vbx_config.json
+              mountPath: {{ $vbxConfigFile | quote }}
               subPath: vbx_config.json
               readOnly: true
             {{- if .Values.bitesService.enabled }}
             - name: {{ include "sdcommon.fullname" . }}-bites-config
-              mountPath: /bites-voicebox-config/vbx_bites_config.yaml
+              mountPath: {{ $vbxBitesConfigFile | quote }}
               subPath: vbx_bites_config.yaml
               readOnly: true
             {{- end }}
@@ -112,6 +133,8 @@ spec:
               topologyKey: topology.kubernetes.io/zone
       {{- end }}
       volumes:
+        - name: tmp
+          emptyDir: {}
         - name: {{ include "sdcommon.fullname" . }}
           configMap:
             name: {{ include "sdcommon.fullname" . }}

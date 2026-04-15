@@ -200,6 +200,9 @@ for c in "${charts[@]}"; do
     lint_values_arg="-f $repo_root/values.skip-secret-validation.yaml"
   fi
   (cd "$c" && helm lint . ${lint_values_arg})
+  if [[ "$c" == "charts/stardog" ]]; then
+    (cd "$c" && helm unittest --with-subchart=false --strict -f tests/notes_suite.yaml .)
+  fi
   if [[ "$c" == "." ]]; then
     (cd "$c" && helm unittest --with-subchart=false --strict .)
   else

@@ -1,0 +1,36 @@
+# Integration scenario file ID: IT-020-021
+# Covers tests: 20, 21
+# Purpose: positive test where upgrade approval targetVersion matches image.tag.
+# Requires: `stardog-license` secret in the target namespace.
+# Run as-is: mostly
+# Limitations:
+# - Requires the `stardog-license` secret in the release namespace.
+# - Uses the explicit test version `9.2.1`, so it is only valid if that image is available in the target registry.
+# Update before use:
+# - Ensure the `stardog-license` secret exists in the release namespace.
+# - Optionally replace `stardog.image.tag` and `upgrade.approval.targetVersion` together if you want to test a different approved upgrade target.
+
+global:
+  stardog:
+    enabled: true
+  launchpad:
+    enabled: false
+  voicebox:
+    enabled: false
+  bi:
+    enabled: false
+  gateway:
+    enabled: false
+
+stardog:
+  image:
+    tag: 9.2.1
+  upgrade:
+    approval:
+      targetVersion: 9.2.1
+  ingress:
+    enabled: false
+  route:
+    enabled: false
+  gateway:
+    enabled: false

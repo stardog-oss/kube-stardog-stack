@@ -195,6 +195,34 @@ storageClassName: {{ $value | quote }}
 {{- $enabled -}}
 {{- end -}}
 
+{{- define "sdcommon.globalGatewayManaged" -}}
+{{- $enabled := eq (include "sdcommon.globalGatewayEnabled" .) "true" -}}
+{{- $managed := false -}}
+{{- if $enabled -}}
+  {{- $global := default (dict) (index (default (dict) .Values.global) "gateway") -}}
+  {{- $createGateway := true -}}
+  {{- if hasKey $global "createGateway" -}}
+    {{- $createGateway = index $global "createGateway" -}}
+  {{- end -}}
+  {{- $managed = or (eq $createGateway true) (eq (toString $createGateway) "true") -}}
+{{- end -}}
+{{- $managed -}}
+{{- end -}}
+
+{{- define "sdcommon.globalGatewayExternal" -}}
+{{- $enabled := eq (include "sdcommon.globalGatewayEnabled" .) "true" -}}
+{{- $external := false -}}
+{{- if $enabled -}}
+  {{- $global := default (dict) (index (default (dict) .Values.global) "gateway") -}}
+  {{- $createGateway := true -}}
+  {{- if hasKey $global "createGateway" -}}
+    {{- $createGateway = index $global "createGateway" -}}
+  {{- end -}}
+  {{- $external = or (eq $createGateway false) (eq (toString $createGateway) "false") -}}
+{{- end -}}
+{{- $external -}}
+{{- end -}}
+
 {{- define "sdcommon.effectiveCertIssuer" -}}
 {{- $global := dict -}}
 {{- $useGlobal := false -}}
@@ -204,11 +232,29 @@ storageClassName: {{ $value | quote }}
     {{- $useGlobal = true -}}
   {{- end -}}
 {{- end -}}
-{{- if $useGlobal -}}
-{{- toYaml $global -}}
-{{- else -}}
-{{- toYaml (default dict .Values.certIssuer) -}}
+{{- $issuer := ternary $global (deepCopy (default dict .Values.certIssuer)) $useGlobal -}}
+{{- $gateway := default (dict) .Values.gateway -}}
+{{- $http := default (dict) (index $gateway "http") -}}
+{{- $gatewayTls := default (dict) (index $http "tls") -}}
+{{- $gatewaySecretName := trim (default "" (index $gatewayTls "secretName")) -}}
+{{- $gatewaySecretNamespace := trim (default .Release.Namespace (index $gatewayTls "secretNamespace")) -}}
+{{- $gatewayTlsEnabled := default false (index $gatewayTls "enabled") -}}
+{{- $createGateway := true -}}
+{{- if hasKey $http "createGateway" -}}
+  {{- $createGateway = index $http "createGateway" -}}
 {{- end -}}
+{{- $parentRefs := default (list) (index $http "parentRefs") -}}
+{{- $externalGatewayTls := and (or (eq $createGateway false) (eq (toString $createGateway) "false")) (gt (len $parentRefs) 0) $gatewayTlsEnabled (ne $gatewaySecretName "") -}}
+{{- if $externalGatewayTls -}}
+  {{- $issuerSecretName := trim (default "" (index $issuer "secretName")) -}}
+  {{- if eq $issuerSecretName "" -}}
+    {{- $_ := set $issuer "secretName" $gatewaySecretName -}}
+  {{- end -}}
+  {{- if ne $gatewaySecretNamespace .Release.Namespace -}}
+    {{- $_ := set $issuer "clusterScoped" true -}}
+  {{- end -}}
+{{- end -}}
+{{- toYaml $issuer -}}
 {{- end -}}
 
 {{- define "sdcommon.certIssuerEnabled" -}}
@@ -328,6 +374,56 @@ false
 {{- end -}}
 {{- end -}}
 
+{{- define "sdcommon.globalGatewaySparqlSectionName" -}}
+{{- $global := default (dict) (index (default (dict) .Values.global) "gateway") -}}
+{{- $name := trim (default "" (index $global "sparqlSectionName")) -}}
+{{- if ne $name "" -}}
+{{- $name -}}
+{{- else -}}
+sparql
+{{- end -}}
+{{- end -}}
+
+{{- define "sdcommon.globalGatewaySparqlHttpSectionName" -}}
+{{- $global := default (dict) (index (default (dict) .Values.global) "gateway") -}}
+{{- $name := trim (default "" (index $global "sparqlHttpSectionName")) -}}
+{{- if ne $name "" -}}
+{{- $name -}}
+{{- else -}}
+sparql-http
+{{- end -}}
+{{- end -}}
+
+{{- define "sdcommon.globalGatewayLaunchpadSectionName" -}}
+{{- $global := default (dict) (index (default (dict) .Values.global) "gateway") -}}
+{{- $name := trim (default "" (index $global "launchpadSectionName")) -}}
+{{- if ne $name "" -}}
+{{- $name -}}
+{{- else -}}
+launchpad
+{{- end -}}
+{{- end -}}
+
+{{- define "sdcommon.globalGatewayLaunchpadHttpSectionName" -}}
+{{- $global := default (dict) (index (default (dict) .Values.global) "gateway") -}}
+{{- $name := trim (default "" (index $global "launchpadHttpSectionName")) -}}
+{{- if ne $name "" -}}
+{{- $name -}}
+{{- else -}}
+launchpad-http
+{{- end -}}
+{{- end -}}
+
+{{- define "sdcommon.globalGatewayBiTcpSectionName" -}}
+{{- $global := default (dict) (index (default (dict) .Values.global) "gateway") -}}
+{{- $name := trim (default "" (index $global "biTcpSectionName")) -}}
+{{- if ne $name "" -}}
+{{- $name -}}
+{{- else -}}
+bi-tcp
+{{- end -}}
+{{- end -}}
+
 {{- define "launchpad.fullname" -}}
 {{- printf "launchpad-%s" .Release.Name | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -362,7 +458,27 @@ Auto-configure ACME HTTP-01 solvers based on ingress/gateway settings when custo
   {{- if or $localGatewayEnabled $globalGatewayEnabled }}
     {{- $parentRefs := list }}
     {{- if $globalGatewayEnabled }}
-      {{- $parentRefs = list (dict "name" (include "sdcommon.globalGatewayName" $ctx) "namespace" (include "sdcommon.globalGatewayNamespace" $ctx)) }}
+      {{- $sectionName := "" -}}
+      {{- if eq $ctx.Chart.Name "stardog" -}}
+        {{- $redirect := default (dict) (index (default (dict) (index (default (dict) $values.gateway) "http")) "redirect") -}}
+        {{- if default false (index $redirect "enabled") -}}
+          {{- $sectionName = include "sdcommon.globalGatewaySparqlHttpSectionName" $ctx -}}
+        {{- else -}}
+          {{- $sectionName = include "sdcommon.globalGatewaySparqlSectionName" $ctx -}}
+        {{- end -}}
+      {{- else if eq $ctx.Chart.Name "launchpad" -}}
+        {{- $redirect := default (dict) (index (default (dict) (index (default (dict) $values.gateway) "http")) "redirect") -}}
+        {{- if default false (index $redirect "enabled") -}}
+          {{- $sectionName = include "sdcommon.globalGatewayLaunchpadHttpSectionName" $ctx -}}
+        {{- else -}}
+          {{- $sectionName = include "sdcommon.globalGatewayLaunchpadSectionName" $ctx -}}
+        {{- end -}}
+      {{- end -}}
+      {{- $ref := dict "name" (include "sdcommon.globalGatewayName" $ctx) "namespace" (include "sdcommon.globalGatewayNamespace" $ctx) -}}
+      {{- if ne $sectionName "" -}}
+        {{- $_ := set $ref "sectionName" $sectionName -}}
+      {{- end -}}
+      {{- $parentRefs = list $ref }}
     {{- else }}
       {{- $create := true -}}
       {{- if hasKey $values.gateway "http" }}

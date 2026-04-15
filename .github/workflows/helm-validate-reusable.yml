@@ -191,6 +191,10 @@ jobs:
         if: ${{ matrix.chart != '.' }}
         working-directory: ${{ matrix.chart }}
         run: helm unittest ${{ inputs.unittest_flags }} .
+      - name: Run notes unit tests
+        if: ${{ matrix.chart == 'charts/stardog' }}
+        working-directory: ${{ matrix.chart }}
+        run: helm unittest --with-subchart=false ${{ inputs.unittest_flags }} -f tests/notes_suite.yaml .
       - name: Run unit tests (skip subcharts)
         if: ${{ matrix.chart == '.' }}
         working-directory: ${{ matrix.chart }}

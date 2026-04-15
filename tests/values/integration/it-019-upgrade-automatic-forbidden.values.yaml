@@ -1,0 +1,34 @@
+# Integration scenario file ID: IT-019
+# Covers test: 19
+# Purpose: negative test where upgrade.automatic is set directly in stardogProperties.
+# Requires: `stardog-license` secret only if you continue past the expected upgrade validation failure.
+# Run as-is: yes
+# Limitations:
+# - This file is expected to fail at render or install time.
+# - It is only useful for validating the forbidden `upgrade.automatic` path.
+# Update before use:
+# - No update required unless you want to test a different forbidden property combination.
+
+global:
+  stardog:
+    enabled: true
+  launchpad:
+    enabled: false
+  voicebox:
+    enabled: false
+  bi:
+    enabled: false
+  gateway:
+    enabled: false
+
+stardog:
+  image:
+    tag: 9.2.1
+  stardogProperties: |
+    upgrade.automatic=true
+  ingress:
+    enabled: false
+  route:
+    enabled: false
+  gateway:
+    enabled: false

@@ -1,0 +1,39 @@
+# Integration scenario file ID: IT-037
+# Covers test: 37
+# Purpose: baseline umbrella install with Stardog and Launchpad, without Gateway or ingress exposure.
+# Requires: `stardog-license` secret in the target namespace.
+# Run as-is: mostly
+# Limitations:
+# - Requires the `stardog-license` secret in the release namespace.
+# - This is an internal-only baseline. It does not expose Stardog or Launchpad externally.
+# Update before use:
+# - Ensure the `stardog-license` secret exists in the release namespace.
+# - Add ingress or gateway values only if you intentionally want external access.
+
+global:
+  stardog:
+    enabled: true
+  launchpad:
+    enabled: true
+  voicebox:
+    enabled: false
+  bi:
+    enabled: false
+  gateway:
+    enabled: false
+
+stardog:
+  ingress:
+    enabled: false
+  route:
+    enabled: false
+  gateway:
+    enabled: false
+
+launchpad:
+  ingress:
+    enabled: false
+  route:
+    enabled: false
+  gateway:
+    enabled: false

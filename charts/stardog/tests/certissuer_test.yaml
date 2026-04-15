@@ -79,6 +79,39 @@ tests:
           path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].sectionName
           value: http
 
+  - it: uses external shared gateway redirect listener from global config
+    values:
+      - values/values-stardog.yaml
+    set:
+      certIssuer:
+        enabled: true
+      global:
+        gateway:
+          enabled: true
+          createGateway: false
+          name: shared-gw
+          namespace: gateway-system
+          sparqlSectionName: shared-https
+          sparqlHttpSectionName: shared-http
+      gateway:
+        enabled: false
+        http:
+          domain: example.com
+          redirect:
+            enabled: true
+      ingress:
+        enabled: false
+    asserts:
+      - equal:
+          path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].name
+          value: shared-gw
+      - equal:
+          path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].namespace
+          value: gateway-system
+      - equal:
+          path: spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].sectionName
+          value: shared-http
+
   - it: fails when ACME solvers unavailable
     values:
       - values/values-stardog.yaml
@@ -92,3 +125,33 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "certIssuer.acme.solvers is empty. Provide certIssuer.acme.solvers or enable ingress/gateway to auto-configure HTTP-01 solvers."
+
+  - it: auto-promotes to ClusterIssuer for external gateway TLS secret namespaces
+    values:
+      - values/values-stardog.yaml
+    set:
+      certIssuer:
+        enabled: true
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          createGateway: false
+          parentRefs:
+            - name: shared-https
+              namespace: gateway-system
+              sectionName: https
+          tls:
+            enabled: true
+            secretName: platform-gw-tls
+            secretNamespace: gateway-system
+          redirect:
+            enabled: false
+      ingress:
+        enabled: false
+    asserts:
+      - equal:
+          path: kind
+          value: ClusterIssuer
+      - notExists:
+          path: metadata.namespace

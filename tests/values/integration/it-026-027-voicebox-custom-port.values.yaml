@@ -1,0 +1,31 @@
+# Integration scenario file ID: IT-026-027
+# Covers tests: 26, 27
+# Purpose: Voicebox-only install with a non-default port number and a custom port name.
+# Run as-is: yes
+# Limitations:
+# - This exercises a non-default Voicebox port and a custom named-port probe path.
+# - It does not add ingress or gateway exposure.
+# Update before use:
+# - No update required for template or basic cluster validation.
+# - Change the custom port or port name only if you are testing a different non-default convention.
+
+global:
+  stardog:
+    enabled: false
+  launchpad:
+    enabled: false
+  voicebox:
+    enabled: true
+  bi:
+    enabled: false
+  gateway:
+    enabled: false
+
+voicebox:
+  bitesService:
+    enabled: false
+  service:
+    port: 8081
+  ports:
+    - name: api
+      port: 8081

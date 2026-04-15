@@ -3,10 +3,13 @@
   {{- $httpConfig := default (dict) $rawGateway.http }}
   {{- $gatewayConfig := deepCopy $httpConfig }}
   {{- $globalGatewayEnabled := eq (include "sdcommon.globalGatewayEnabled" .) "true" }}
+  {{- $globalGatewayManaged := eq (include "sdcommon.globalGatewayManaged" .) "true" }}
   {{- $globalValues := default (dict) .Values.global }}
   {{- $globalGateway := default (dict) (index $globalValues "gateway") }}
   {{- $globalGatewayName := include "sdcommon.globalGatewayName" . }}
   {{- $globalGatewayNamespace := include "sdcommon.globalGatewayNamespace" . }}
+  {{- $globalLaunchpadSectionName := include "sdcommon.globalGatewayLaunchpadSectionName" . }}
+  {{- $globalLaunchpadHttpSectionName := include "sdcommon.globalGatewayLaunchpadHttpSectionName" . }}
   {{- $globalDomain := trim (default "" (index $globalGateway "domain")) }}
   {{- $globalTls := default (dict) (index $globalGateway "tls") }}
   {{- $globalTlsEnabled := default true (index $globalTls "enabled") }}
@@ -26,7 +29,7 @@
     {{- $_ := set $gatewayConfig "createGateway" false }}
   {{- end }}
   {{- if and $globalGatewayEnabled (not (gt (len (default (list) $gatewayConfig.parentRefs)) 0)) }}
-    {{- $_ := set $gatewayConfig "parentRefs" (list (dict "name" $globalGatewayName "namespace" $globalGatewayNamespace "sectionName" "launchpad")) }}
+    {{- $_ := set $gatewayConfig "parentRefs" (list (dict "name" $globalGatewayName "namespace" $globalGatewayNamespace "sectionName" $globalLaunchpadSectionName)) }}
   {{- end }}
   {{- $baseParentRefs := list }}
   {{- if $createGateway }}
@@ -44,7 +47,7 @@
   {{- $redirectCfg := deepCopy (default (dict) $gatewayConfig.redirect) }}
   {{- $redirectEnabled := default false $redirectCfg.enabled }}
   {{- if and $globalGatewayEnabled $redirectEnabled (not (gt (len (default (list) $redirectCfg.parentRefs)) 0)) }}
-    {{- $_ := set $redirectCfg "parentRefs" (list (dict "name" $globalGatewayName "namespace" $globalGatewayNamespace "sectionName" "launchpad-http")) }}
+    {{- $_ := set $redirectCfg "parentRefs" (list (dict "name" $globalGatewayName "namespace" $globalGatewayNamespace "sectionName" $globalLaunchpadHttpSectionName)) }}
   {{- end }}
   {{- if and $redirectEnabled $createGateway (not $gatewayConfig.tls.enabled) }}
     {{- fail "gateway.http.redirect.enabled requires gateway.http.tls.enabled when the chart creates the Gateway." -}}
@@ -61,10 +64,10 @@
   {{- if not $gatewayConfig.tls }}
     {{- $_ := set $gatewayConfig "tls" (dict) }}
   {{- end }}
-  {{- if and $globalGatewayEnabled $globalTlsEnabled }}
+  {{- if and $globalGatewayManaged $globalTlsEnabled }}
     {{- $_ := set $gatewayConfig.tls "enabled" true }}
   {{- end }}
-  {{- if and $globalGatewayEnabled (ne $globalGatewayNamespace .Release.Namespace) }}
+  {{- if and $globalGatewayManaged (ne $globalGatewayNamespace .Release.Namespace) }}
     {{- $_ := set $gatewayConfig.tls "secretNamespace" $globalGatewayNamespace }}
   {{- end }}
   {{- $tlsSecret := default "" $gatewayConfig.tls.secretName }}
