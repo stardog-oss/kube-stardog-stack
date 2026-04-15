@@ -8,7 +8,7 @@ This bundle provides:
 - Callers:
   - **ci-features.yml** — feature-style branches (`SAT-*`, `CLOUD-*`) → validation only: lint, template dry-run, and `helm unittest`.
   - **ci-develop.yml** — release and hotfix branches (`SAT-<digits>-release[-...]`, `SAT-<digits>-hotfix[-...]`) → `X.Y.Z-dev.<RUN>` (JFrog).
-  - **ci-main.yml** — `main` → `X.Y.Z-rc.<RUN>` (JFrog).
+  - **ci-main.yml** — `main` pushes and same-repository pull requests to `main` → `X.Y.Z-rc.<RUN>` (JFrog) after validation. Fork PRs validate only.
   - **ci-release-tags.yml** — `v*` tags on `main` → final `X.Y.Z` release to JFrog.
 
 ## Required secrets
@@ -32,6 +32,7 @@ Each chart's `Chart.yaml: version` must be **SemVer X.Y.Z** (no leading `v`). Th
 
 ## Release model
 - Feature branches and `main` do not force version bumps on every change.
+- Pull requests to `main` validate first. Same-repository PRs may also publish RC packages because they can access repository secrets. Fork PRs validate only.
 - `main` publishes repeated RC builds from the target version in `Chart.yaml`.
 - Release and hotfix branches publish repeated dev builds from the same target version in `Chart.yaml`.
 - Final releases are created by manually pushing a `vX.Y.Z` tag that points to a commit on `main`.

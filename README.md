@@ -452,7 +452,9 @@ Requirements:
 
 What to expect:
 
-- Pull requests run validation only. They do not publish packages.
+- Pull requests to `main` run validation.
+- Same-repository pull requests to `main` also publish `X.Y.Z-rc.<run>` chart packages to JFrog after validation succeeds.
+- Pull requests from forks run validation only. They do not publish packages.
 - Pushes to `main` publish `X.Y.Z-rc.<run>` chart packages to JFrog.
 - Pushes to release and hotfix branches publish `X.Y.Z-dev.<run>` chart packages to JFrog.
 - Local pre-commit checks changelogs, dependency locks, linting, and unit tests.

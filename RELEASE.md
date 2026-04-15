@@ -5,6 +5,7 @@ This document explains how to produce release candidates and official releases f
 ## Summary
 
 - Feature branches run validation only.
+- Pull requests to `main` run validation, and same-repository pull requests publish RC packages after validation succeeds.
 - `main` publishes release candidate packages to JFrog.
 - Release and hotfix branches publish dev packages to JFrog.
 - A manual `vX.Y.Z` tag on `main` publishes the final `X.Y.Z` release to JFrog.
@@ -48,12 +49,13 @@ flowchart TD
 
 ## Release candidate process
 
-1. Merge the intended release content to `main`.
+1. Open a pull request to `main` with the intended release content.
 2. Ensure target chart versions in `Chart.yaml` are the intended final versions.
 3. Update the matching `CHANGELOG.md` entries.
-4. Push commits to `main`.
-5. The workflow publishes `X.Y.Z-rc.<run>` packages to JFrog.
-6. Continue iterating on `main` until the release content is ready to tag.
+4. The pull request runs validation.
+5. If the pull request branch lives in this repository, the workflow publishes `X.Y.Z-rc.<run>` packages to JFrog after validation succeeds.
+6. After merge, pushes to `main` also publish `X.Y.Z-rc.<run>` packages.
+7. Continue iterating until the release content is ready to tag.
 
 ## Dev package process
 
@@ -107,7 +109,7 @@ Strict version-bump enforcement happens only in the final release tag workflow.
 ## Workflow map
 
 - `.github/workflows/ci-features.yml`: feature validation
-- `.github/workflows/ci-main.yml`: main RC packaging and publish
+- `.github/workflows/ci-main.yml`: main validation plus RC packaging for `main` and same-repository PRs to `main`
 - `.github/workflows/ci-develop.yml`: release and hotfix dev packaging and publish
 - `.github/workflows/ci-release-tags.yml`: final tagged releases
 - `.github/workflows/helm-validate-reusable.yml`: shared validation logic
