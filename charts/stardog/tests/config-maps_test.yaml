@@ -103,9 +103,20 @@ tests:
     asserts:
       - matchRegex:
           path: data["stardog.properties"]
-          pattern: "upgrade\\.automatic=true"
+          pattern: "(?m)^upgrade\\.automatic=true$"
 
-  - it: fails when upgrade approval targetVersion does not match image.tag
+  - it: does not inject upgrade.automatic when upgrade approval targetVersion is empty
+    values:
+      - values/values-stardog.yaml
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - notMatchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^upgrade\\.automatic=true$"
+
+  - it: does not inject upgrade.automatic when upgrade approval targetVersion does not match image.tag
     values:
       - values/values-stardog.yaml
     set:
@@ -114,9 +125,13 @@ tests:
       upgrade:
         approval:
           targetVersion: 9.2.2
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
     asserts:
-      - failedTemplate:
-          errorMessage: "upgrade.approval.targetVersion (9.2.2) must match image.tag (9.2.1) exactly."
+      - notMatchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^upgrade\\.automatic=true$"
 
   - it: fails when upgrade.automatic is set directly in stardogProperties
     values:

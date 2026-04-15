@@ -164,9 +164,6 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- if regexMatch `(?m)^\s*upgrade\.automatic\s*=` $properties -}}
 {{- fail "Do not set upgrade.automatic in stardogProperties; use upgrade.approval.targetVersion instead." -}}
 {{- end -}}
-{{- if and (ne $targetVersion "") (ne $targetVersion $imageTag) -}}
-{{- fail (printf "upgrade.approval.targetVersion (%s) must match image.tag (%s) exactly." $targetVersion $imageTag) -}}
-{{- end -}}
 {{- end -}}
 
 {{- define "stardog.upgradeProperties" -}}

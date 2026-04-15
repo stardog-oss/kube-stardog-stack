@@ -99,7 +99,7 @@ upgrade:
     targetVersion: 9.2.1
 ```
 
-When the two values match, the chart injects `upgrade.automatic=true` into the generated `stardog.properties`. If they do not match, rendering fails. This makes the approval specific to a single target version and prevents accidental reuse on later upgrades.
+When the two values match, the chart injects `upgrade.automatic=true` into the generated `stardog.properties`. If `upgrade.approval.targetVersion` is empty or does not match `image.tag`, the chart renders without injecting `upgrade.automatic=true`. This makes the approval a one-off safety valve for the target version, without blocking upgrades that do not need Stardog's automatic data-upgrade flag.
 
 ### Gateway API (Traefik) exposure
 
