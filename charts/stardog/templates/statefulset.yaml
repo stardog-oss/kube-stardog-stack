@@ -43,6 +43,11 @@ spec:
       annotations:
         checksum/config: {{ include "stardog.configmapChecksum" . | default (randAlphaNum 8) }}
         checksum/secret: {{ include "stardog.secretChecksum" . | default (randAlphaNum 8) }}
+        {{- if and .Values.metrics.enabled .Values.metrics.podAnnotations }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.ports.server }}"
+        prometheus.io/path: "{{ .Values.metrics.path }}"
+        {{- end }}
     spec:
       serviceAccountName: {{ include "stardog.serviceAccountName" . }}
       {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" "stardog-license" "namespace" .Release.Namespace) }}

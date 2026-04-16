@@ -1,0 +1,76 @@
+suite: StatefulSet Metrics Annotations
+values:
+  - values/values-stardog.yaml
+templates:
+  - statefulset.yaml
+
+tests:
+  - it: does not add prometheus annotations when metrics disabled
+    set:
+      metrics:
+        enabled: false
+    asserts:
+      - isNull:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+
+  - it: does not add prometheus annotations when podAnnotations disabled
+    set:
+      metrics:
+        enabled: true
+        podAnnotations: false
+    asserts:
+      - isNull:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+
+  - it: adds prometheus annotations when enabled
+    set:
+      metrics:
+        enabled: true
+        podAnnotations: true
+        path: "/admin/status/prometheus"
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+          value: "true"
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/port"]
+          value: "5820"
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/path"]
+          value: "/admin/status/prometheus"
+
+  - it: preserves existing checksum annotations when prometheus annotations are added
+    set:
+      metrics:
+        enabled: true
+        podAnnotations: true
+    asserts:
+      - isNotNullOrEmpty:
+          path: spec.template.metadata.annotations["checksum/config"]
+      - isNotNullOrEmpty:
+          path: spec.template.metadata.annotations["checksum/secret"]
+      - isNotNullOrEmpty:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+
+  - it: propagates custom metrics.path to prometheus.io/path annotation
+    set:
+      metrics:
+        enabled: true
+        podAnnotations: true
+        path: "/admin/status/prometheus/internal"
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/path"]
+          value: "/admin/status/prometheus/internal"
+
+  - it: propagates custom ports.server to prometheus.io/port annotation
+    set:
+      metrics:
+        enabled: true
+        podAnnotations: true
+      ports:
+        server: 5821
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/port"]
+          value: "5821"

@@ -69,5 +69,24 @@ BI endpoint: {{ $biEndpoint }}
   {{- end }}
 {{- end }}
 
+{{- if .Values.metrics.enabled }}
+
+Prometheus Monitoring:
+{{- if .Values.metrics.podMonitor.enabled }}
+  PodMonitor is enabled. Prometheus Operator will scrape each pod individually.
+{{- end }}
+{{- if .Values.metrics.serviceMonitor.enabled }}
+  ServiceMonitor is enabled. Prometheus Operator will scrape via the Service.
+{{- end }}
+{{- if .Values.metrics.podAnnotations }}
+  Pod annotations are enabled for traditional Prometheus scraping.
+{{- end }}
+  Metrics path: {{ .Values.metrics.path }}
+  Metrics port: {{ .Values.ports.server }} (server)
+{{- if ne .Values.metrics.auth.type "none" }}
+  Authentication: {{ .Values.metrics.auth.type }}
+{{- end }}
+{{- end }}
+
 Thank you for installing {{ .Chart.Name }}!
 For more information, visit https://stardog.com.

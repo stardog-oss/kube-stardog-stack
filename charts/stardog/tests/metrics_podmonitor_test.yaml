@@ -1,0 +1,174 @@
+suite: PodMonitor Support
+release:
+  name: stardog
+values:
+  - values/values-stardog.yaml
+templates:
+  - podmonitor.yaml
+
+tests:
+  - it: does not render PodMonitor when metrics disabled
+    set:
+      metrics:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not render PodMonitor when only metrics enabled
+    set:
+      metrics:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders PodMonitor when enabled
+    set:
+      metrics:
+        enabled: true
+        podMonitor:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PodMonitor
+      - equal:
+          path: spec.podMetricsEndpoints[0].port
+          value: server
+      - equal:
+          path: spec.podMetricsEndpoints[0].path
+          value: /admin/status/prometheus
+      - equal:
+          path: spec.podMetricsEndpoints[0].interval
+          value: "30s"
+      - equal:
+          path: spec.podMetricsEndpoints[0].scrapeTimeout
+          value: "10s"
+
+  - it: includes custom labels
+    set:
+      metrics:
+        enabled: true
+        podMonitor:
+          enabled: true
+          labels:
+            release: prometheus
+    asserts:
+      - equal:
+          path: metadata.labels.release
+          value: prometheus
+
+  - it: uses custom namespace
+    set:
+      metrics:
+        enabled: true
+        podMonitor:
+          enabled: true
+          namespace: monitoring
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: monitoring
+
+  - it: includes basicAuth when configured
+    set:
+      metrics:
+        enabled: true
+        podMonitor:
+          enabled: true
+        auth:
+          type: basicAuth
+          basicAuth:
+            username: prometheus
+            password: secret
+    asserts:
+      - isNotNull:
+          path: spec.podMetricsEndpoints[0].basicAuth
+
+  - it: does not include basicAuth when type is none
+    set:
+      metrics:
+        enabled: true
+        podMonitor:
+          enabled: true
+        auth:
+          type: "none"
+    asserts:
+      - isNull:
+          path: spec.podMetricsEndpoints[0].basicAuth
+
+  - it: defaults basicAuth secret name to <fullname>-metrics-auth when existingSecret is empty
+    set:
+      metrics:
+        enabled: true
+        podMonitor:
+          enabled: true
+        auth:
+          type: basicAuth
+          basicAuth:
+            username: prometheus
+            password: secret
+    asserts:
+      - equal:
+          path: spec.podMetricsEndpoints[0].basicAuth.username.name
+          value: stardog-metrics-auth
+      - equal:
+          path: spec.podMetricsEndpoints[0].basicAuth.password.name
+          value: stardog-metrics-auth
+
+  - it: uses existingSecret name for both username and password refs
+    set:
+      metrics:
+        enabled: true
+        podMonitor:
+          enabled: true
+        auth:
+          type: basicAuth
+          basicAuth:
+            existingSecret: my-custom-secret
+    asserts:
+      - equal:
+          path: spec.podMetricsEndpoints[0].basicAuth.username.name
+          value: my-custom-secret
+      - equal:
+          path: spec.podMetricsEndpoints[0].basicAuth.password.name
+          value: my-custom-secret
+
+  - it: propagates custom path, interval, and scrapeTimeout
+    set:
+      metrics:
+        enabled: true
+        podMonitor:
+          enabled: true
+        path: /admin/status/prometheus/internal
+        interval: 60s
+        scrapeTimeout: 20s
+    asserts:
+      - equal:
+          path: spec.podMetricsEndpoints[0].path
+          value: /admin/status/prometheus/internal
+      - equal:
+          path: spec.podMetricsEndpoints[0].interval
+          value: "60s"
+      - equal:
+          path: spec.podMetricsEndpoints[0].scrapeTimeout
+          value: "20s"
+
+  - it: selector includes labels matching the StatefulSet pod labels
+    set:
+      metrics:
+        enabled: true
+        podMonitor:
+          enabled: true
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app"]
+          value: stardog
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: stardog
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/instance"]
+          value: stardog
