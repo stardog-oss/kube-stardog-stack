@@ -66,6 +66,21 @@ Configuration Parameters
 | `tls.bi.*`                                   | Enable BI/SQL TLS (MySQL) and configure keystore generation/cert secrets |
 | `tls.truststore.*`                           | Truststore settings for BI TLS and outbound TLS (merged from JVM cacerts + optional CA bundle) |
 | `tolerations`                                | Taints the pods tolerate; match with `nodeSelector` to target dedicated pools |
+| `metrics.enabled`                            | Master gate for Prometheus metrics support (default: `false`) |
+| `metrics.podAnnotations`                     | Add `prometheus.io/*` annotations to pods for traditional scraping (default: `false`) |
+| `metrics.path`                               | Metrics endpoint path on the server port (default: `/admin/status/prometheus`) |
+| `metrics.interval`                           | Scrape interval for ServiceMonitor/PodMonitor (default: `30s`) |
+| `metrics.scrapeTimeout`                      | Scrape timeout (default: `10s`) |
+| `metrics.podMonitor.enabled`                 | Create a PodMonitor CRD for per-pod scraping (requires Prometheus Operator) |
+| `metrics.podMonitor.labels`                  | Additional labels for PodMonitor discovery |
+| `metrics.podMonitor.namespace`               | Namespace override for PodMonitor |
+| `metrics.serviceMonitor.enabled`             | Create a ServiceMonitor CRD (requires Prometheus Operator) |
+| `metrics.serviceMonitor.labels`              | Additional labels for ServiceMonitor discovery |
+| `metrics.serviceMonitor.namespace`           | Namespace override for ServiceMonitor |
+| `metrics.auth.type`                          | Auth type for metrics endpoint: `none` or `basicAuth` |
+| `metrics.auth.basicAuth.username`            | Basic auth username for metrics scraping |
+| `metrics.auth.basicAuth.password`            | Basic auth password for metrics scraping |
+| `metrics.auth.basicAuth.existingSecret`      | Use an existing secret for basic auth credentials |
 The default values are specified in `values.yaml`.
 
 ### Temporary storage (tmpDir)
@@ -223,6 +238,63 @@ This adds a Gateway listener plus a `TCPRoute` that forwards directly to the BI 
 > **Ingress deprecation:** The older `ingress.*` block remains for backward compatibility but now emits a warning when enabled and will be removed in a future release.
 
 > **BI limitation:** The legacy ingress path no longer exposes the BI/SQL endpoint. Set `bi.enabled=true` only when using `gateway.*`.
+
+### Prometheus Metrics
+
+Stardog exposes Prometheus metrics on the main SPARQL port (5820). Enable metrics collection with:
+
+```yaml
+metrics:
+  enabled: true
+  podAnnotations: true   # for traditional Prometheus scraping
+```
+
+For Prometheus Operator environments, use a PodMonitor (recommended for clusters) or ServiceMonitor:
+
+```yaml
+metrics:
+  enabled: true
+  podMonitor:
+    enabled: true
+    labels:
+      release: prometheus   # match your Prometheus Operator selector — see note below
+  auth:
+    type: basicAuth
+    basicAuth:
+      username: prometheus
+      password: secret
+```
+
+#### Choosing the metrics path
+
+Stardog serves metrics at two paths, with different access models. Pick one and set `metrics.path` (and `metrics.auth`) accordingly:
+
+| Path | Access | When to use |
+| --- | --- | --- |
+| `/admin/status/prometheus` *(chart default)* | Authenticated. Set `metrics.auth.type: basicAuth` and provide credentials. | Default, works out of the box from any in-cluster Prometheus pod IP. |
+| `/admin/status/prometheus/internal` | Loopback / IP-whitelisted, no credentials. Set `metrics.auth.type: none` and override `metrics.path`. | Only when Stardog has been configured server-side to whitelist the Prometheus pod CIDR. Otherwise scrapes will return `401 Unauthorized`. |
+
+#### Prometheus Operator label selectors
+
+The Prometheus Operator does **not** scrape every PodMonitor/ServiceMonitor it sees — each `Prometheus` CR has `podMonitorSelector` / `serviceMonitorSelector` fields, and only monitors whose labels match are scraped. Resources without the matching label are created successfully but **silently ignored** (no warning, no event).
+
+To find the required label, inspect your Prometheus CR:
+
+```bash
+kubectl -n <prom-ns> get prometheus -o jsonpath='{.items[*].spec.podMonitorSelector}'
+```
+
+For example, the `kube-prometheus-stack` chart uses `matchLabels: {release: <release-name>}`. Pass the matching label via `metrics.podMonitor.labels` / `metrics.serviceMonitor.labels`:
+
+```yaml
+metrics:
+  podMonitor:
+    enabled: true
+    labels:
+      release: kps   # whatever your kube-prometheus-stack release is named
+```
+
+After deploying, verify the targets are picked up at `http://<prometheus>:9090/targets` — you should see `podMonitor/<namespace>/stardog/0` with `health=up`.
 
 Upgrades
 --------

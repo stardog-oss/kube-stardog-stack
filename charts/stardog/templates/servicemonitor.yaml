@@ -1,0 +1,34 @@
+{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "sdcommon.fullname" . }}
+  namespace: {{ default .Release.Namespace .Values.metrics.serviceMonitor.namespace }}
+  labels:
+    {{ include "sdcommon.labels.standard" . | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace | quote }}
+  selector:
+    matchLabels:
+      {{ include "sdcommon.labels.selector" . | nindent 6 }}
+      app: {{ include "sdcommon.fullname" . }}
+  endpoints:
+    - port: server
+      interval: {{ .Values.metrics.interval }}
+      scrapeTimeout: {{ .Values.metrics.scrapeTimeout }}
+      path: {{ .Values.metrics.path }}
+      {{- if eq .Values.metrics.auth.type "basicAuth" }}
+      basicAuth:
+        username:
+          name: {{ default (printf "%s-metrics-auth" (include "sdcommon.fullname" .)) .Values.metrics.auth.basicAuth.existingSecret }}
+          key: username
+        password:
+          name: {{ default (printf "%s-metrics-auth" (include "sdcommon.fullname" .)) .Values.metrics.auth.basicAuth.existingSecret }}
+          key: password
+      {{- end }}
+{{- end }}

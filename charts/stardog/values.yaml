@@ -528,6 +528,50 @@ backup:
       customPersitentVolumeClaim: "" # Custom persistent volume claim
 
 
+# ------------------------------------------------------------------------------
+# Prometheus Metrics
+# ------------------------------------------------------------------------------
+metrics:
+  enabled: false
+
+  # Add prometheus.io/* pod annotations for traditional Prometheus scraping
+  podAnnotations: false
+
+  # Metrics endpoint path (served on the main server port).
+  # Stardog exposes two paths:
+  #   /admin/status/prometheus           - public, requires authentication (use auth.type=basicAuth)
+  #   /admin/status/prometheus/internal  - loopback/IP-whitelisted only, no credentials needed
+  #                                        (operators must configure Stardog's IP whitelist to
+  #                                        include the Prometheus pod CIDR; otherwise scrapes 401)
+  path: "/admin/status/prometheus"
+
+  # Scrape interval and timeout (used by ServiceMonitor/PodMonitor)
+  interval: "30s"
+  scrapeTimeout: "10s"
+
+  # PodMonitor (requires Prometheus Operator; recommended for clustered deployments)
+  podMonitor:
+    enabled: false
+    labels: {}
+    namespace: ""
+
+  # ServiceMonitor (requires Prometheus Operator)
+  serviceMonitor:
+    enabled: false
+    labels: {}
+    namespace: ""
+
+  # Authentication for the metrics endpoint
+  auth:
+    # One of: none, basicAuth
+    type: "none"
+    basicAuth:
+      username: ""
+      password: ""
+      # Use an existing secret instead of creating one. The secret must contain
+      # keys "username" and "password".
+      existingSecret: ""
+
 # The JWT configuration will be automatically generated from the below variables
 # when enabled is set to true.
 # docs: https://docs.stardog.com/operating-stardog/security/oauth-integration#example
