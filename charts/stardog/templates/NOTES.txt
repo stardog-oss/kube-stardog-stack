@@ -56,7 +56,7 @@ BI endpoint: {{ $biEndpoint }}
 {{- end }}
 {{- end }}
 
-{{- if and .Values.backup.enabled (not .Values.backup.backupCredentialsSecret) }}
+{{- if and .Values.backup.enabled (not .Values.backup.credentialsSecret) }}
   {{- $secret := lookup "v1" "Secret" .Release.Namespace ((include "stardog.fullname" .) | printf "%s-backup-credentials") }}
   {{- if $secret }}
   Please save these backup user credentials for future use:
