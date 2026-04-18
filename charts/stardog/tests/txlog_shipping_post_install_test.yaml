@@ -1,0 +1,117 @@
+suite: Stardog TX Log Shipping Post-Install Provisioning
+values:
+  - values/values-stardog.yaml
+templates:
+  - job-post-install.yaml
+
+tests:
+  - it: does not inject TXLOG env vars or call txlog_credentials when feature is disabled
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TXLOG_USERNAME
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TXLOG_PASSWORD
+      # The utils.sh function definition is always inlined; what we check for
+      # is the *call site*, which is only emitted when the feature is enabled.
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'txlog_credentials "\$\{PROTOCOL\}'
+
+  - it: injects TXLOG env vars from the chart-generated secret when feature is enabled
+    set:
+      txLogShipping:
+        enabled: true
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TXLOG_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: stardog-RELEASE-NAME-txlog-credentials
+                key: username
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TXLOG_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: stardog-RELEASE-NAME-txlog-credentials
+                key: password
+
+  - it: invokes txlog_credentials helper in the post-install script when feature is enabled
+    set:
+      txLogShipping:
+        enabled: true
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'txlog_credentials "\$\{PROTOCOL\}://\$\{HOST\}:\$\{PORT\}" \$\{TXLOG_USERNAME\} \$\{TXLOG_PASSWORD\}'
+
+  - it: grants the txlog role both admin:* execute and db:* read
+    # The db:* read grant is load-bearing: /admin/databases filters by READ
+    # permission, so without it the enumeration path silently returns empty.
+    set:
+      txLogShipping:
+        enabled: true
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'role grant txlog -a execute -o "admin:\*"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'role grant txlog -a read -o "db:\*"'
+
+  - it: uses an external credentialsSecret when provided
+    set:
+      txLogShipping:
+        enabled: true
+        credentialsSecret: my-txlog-secret
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+      global:
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+          - metadata:
+              name: my-txlog-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TXLOG_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: my-txlog-secret
+                key: username
+
+  - it: fails when provided credentialsSecret does not exist
+    set:
+      txLogShipping:
+        enabled: true
+        credentialsSecret: missing-secret
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - failedTemplate:
+          errorMessage: "Secret NAMESPACE/missing-secret not found. Please create it or choose an existing secret."

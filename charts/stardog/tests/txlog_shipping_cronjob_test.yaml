@@ -1,0 +1,458 @@
+suite: Stardog TX Log Shipping CronJob
+templates:
+  - txlog-shipping/job.yaml
+
+tests:
+  - it: does not render when feature is disabled
+    values:
+      - values/values-stardog.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not render when cronjob is disabled
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        cronjob:
+          enabled: false
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: requires azure.container when enabled
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        azure:
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - failedTemplate:
+          errorMessage: "txLogShipping.azure.container is required when txLogShipping.enabled=true"
+
+  - it: renders a CronJob with the configured schedule and TTL
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        cronjob:
+          schedule: "*/30 * * * *"
+          ttlSecondsAfterFinished: 7200
+          backoffLimit: 5
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: metadata.name
+          value: stardog-RELEASE-NAME-txlog-shipping
+      - equal:
+          path: spec.schedule
+          value: "*/30 * * * *"
+      - equal:
+          path: spec.jobTemplate.spec.ttlSecondsAfterFinished
+          value: 7200
+      - equal:
+          path: spec.jobTemplate.spec.backoffLimit
+          value: 5
+
+  - it: applies timezone annotation when set
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        cronjob:
+          timezone: "America/New_York"
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - equal:
+          path: metadata.annotations["cronjob.kubernetes.io/timezone"]
+          value: "America/New_York"
+
+  - it: runs dump as init container and upload as main container
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - lengthEqual:
+          path: spec.jobTemplate.spec.template.spec.initContainers
+          count: 1
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].name
+          value: tx-log-dump
+      - lengthEqual:
+          path: spec.jobTemplate.spec.template.spec.containers
+          count: 1
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].name
+          value: rclone-upload
+
+  - it: pins the rclone image from values
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+        rclone:
+          image:
+            repository: rclone/rclone
+            tag: "1.68.2"
+            pullPolicy: IfNotPresent
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].image
+          value: "rclone/rclone:1.68.2"
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].imagePullPolicy
+          value: IfNotPresent
+
+  - it: wires txlog credentials from the chart-generated secret
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: STARDOG_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: stardog-RELEASE-NAME-txlog-credentials
+                key: username
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: STARDOG_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: stardog-RELEASE-NAME-txlog-credentials
+                key: password
+
+  - it: uses an external credentialsSecret when provided
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        credentialsSecret: my-txlog-secret
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+      global:
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+          - metadata:
+              name: my-txlog-secret
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: STARDOG_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: my-txlog-secret
+                key: username
+
+  - it: fails when provided credentialsSecret does not exist
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        credentialsSecret: missing-secret
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - failedTemplate:
+          errorMessage: "Secret NAMESPACE/missing-secret not found. Please create it or choose an existing secret."
+
+  - it: wires azure credentials from the chart-generated secret
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: RCLONE_CONFIG_AZ_ACCOUNT
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-stardog-txlog-azure-secret
+                key: accountname
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: RCLONE_CONFIG_AZ_KEY
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-stardog-txlog-azure-secret
+                key: accountkey
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: RCLONE_CONFIG_AZ_TYPE
+            value: azureblob
+
+  - it: uses azure.existingSecret when provided
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        azure:
+          container: my-container
+          existingSecret: my-azure-secret
+      global:
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+          - metadata:
+              name: my-azure-secret
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: RCLONE_CONFIG_AZ_ACCOUNT
+            valueFrom:
+              secretKeyRef:
+                name: my-azure-secret
+                key: accountname
+
+  - it: propagates include/exclude filter values into the dump env
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        databases:
+          include: ["primary", "secondary"]
+          exclude: ["scratch-db"]
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: TXLOG_INCLUDE
+            value: "primary secondary"
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].env
+          content:
+            name: TXLOG_EXCLUDE
+            value: "scratch-db"
+
+  - it: propagates azure.container and pathPrefix into the upload env
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        azure:
+          container: my-container
+          pathPrefix: txlogs/prod
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AZURE_CONTAINER
+            value: "my-container"
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AZURE_PATH_PREFIX
+            value: "txlogs/prod"
+
+  - it: mounts a scratch emptyDir on both containers with the configured sizeLimit
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        scratch:
+          sizeLimit: 25Gi
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.volumes
+          content:
+            name: scratch
+            emptyDir:
+              sizeLimit: 25Gi
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: scratch
+            mountPath: /scratch
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].volumeMounts
+          content:
+            name: scratch
+            mountPath: /scratch
+
+  - it: applies readOnlyRootFilesystem to both containers
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+
+  - it: includes the include/exclude filter shell logic in the dump script
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].command[2]
+          pattern: "TXLOG_INCLUDE"
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].command[2]
+          pattern: "TXLOG_EXCLUDE"
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].command[2]
+          pattern: "stardog-admin --server"
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].command[2]
+          pattern: "--format raw --output"
+
+  - it: validates parsed database names against a safe character set
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].command[2]
+          pattern: '\^\[A-Za-z0-9_-\]\+\$'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].command[2]
+          pattern: "Refusing to proceed"
+
+  - it: treats empty-log databases as skip-and-continue rather than fail
+    # System DBs like catalog/querylog legitimately have no user transactions,
+    # and a user DB that hasn't been written to yet may be in the same state.
+    # The dump must distinguish "empty" from "real failure".
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].command[2]
+          pattern: 'Failed to find any data in the txn log'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].command[2]
+          pattern: 'no transactions recorded for'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].command[2]
+          pattern: 'Skipped \(no transactions\)'
+
+  - it: mounts writable /tmp on both containers
+    # stardog-admin's HTTP client spools the tx log response to java.io.tmpdir, and
+    # rclone benefits from a writable /tmp too; both containers are readOnlyRootFilesystem.
+    values:
+      - values/values-stardog.yaml
+    set:
+      txLogShipping:
+        enabled: true
+        azure:
+          container: my-container
+          accountName: foo
+          accountKey: bar
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.volumes
+          content:
+            name: dump-tmp
+            emptyDir: {}
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.volumes
+          content:
+            name: upload-tmp
+            emptyDir: {}
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: dump-tmp
+            mountPath: /tmp
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].volumeMounts
+          content:
+            name: upload-tmp
+            mountPath: /tmp

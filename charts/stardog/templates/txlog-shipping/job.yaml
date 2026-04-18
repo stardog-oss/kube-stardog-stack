@@ -1,0 +1,273 @@
+{{- if and .Values.txLogShipping.enabled .Values.txLogShipping.cronjob.enabled }}
+{{- $fullname := include "sdcommon.fullname" . }}
+{{- $credentialsSecret := .Values.txLogShipping.credentialsSecret | default (printf "%s-txlog-credentials" $fullname) }}
+{{- $azureSecret := .Values.txLogShipping.azure.existingSecret | default (printf "%s-stardog-txlog-azure-secret" .Release.Name) }}
+{{- $rcloneImage := printf "%s:%s" .Values.txLogShipping.rclone.image.repository .Values.txLogShipping.rclone.image.tag }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $fullname }}-txlog-shipping
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{ include "sdcommon.labels.standard" . | nindent 4 }}
+  {{- if .Values.txLogShipping.cronjob.timezone }}
+  annotations:
+    cronjob.kubernetes.io/timezone: {{ .Values.txLogShipping.cronjob.timezone | quote }}
+  {{- end }}
+spec:
+  schedule: {{ .Values.txLogShipping.cronjob.schedule | quote }}
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: {{ .Values.txLogShipping.cronjob.ttlSecondsAfterFinished }}
+      backoffLimit: {{ .Values.txLogShipping.cronjob.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{ include "sdcommon.labels.standard" . | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          {{- if .Values.txLogShipping.credentialsSecret }}
+          {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" .Values.txLogShipping.credentialsSecret "namespace" .Release.Namespace) }}
+          {{- end }}
+          {{- if .Values.txLogShipping.azure.existingSecret }}
+          {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" .Values.txLogShipping.azure.existingSecret "namespace" .Release.Namespace) }}
+          {{- end }}
+          securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+          volumes:
+          - name: scratch
+            emptyDir:
+              sizeLimit: {{ .Values.txLogShipping.scratch.sizeLimit }}
+          # /tmp is required writable because stardog-admin's HTTP client spools the
+          # tx log response to `java.io.tmpdir` before handing it to the caller, and
+          # the containers run with `readOnlyRootFilesystem: true`. rclone similarly
+          # benefits from a writable /tmp. Two separate emptyDirs avoid accidental
+          # cross-container collisions.
+          - name: dump-tmp
+            emptyDir: {}
+          - name: upload-tmp
+            emptyDir: {}
+          initContainers:
+          - name: tx-log-dump
+            image: {{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+            imagePullPolicy: {{ .Values.image.pullPolicy }}
+            securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 14 }}
+            resources:
+              {{- toYaml .Values.txLogShipping.resources.dump | nindent 14 }}
+            volumeMounts:
+            - name: scratch
+              mountPath: /scratch
+            - name: dump-tmp
+              mountPath: /tmp
+            env:
+            - name: STARDOG_HOST
+              value: "http://{{ $fullname }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.ports.server }}"
+            - name: STARDOG_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $credentialsSecret }}
+                  key: username
+            - name: STARDOG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $credentialsSecret }}
+                  key: password
+            - name: TXLOG_INCLUDE
+              value: {{ join " " .Values.txLogShipping.databases.include | quote }}
+            - name: TXLOG_EXCLUDE
+              value: {{ join " " .Values.txLogShipping.databases.exclude | quote }}
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set +x
+              set -o pipefail
+
+              function stardog_healthcheck {
+                COUNT=0
+                while true; do
+                  if [[ ${COUNT} -gt 300 ]]; then
+                    echo "Timeout waiting for Stardog to start."
+                    return 1
+                  fi
+                  if curl -s --head --request GET ${STARDOG_HOST}/admin/healthcheck | grep "200 OK" > /dev/null; then
+                    echo "Stardog is up and running."
+                    return 0
+                  fi
+                  COUNT=$((COUNT+1))
+                  sleep 1
+                done
+              }
+
+              stardog_healthcheck
+              if [ $? -ne 0 ]; then
+                echo "Stardog server is not healthy; aborting tx log shipping run."
+                exit 1
+              fi
+
+              TIMESTAMP=$(date -u +"%Y/%m/%d/%H%M%SZ")
+              echo "${TIMESTAMP}" > /scratch/.timestamp
+              echo "Run timestamp: ${TIMESTAMP}"
+
+              DBS_RESPONSE=$(curl -sS --fail -u "${STARDOG_USERNAME}:${STARDOG_PASSWORD}" "${STARDOG_HOST}/admin/databases")
+              if [ $? -ne 0 ]; then
+                echo "Failed to list databases from ${STARDOG_HOST}/admin/databases"
+                exit 1
+              fi
+
+              # Response shape: {"databases":["db1","db2",...]}
+              # jq is not present in the Stardog image, so we parse with shell tools and then
+              # defensively validate each parsed name against Stardog's allowed character set.
+              ALL_DBS=$(echo "${DBS_RESPONSE}" | tr -d '[:space:]' | grep -oE '\[[^]]*\]' | tr -d '[]"' | tr ',' '\n' | grep -v '^$' || true)
+
+              if [ -z "${ALL_DBS}" ]; then
+                echo "No databases present on the server; nothing to ship."
+                exit 0
+              fi
+
+              for name in ${ALL_DBS}; do
+                if ! echo "${name}" | grep -qE '^[A-Za-z0-9_-]+$'; then
+                  echo "Refusing to proceed: parsed database name '${name}' does not match [A-Za-z0-9_-]+."
+                  echo "Raw /admin/databases response:"
+                  echo "${DBS_RESPONSE}"
+                  exit 1
+                fi
+              done
+
+              SELECTED=""
+              for db in ${ALL_DBS}; do
+                if [ -n "${TXLOG_INCLUDE}" ]; then
+                  match=0
+                  for inc in ${TXLOG_INCLUDE}; do
+                    if [ "${db}" = "${inc}" ]; then match=1; break; fi
+                  done
+                  if [ ${match} -eq 0 ]; then continue; fi
+                fi
+                if [ -n "${TXLOG_EXCLUDE}" ]; then
+                  skip=0
+                  for exc in ${TXLOG_EXCLUDE}; do
+                    if [ "${db}" = "${exc}" ]; then skip=1; break; fi
+                  done
+                  if [ ${skip} -eq 1 ]; then continue; fi
+                fi
+                SELECTED="${SELECTED} ${db}"
+              done
+
+              if [ -z "${SELECTED}" ]; then
+                echo "No databases selected after applying include/exclude filters; nothing to ship."
+                echo "  include=[${TXLOG_INCLUDE}] exclude=[${TXLOG_EXCLUDE}] all=[$(echo ${ALL_DBS} | tr '\n' ' ')]"
+                exit 0
+              fi
+
+              echo "Selected databases:${SELECTED}"
+
+              FAILED=""
+              SKIPPED_EMPTY=""
+              for db in ${SELECTED}; do
+                echo "Dumping transaction log for database: ${db}"
+                DUMP_OUT=$(/opt/stardog/bin/stardog-admin --server "${STARDOG_HOST}" tx log \
+                  -u "${STARDOG_USERNAME}" -p "${STARDOG_PASSWORD}" \
+                  --format raw --output "/scratch/${db}.txlog" \
+                  -- "${db}" 2>&1)
+                rc=$?
+                echo "${DUMP_OUT}"
+                if [ ${rc} -eq 0 ]; then
+                  continue
+                fi
+                # The server returns UnknownTransactionException / "Failed to find any data
+                # in the txn log for the provided range" when a database has no transactions
+                # recorded yet (or only system-internal traffic). This is not a failure from
+                # a DR perspective — there's just nothing to ship. Treat it as a warning.
+                if echo "${DUMP_OUT}" | grep -q "Failed to find any data in the txn log"; then
+                  echo "  -> no transactions recorded for ${db}; skipping."
+                  rm -f "/scratch/${db}.txlog"
+                  SKIPPED_EMPTY="${SKIPPED_EMPTY} ${db}"
+                  continue
+                fi
+                echo "Failed to dump tx log for ${db} (rc=${rc})"
+                FAILED="${FAILED} ${db}"
+              done
+
+              if [ -n "${FAILED}" ]; then
+                echo "Transaction log dump failed for:${FAILED}"
+                exit 1
+              fi
+
+              if [ -n "${SKIPPED_EMPTY}" ]; then
+                echo "Skipped (no transactions):${SKIPPED_EMPTY}"
+              fi
+
+              echo "All transaction log dumps completed successfully."
+          containers:
+          - name: rclone-upload
+            image: {{ $rcloneImage }}
+            imagePullPolicy: {{ .Values.txLogShipping.rclone.image.pullPolicy }}
+            securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 14 }}
+            resources:
+              {{- toYaml .Values.txLogShipping.resources.upload | nindent 14 }}
+            volumeMounts:
+            - name: scratch
+              mountPath: /scratch
+            - name: upload-tmp
+              mountPath: /tmp
+            env:
+            - name: RCLONE_CONFIG_AZ_TYPE
+              value: azureblob
+            - name: RCLONE_CONFIG_AZ_ACCOUNT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $azureSecret }}
+                  key: accountname
+            - name: RCLONE_CONFIG_AZ_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $azureSecret }}
+                  key: accountkey
+            - name: AZURE_CONTAINER
+              value: {{ required "txLogShipping.azure.container is required when txLogShipping.enabled=true" .Values.txLogShipping.azure.container | quote }}
+            - name: AZURE_PATH_PREFIX
+              value: {{ .Values.txLogShipping.azure.pathPrefix | quote }}
+            - name: RELEASE_SCOPE
+              value: {{ printf "%s-%s" .Release.Name .Release.Namespace | quote }}
+            - name: RCLONE_EXTRA_ARGS
+              value: {{ join " " .Values.txLogShipping.rclone.extraArgs | quote }}
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              if [ ! -f /scratch/.timestamp ]; then
+                echo "No timestamp marker found in /scratch; dump step likely did not run. Aborting upload."
+                exit 1
+              fi
+              TIMESTAMP=$(cat /scratch/.timestamp)
+              rm -f /scratch/.timestamp
+
+              # Compose the destination path.
+              if [ -n "${AZURE_PATH_PREFIX}" ]; then
+                DEST="az:${AZURE_CONTAINER}/${AZURE_PATH_PREFIX}/${RELEASE_SCOPE}/${TIMESTAMP}"
+              else
+                DEST="az:${AZURE_CONTAINER}/${RELEASE_SCOPE}/${TIMESTAMP}"
+              fi
+
+              # Bail out cleanly if nothing was dumped (e.g., zero databases matched filters).
+              if [ -z "$(ls -A /scratch 2>/dev/null)" ]; then
+                echo "Scratch directory empty after dump; nothing to upload."
+                exit 0
+              fi
+
+              echo "Uploading /scratch/ to ${DEST}"
+              # shellcheck disable=SC2086
+              rclone copy /scratch/ "${DEST}" --exclude '.*' ${RCLONE_EXTRA_ARGS}
+          {{- if and (hasKey .Values "image") .Values.image.pullSecrets }}
+          imagePullSecrets:
+          {{ toYaml .Values.image.pullSecrets | nindent 12 }}
+          {{- end }}
+          {{- if and (hasKey .Values "image") .Values.image.username .Values.image.password }}
+          imagePullSecrets:
+            - name: {{ .Release.Name }}-image-pull-secret
+          {{- end }}
+{{- end }}
