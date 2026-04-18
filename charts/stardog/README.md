@@ -25,6 +25,7 @@ Configuration Parameters
 | `admin.password`                             | Stardog admin password |
 | `additionalStardogProperties`                | Allow adding extra settings to the `stardog.properties` file |
 | `backup.*`                                   | Enables the built-in backup CronJob and selects the storage target; see [`BACKUP.md`](BACKUP.md) for the complete matrix |
+| `txLogShipping.*`                            | Enables scheduled shipping of Stardog transaction logs to Azure Blob Storage; see the "Transaction log shipping" section below |
 | `cluster.enabled`                            | Enable Stardog Cluster |
 | `cluster.zookeeperService`                   | ZooKeeper connection string (CSV of `host:port` pairs) when using a shared or external ensemble |
 | `debug.sleepOnFailureSeconds`               | Sleep for N seconds after Stardog exits with a non-zero status (troubleshooting) |
@@ -235,6 +236,177 @@ to run the steps on the Stardog home directories in the PVCs.
 
 See the [Stardog documentation](https://www.stardog.com/docs/#_upgrading_the_cluster)
 for instructuions on how to upgrade Stardog Cluster.
+
+Transaction log shipping
+------------------------
+
+Stardog 12 introduced a per-database transaction log that can be exported in raw
+form and later replayed to reconstruct database state. This chart can ship those
+logs to Azure Blob Storage on a schedule for disaster recovery and point-in-time
+restore. Background:
+<https://docs.stardog.com/operating-stardog/database-administration/transaction-logs>.
+
+### What it does
+
+When `txLogShipping.enabled=true`, the chart installs a CronJob that, on every
+fire:
+
+1. Queries `/admin/databases` on the running Stardog server, applies the
+   configured include/exclude filter, and selects the set of databases to ship.
+2. Runs `stardog-admin tx log --format raw --output /scratch/<db>.txlog` for
+   each selected database, authenticating as a dedicated `txlog_user`.
+3. Uploads the contents of `/scratch/` to the configured Azure Blob container
+   using `rclone`, laid out as
+   `<container>/[<pathPrefix>/]<release>-<namespace>/YYYY/MM/DD/HHMMSSZ/<db>.txlog`.
+
+Dump and upload run as an init container and main container in the same Pod;
+the upload runs only if every dump succeeded. Each CronJob invocation exports
+the whole current log for every selected database — there is no incremental
+mode. Azure Blob lifecycle policies are the intended retention mechanism.
+
+### Prerequisites
+
+- An Azure Blob Storage account and container to receive the uploads. Create the
+  container beforehand; the chart does not manage it.
+- Storage account name + account key. The chart accepts either inline values
+  (`azure.accountName` / `azure.accountKey`, generating a Secret) or a
+  reference to an existing Secret via `azure.existingSecret` with keys
+  `accountname` and `accountkey`.
+- **Cluster mode:** no Stardog-side configuration is required — transaction
+  logging is always on.
+- **Single node:** transaction logging is per-database and off by default.
+  Enable it before turning on shipping, once per database, while the database
+  is offline:
+
+  ```bash
+  stardog-admin db offline mydb
+  stardog-admin metadata set -o transaction.logging=true -- mydb
+  stardog-admin db online mydb
+  ```
+
+### Enabling
+
+Minimal values snippet:
+
+```yaml
+txLogShipping:
+  enabled: true
+  azure:
+    container: "stardog-txlogs"
+    accountName: "<account>"
+    accountKey: "<key>"
+```
+
+Typical production snippet with an externally managed Secret and scoped
+database list:
+
+```yaml
+txLogShipping:
+  enabled: true
+  cronjob:
+    schedule: "*/30 * * * *"
+    timezone: "UTC"
+  databases:
+    include: ["orders", "inventory"]
+  azure:
+    container: "stardog-txlogs"
+    pathPrefix: "prod"
+    existingSecret: "stardog-txlog-azure"   # must contain `accountname` and `accountkey`
+```
+
+On `helm install`, the post-install Job provisions a `txlog` role granted
+`EXECUTE admin:*` and `READ db:*`, a `txlog_user`, and a Secret
+`<release>-stardog-txlog-credentials` with a random password. The Secret is
+annotated `helm.sh/resource-policy: keep` so it survives `helm uninstall` — do
+not delete it manually between reinstalls or the user/role in Stardog will fall
+out of sync with the Secret.
+
+### Azure lifecycle policy
+
+The chart does not prune shipped logs. Configure an Azure Blob lifecycle
+management policy on the target container to age out old uploads. Example JSON
+(age out files older than 30 days, delete at 90):
+
+```json
+{
+  "rules": [
+    {
+      "enabled": true,
+      "name": "stardog-txlog-retention",
+      "type": "Lifecycle",
+      "definition": {
+        "filters": {
+          "blobTypes": ["blockBlob"],
+          "prefixMatch": ["stardog-txlogs/"]
+        },
+        "actions": {
+          "baseBlob": {
+            "tierToCool":   { "daysAfterModificationGreaterThan": 30 },
+            "delete":       { "daysAfterModificationGreaterThan": 90 }
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+### Recovery workflow
+
+Downloaded files are compatible with `stardog-admin tx replay`. The high-level
+DR flow is:
+
+1. Restore the database from its most recent `stardog-admin server backup`.
+2. Download the relevant `.txlog` files from Azure Blob for the time window
+   between the backup and the target recovery point.
+3. Replay them, in order, against the restored database:
+
+   ```bash
+   stardog-admin tx replay mydb 2026-04-16/T1030Z/mydb.txlog
+   ```
+
+Shipped snapshots are typically mid-stream — each run exports the log's
+current contents, which usually do not start at the very first transaction
+the database ever saw. By default `tx replay` validates that every `Commit`
+in the log has a matching `Started` record; that check can fail against a
+mid-stream snapshot with:
+
+```
+The last committed transaction '<uuid>' has no Started marker in the tx log
+```
+
+Pass `--skip-validate` when replaying a shipped file to bypass this
+check. `--dry-run` first is still recommended.
+
+```bash
+stardog-admin tx replay --dry-run --skip-validate mydb …/mydb.txlog
+stardog-admin tx replay           --skip-validate mydb …/mydb.txlog
+```
+
+See the [transaction logs product docs](https://docs.stardog.com/operating-stardog/database-administration/transaction-logs)
+for full recovery mechanics, including how `tx replay` validates continuity via
+parent-transaction UUIDs.
+
+### Sizing and cadence notes
+
+- Transaction logs rotate by size (default 500 MiB) and Stardog keeps at most
+  one rotation behind the live file. If shipping runs less frequently than the
+  log rotates twice, entries can be lost. Pick a cadence that keeps the window
+  comfortably smaller than typical rotation time for your workload.
+- `scratch.sizeLimit` caps the in-pod emptyDir used for staging dumps; it must
+  be large enough to hold the live logs of every selected database at once.
+- The default hourly schedule is a starting point only. Tune `cronjob.schedule`
+  and `transaction.logging.rotation.size` together.
+
+### Limitations
+
+- Azure Blob Storage is the only supported backend.
+- Static storage account key authentication only; no Azure Workload Identity
+  or managed identity.
+- Whole-log shipping only; no incremental `--from-time` / `--from-uuid`
+  filtering yet.
+- No chart-side retention or cleanup Job; rely on Azure lifecycle policies.
+- No metrics, ServiceMonitor, or alerting resources are emitted.
 
 Limitations
 -----------

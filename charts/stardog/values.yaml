@@ -527,6 +527,79 @@ backup:
       customPersitentVolume: "" # Custom persistent volume
       customPersitentVolumeClaim: "" # Custom persistent volume claim
 
+# Transaction log shipping to Azure Blob Storage for disaster recovery.
+# See charts/stardog/README.md "Transaction log shipping" for enablement steps.
+txLogShipping:
+  enabled: false
+
+  cronjob:
+    enabled: true
+    # Hourly default: rotation is size-based (default 500M) and keeps at most one rotation
+    # behind the live log, so ships must run at least once between rotations to avoid gaps.
+    # Tune downward for write-heavy databases.
+    schedule: "0 * * * *"
+    timezone: ""
+    ttlSecondsAfterFinished: 86400
+    backoffLimit: 3
+
+  # Database selection at run time (queried from /admin/databases).
+  databases:
+    include: []   # When empty, ship all databases. Otherwise only the names listed here.
+    exclude: []   # Always subtracted from the set selected by `include`.
+
+  # Shared emptyDir volume between the dump init container and the rclone upload container.
+  # Must accommodate the sum of all selected databases' live transaction logs at once.
+  scratch:
+    sizeLimit: 10Gi
+
+  # Credentials for the Stardog user created to run `stardog-admin tx log`.
+  # Follows the same pattern as backup.credentialsSecret: reference an existing Secret or
+  # let the chart generate one. The user is provisioned by the post-install Job with the
+  # `txlog` role granted `execute on admin:*`.
+  credentialsSecret: ""
+  credentials:
+    username: "txlog_user"
+    password: ""   # When empty, the chart generates a random password once and keeps it.
+
+  # Rclone is used to upload dumped transaction logs to the blob container.
+  rclone:
+    image:
+      repository: rclone/rclone
+      tag: "1.68.2"   # pinned; bump deliberately
+      pullPolicy: IfNotPresent
+    # Extra flags appended to the `rclone copy` invocation. Useful for --transfers, --retries, etc.
+    extraArgs: []
+
+  # Azure Blob Storage destination. Only backend supported in v1.
+  azure:
+    # Name of the blob container to upload into. Must exist before the CronJob runs.
+    container: ""
+    # Optional path prefix within the container. If set, files land under
+    # `<container>/<pathPrefix>/<release>-<namespace>/YYYY/MM/DD/HHMMSSZ/<db>.txlog`.
+    # If empty, files land under `<container>/<release>-<namespace>/YYYY/MM/DD/HHMMSSZ/<db>.txlog`.
+    pathPrefix: ""
+    # Provide an existing Secret with keys `accountname` and `accountkey`, OR leave empty
+    # and populate `accountName`/`accountKey` below so the chart generates the Secret.
+    existingSecret: ""
+    accountName: ""
+    accountKey: ""
+
+  # Resource requests/limits for each container in the shipping Pod.
+  resources:
+    dump:
+      requests:
+        memory: 256Mi
+        cpu: 300m
+      limits:
+        memory: 512Mi
+        cpu: 500m
+    upload:
+      requests:
+        memory: 128Mi
+        cpu: 200m
+      limits:
+        memory: 256Mi
+        cpu: 500m
 
 # The JWT configuration will be automatically generated from the below variables
 # when enabled is set to true.

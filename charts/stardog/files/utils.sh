@@ -84,6 +84,37 @@ function backup_credentials {
     )
 }
 
+function txlog_credentials {
+    (
+    set +e
+    HOST=${1}
+    USERNAME=${2}
+    PASSWORD=${3}
+
+    /opt/stardog/bin/stardog-admin --server ${HOST} user permission -- ${USERNAME}
+    if [[ $? -eq 0 ]];
+    then
+      echo "Txlog role and user already exist"
+	    return 0
+    else
+      echo "Creating Txlog Role: /opt/stardog/bin/stardog-admin  --server ${HOST} role add txlog"
+      /opt/stardog/bin/stardog-admin  --server ${HOST} role add txlog
+      # 'execute on admin:*' authorizes `stardog-admin tx log`.
+      # 'read on db:*' is required for /admin/databases to return the list of databases
+      echo "Adding Txlog Role permissions: /opt/stardog/bin/stardog-admin --server ${HOST} role grant txlog -a execute -o 'admin:*'"
+      /opt/stardog/bin/stardog-admin  --server ${HOST} role grant txlog -a execute -o "admin:*"
+      echo "Adding Txlog Role permissions: /opt/stardog/bin/stardog-admin --server ${HOST} role grant txlog -a read -o 'db:*'"
+      /opt/stardog/bin/stardog-admin  --server ${HOST} role grant txlog -a read -o "db:*"
+      echo "Creating Txlog User: /opt/stardog/bin/stardog-admin  --server ${HOST} user add ${USERNAME} -N ${PASSWORD}"
+      /opt/stardog/bin/stardog-admin  --server ${HOST} user add ${USERNAME} -N ${PASSWORD}
+      echo "Adding Txlog Role to Txlog User: /opt/stardog/bin/stardog-admin --server ${HOST} user addrole -R txlog ${USERNAME}"
+      /opt/stardog/bin/stardog-admin  --server ${HOST} user addrole -R txlog ${USERNAME}
+      echo "Txlog role and user successfully created"
+      return 0
+    fi
+    )
+}
+
 function add_roles {
     (
     set +e
