@@ -1,0 +1,102 @@
+{
+  "title": "Stardog Overview",
+  "uid": "stardog-overview",
+  "version": 1,
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "links": [
+    { "title": "Stardog Queries", "url": "/d/stardog-queries", "type": "link", "icon": "external link", "targetBlank": false },
+    { "title": "Stardog Logs",   "url": "/d/stardog-logs",   "type": "link", "icon": "external link", "targetBlank": false }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource", "type": "datasource", "pluginId": "prometheus",
+        "label": "Prometheus", "hide": 0, "refresh": 1, "multi": false, "includeAll": false, "current": {}
+      },
+      {
+        "name": "namespace", "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "label": "Namespace",
+        "query": { "query": "label_values(up{app_kubernetes_io_name=\"stardog\"}, namespace)", "refId": "StandardVariableQuery" },
+        "refresh": 2, "sort": 1, "hide": 0, "multi": false, "includeAll": true, "allValue": ".*", "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Server Status",
+      "description": "1 = UP (green), 0 = DOWN (red)",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "up{app_kubernetes_io_name=\"stardog\", namespace=~\"$namespace\"}", "legendFormat": "{{pod}}", "datasource": { "type": "prometheus", "uid": "${datasource}" } }]
+    },
+    {
+      "id": 2, "type": "stat", "title": "Uptime",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "stardog_server_uptime_seconds{namespace=~\"$namespace\"}", "legendFormat": "uptime", "datasource": { "type": "prometheus", "uid": "${datasource}" } }]
+    },
+    {
+      "id": 3, "type": "gauge", "title": "Heap Used %",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 85 }] },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "stardog_jvm_heap_used_bytes{namespace=~\"$namespace\"} / stardog_jvm_heap_max_bytes{namespace=~\"$namespace\"} * 100", "legendFormat": "heap %", "datasource": { "type": "prometheus", "uid": "${datasource}" } }]
+    },
+    {
+      "id": 4, "type": "gauge", "title": "Active Connections",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short", "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 100 }] },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "stardog_db_connections_active{namespace=~\"$namespace\"}", "legendFormat": "connections", "datasource": { "type": "prometheus", "uid": "${datasource}" } }]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Query Throughput (queries/sec)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "targets": [{ "expr": "rate(stardog_query_response_time_ms_count{namespace=~\"$namespace\"}[5m])", "legendFormat": "{{pod}}", "datasource": { "type": "prometheus", "uid": "${datasource}" } }]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Memory (RSS)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [{ "expr": "process_resident_memory_bytes{app_kubernetes_io_name=\"stardog\", namespace=~\"$namespace\"}", "legendFormat": "{{pod}}", "datasource": { "type": "prometheus", "uid": "${datasource}" } }]
+    }
+  ]
+}
