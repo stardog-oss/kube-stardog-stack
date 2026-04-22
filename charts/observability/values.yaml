@@ -1,0 +1,124 @@
+# Stardog integration settings
+stardog:
+  metricsEnabled: true
+  metricsPort: 5820
+  metricsPath: /metrics
+  namespace: ""
+  serviceMonitor:
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+  prometheusRule:
+    enabled: true
+    labels: {}
+    heapUsageThreshold: "0.85"
+
+# kube-prometheus-stack (upstream alias: prometheus)
+prometheus:
+  fullnameOverride: prometheus
+  grafana:
+    fullnameOverride: grafana
+    enabled: true
+    adminPassword: prom-operator
+    sidecar:
+      dashboards:
+        enabled: true
+        label: grafana_dashboard
+        labelValue: "1"
+        searchNamespace: ALL
+        folderAnnotation: grafana_folder
+        provider:
+          foldersFromFilesStructure: false
+          allowUiUpdates: false
+    additionalDataSources:
+      - name: Loki
+        type: loki
+        url: http://loki:3100
+        access: proxy
+        isDefault: false
+  prometheus:
+    prometheusSpec:
+      serviceMonitorSelectorNilUsesHelmValues: false
+      serviceMonitorSelector: {}
+      serviceMonitorNamespaceSelector: {}
+  alertmanager:
+    enabled: true
+  nodeExporter:
+    enabled: true
+  kubeStateMetrics:
+    enabled: true
+
+# Loki — single-binary filesystem mode
+loki:
+  fullnameOverride: loki
+  loki:
+    auth_enabled: false
+    commonConfig:
+      replication_factor: 1
+    storage:
+      type: filesystem
+    schemaConfig:
+      configs:
+        - from: "2024-01-01"
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: loki_index_
+            period: 24h
+  singleBinary:
+    replicas: 1
+  backend:
+    replicas: 0
+  read:
+    replicas: 0
+  write:
+    replicas: 0
+
+# Grafana Alloy
+alloy:
+  fullnameOverride: alloy
+  alloy:
+    configMap:
+      create: true
+      content: |
+        discovery.kubernetes "pods" {
+          role = "pod"
+        }
+
+        discovery.relabel "pod_logs" {
+          targets = discovery.kubernetes.pods.targets
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label  = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label  = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_name"]
+            target_label  = "container"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            target_label  = "app"
+          }
+        }
+
+        loki.source.kubernetes "pods" {
+          targets    = discovery.relabel.pod_logs.output
+          forward_to = [loki.write.local.receiver]
+        }
+
+        loki.write "local" {
+          endpoint {
+            url = "http://loki:3100/loki/api/v1/push"
+          }
+        }
+  rbac:
+    create: true
+  serviceAccount:
+    create: true
+  controller:
+    type: daemonset
