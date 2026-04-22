@@ -1,0 +1,12 @@
+Observability stack deployed successfully.
+
+  Grafana:    kubectl port-forward svc/grafana 3000:80
+              Default credentials: admin / prom-operator
+
+  Prometheus: kubectl port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090
+
+  Loki:       Available internally at http://loki:3100
+              Query via Grafana → Explore → Loki datasource
+
+Alloy is collecting pod logs and forwarding them to Loki.
+Stardog metrics are being scraped by Prometheus via the ServiceMonitor.

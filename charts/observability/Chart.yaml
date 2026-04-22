@@ -1,0 +1,25 @@
+apiVersion: v2
+appVersion: latest
+description: Helm chart to deploy the Stardog observability stack (Prometheus, Grafana, Loki, Alloy)
+home: https://stardog-union.github.io/kube-stardog-stack/
+icon: https://stardog-oss.github.io/kube-stardog-stack/stardog_open_source.png
+maintainers:
+- email: oss@stardog.com
+  name: Stardog Open-Source Community
+  url: https://www.stardog.com
+name: observability
+version: 1.0.0
+dependencies:
+- name: common
+  version: 0.1.6
+  repository: file://../common
+- name: kube-prometheus-stack
+  version: 83.7.0
+  repository: https://prometheus-community.github.io/helm-charts
+  alias: prometheus
+- name: loki
+  version: 6.55.0
+  repository: https://grafana.github.io/helm-charts
+- name: alloy
+  version: 1.7.0
+  repository: https://grafana.github.io/helm-charts
