@@ -1,0 +1,73 @@
+suite: Validate Stardog ServiceMonitor
+values:
+  - values/values-observability.yaml
+templates:
+  - servicemonitor-stardog.yaml
+
+tests:
+  - it: should not create ServiceMonitor when metrics disabled
+    set:
+      stardog.metricsEnabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create ServiceMonitor when metrics enabled
+    set:
+      stardog.metricsEnabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ServiceMonitor
+
+  - it: should use correct API version
+    set:
+      stardog.metricsEnabled: true
+    asserts:
+      - isAPIVersion:
+          of: monitoring.coreos.com/v1
+
+  - it: should scrape the correct port and path
+    set:
+      stardog.metricsEnabled: true
+      stardog.metricsPort: 5820
+      stardog.metricsPath: /metrics
+    asserts:
+      - equal:
+          path: spec.endpoints[0].port
+          value: http
+      - equal:
+          path: spec.endpoints[0].path
+          value: /metrics
+
+  - it: should configure scrape interval and timeout
+    set:
+      stardog.metricsEnabled: true
+      stardog.serviceMonitor.interval: 60s
+      stardog.serviceMonitor.scrapeTimeout: 15s
+    asserts:
+      - equal:
+          path: spec.endpoints[0].interval
+          value: 60s
+      - equal:
+          path: spec.endpoints[0].scrapeTimeout
+          value: 15s
+
+  - it: should target stardog pods by app label
+    set:
+      stardog.metricsEnabled: true
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: stardog
+
+  - it: should add custom labels
+    set:
+      stardog.metricsEnabled: true
+      stardog.serviceMonitor.labels:
+        prometheus: kube-prometheus
+    asserts:
+      - equal:
+          path: metadata.labels["prometheus"]
+          value: kube-prometheus

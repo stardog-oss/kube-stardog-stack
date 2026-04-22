@@ -1,0 +1,13 @@
+stardog:
+  metricsEnabled: true
+  metricsPort: 5820
+  metricsPath: /metrics
+  namespace: ""
+  serviceMonitor:
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+  prometheusRule:
+    enabled: true
+    labels: {}
+    heapUsageThreshold: "0.85"
