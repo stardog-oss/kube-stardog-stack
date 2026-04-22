@@ -72,3 +72,9 @@ Notes:
 | `37` | Verify baseline Stardog plus Launchpad install | `IT-037` | Confirm the basic umbrella install with Stardog and Launchpad still works without Gateway or ingress exposure. |
 | `38` | Verify baseline Voicebox without Bites | `IT-023-025-and-038` | Confirm the basic Voicebox-only install still works when Bites remains disabled. |
 | `39` | Verify no runtime regressions across successful scenarios | `IT-001-009`, `IT-010-017`, `IT-020-021`, `IT-022-and-036`, `IT-023-025-and-038`, `IT-026-027`, `IT-028-035`, `IT-037` | Run the post-install health sweep across the successful scenarios: no crash loops, no route attachment failures, and no certificate errors. |
+
+## Observability Tests
+
+| Test ID    | Values File                                      | What It Tests |
+|------------|--------------------------------------------------|---------------|
+| IT-OBS-001 | it-obs-001-observability-full.values.yaml        | Observability stack (Prometheus + Grafana + Loki + Alloy) deployed alongside Stardog; ServiceMonitor and PrometheusRule rendered |
