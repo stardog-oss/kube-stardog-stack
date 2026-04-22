@@ -1,0 +1,62 @@
+{
+  "title": "Stardog Logs",
+  "uid": "stardog-logs",
+  "version": 1,
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "links": [
+    { "title": "Stardog Overview", "url": "/d/stardog-overview", "type": "link", "icon": "external link", "targetBlank": false },
+    { "title": "All Logs",         "url": "/d/loki-logs",        "type": "link", "icon": "external link", "targetBlank": false }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "loki_datasource", "type": "datasource", "pluginId": "loki",
+        "label": "Loki", "hide": 0, "refresh": 1, "multi": false, "includeAll": false, "current": {}
+      },
+      {
+        "name": "namespace", "type": "query",
+        "datasource": { "type": "loki", "uid": "${loki_datasource}" },
+        "label": "Namespace", "query": "label_values(namespace)",
+        "refresh": 2, "sort": 1, "hide": 0, "multi": false, "includeAll": true, "allValue": ".*", "current": {}
+      },
+      {
+        "name": "pod", "type": "query",
+        "datasource": { "type": "loki", "uid": "${loki_datasource}" },
+        "label": "Pod",
+        "query": "label_values({app_kubernetes_io_name=\"stardog\", namespace=~\"$namespace\"}, pod)",
+        "refresh": 2, "sort": 1, "hide": 0, "multi": true, "includeAll": true, "allValue": ".*", "current": {}
+      },
+      {
+        "name": "container", "type": "query",
+        "datasource": { "type": "loki", "uid": "${loki_datasource}" },
+        "label": "Container",
+        "query": "label_values({app_kubernetes_io_name=\"stardog\", namespace=~\"$namespace\"}, container)",
+        "refresh": 2, "sort": 1, "hide": 0, "multi": true, "includeAll": true, "allValue": ".*", "current": {}
+      },
+      {
+        "name": "level", "type": "custom", "label": "Level",
+        "query": "ALL,DEBUG,INFO,WARN,ERROR",
+        "hide": 0, "multi": false, "includeAll": false,
+        "current": { "text": "ALL", "value": "ALL" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Log Volume",
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "loki", "uid": "${loki_datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 15 } } },
+      "targets": [{ "expr": "sum(count_over_time({app_kubernetes_io_name=\"stardog\", namespace=~\"$namespace\", pod=~\"$pod\"}[$__interval]))", "legendFormat": "log events", "datasource": { "type": "loki", "uid": "${loki_datasource}" } }]
+    },
+    {
+      "id": 2, "type": "logs", "title": "Log Stream",
+      "gridPos": { "h": 20, "w": 24, "x": 0, "y": 5 },
+      "datasource": { "type": "loki", "uid": "${loki_datasource}" },
+      "options": { "dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": false, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
+      "targets": [{ "expr": "{app_kubernetes_io_name=\"stardog\", namespace=~\"$namespace\", pod=~\"$pod\", container=~\"$container\"}", "legendFormat": "", "datasource": { "type": "loki", "uid": "${loki_datasource}" } }]
+    }
+  ]
+}
