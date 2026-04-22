@@ -108,3 +108,6 @@ global:
   # if you need more than one cache target, you can install additional cache target charts separately.
   cachetarget:
     enabled: false
+
+  observability:
+    enabled: false

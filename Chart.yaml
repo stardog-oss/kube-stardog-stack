@@ -40,6 +40,10 @@ dependencies:
   import-values:
     - child: global
       parent: global
+- condition: global.observability.enabled
+  name: observability
+  repository: file://charts/observability
+  version: 1.0.0
 description: Helm chart to deploy the complete Stardog ecosystem, including Stardog,
   Launchpad, and Voicebox
 home: https://stardog-union.github.io/kube-stardog-stack/

@@ -20,5 +20,8 @@ dependencies:
 - name: cachetarget
   repository: file://charts/cachetarget
   version: 1.0.2
-digest: sha256:34937fdeeaf22b94fbfc66c69632305a7a97dbd1488269278115b392617dc6e6
-generated: "2026-04-14T20:16:12.183456-04:00"
+- name: observability
+  repository: file://charts/observability
+  version: 1.0.0
+digest: sha256:29591f219188e4cd520ae45a42d9e79f6b328aa600ed84f867f9d66963046cab
+generated: "2026-04-22T19:06:20.593345-04:00"
