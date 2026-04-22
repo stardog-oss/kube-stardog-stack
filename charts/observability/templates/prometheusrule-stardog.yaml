@@ -1,0 +1,49 @@
+{{- if .Values.stardog.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "sdcommon.fullname" . }}-stardog
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "observability.labels" . | nindent 4 }}
+    {{- with .Values.stardog.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: stardog.rules
+      rules:
+        - alert: StardogDown
+          expr: up{app_kubernetes_io_name="stardog"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Stardog instance {{ "{{" }} $labels.instance {{ "}}" }} is down"
+            description: "Stardog has been unreachable for more than 5 minutes."
+
+        - alert: StardogHighHeapUsage
+          expr: |
+            stardog_jvm_heap_used_bytes / stardog_jvm_heap_max_bytes
+            > {{ .Values.stardog.prometheusRule.heapUsageThreshold }}
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Stardog heap usage is high on {{ "{{" }} $labels.instance {{ "}}" }}"
+            description: >-
+              Stardog JVM heap usage has exceeded
+              {{ .Values.stardog.prometheusRule.heapUsageThreshold | float64 | mulf 100 | ceil }}%
+              for more than 10 minutes.
+
+        - alert: StardogQueryLatencyHigh
+          expr: |
+            rate(stardog_query_response_time_ms_sum[5m])
+            / rate(stardog_query_response_time_ms_count[5m]) > 5000
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Stardog query latency is high on {{ "{{" }} $labels.instance {{ "}}" }}"
+            description: "Average query response time has exceeded 5000ms for 5 minutes."
+{{- end }}

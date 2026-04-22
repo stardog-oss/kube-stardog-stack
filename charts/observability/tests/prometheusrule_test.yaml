@@ -1,0 +1,49 @@
+suite: Validate Stardog PrometheusRule
+values:
+  - values/values-observability.yaml
+templates:
+  - prometheusrule-stardog.yaml
+
+tests:
+  - it: should not create PrometheusRule when disabled
+    set:
+      stardog.prometheusRule.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create PrometheusRule when enabled
+    set:
+      stardog.prometheusRule.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PrometheusRule
+      - isAPIVersion:
+          of: monitoring.coreos.com/v1
+
+  - it: should define at least one alert group
+    set:
+      stardog.prometheusRule.enabled: true
+    asserts:
+      - isNotEmpty:
+          path: spec.groups
+
+  - it: should include StardogDown alert
+    set:
+      stardog.prometheusRule.enabled: true
+    asserts:
+      - equal:
+          path: spec.groups[0].rules[0].alert
+          value: StardogDown
+
+  - it: should add custom labels to PrometheusRule
+    set:
+      stardog.prometheusRule.enabled: true
+      stardog.prometheusRule.labels:
+        release: kube-prometheus-stack
+    asserts:
+      - equal:
+          path: metadata.labels["release"]
+          value: kube-prometheus-stack
