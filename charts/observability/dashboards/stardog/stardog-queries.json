@@ -1,0 +1,63 @@
+{
+  "title": "Stardog Queries",
+  "uid": "stardog-queries",
+  "version": 1,
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "links": [
+    { "title": "Stardog Overview", "url": "/d/stardog-overview", "type": "link", "icon": "external link", "targetBlank": false },
+    { "title": "Stardog Logs",     "url": "/d/stardog-logs",     "type": "link", "icon": "external link", "targetBlank": false }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource", "type": "datasource", "pluginId": "prometheus",
+        "label": "Prometheus", "hide": 0, "refresh": 1, "multi": false, "includeAll": false, "current": {}
+      },
+      {
+        "name": "namespace", "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "label": "Namespace",
+        "query": { "query": "label_values(up{app_kubernetes_io_name=\"stardog\"}, namespace)", "refId": "StandardVariableQuery" },
+        "refresh": 2, "sort": 1, "hide": 0, "multi": false, "includeAll": true, "allValue": ".*", "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Query Latency — p50 / p95 / p99 (ms)",
+      "description": "Histogram quantiles of query response time",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, rate(stardog_query_response_time_ms_bucket{namespace=~\"$namespace\"}[5m]))", "legendFormat": "p50", "datasource": { "type": "prometheus", "uid": "${datasource}" } },
+        { "expr": "histogram_quantile(0.95, rate(stardog_query_response_time_ms_bucket{namespace=~\"$namespace\"}[5m]))", "legendFormat": "p95", "datasource": { "type": "prometheus", "uid": "${datasource}" } },
+        { "expr": "histogram_quantile(0.99, rate(stardog_query_response_time_ms_bucket{namespace=~\"$namespace\"}[5m]))", "legendFormat": "p99", "datasource": { "type": "prometheus", "uid": "${datasource}" } }
+      ]
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Queries per Second",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "targets": [{ "expr": "rate(stardog_query_response_time_ms_count{namespace=~\"$namespace\"}[5m])", "legendFormat": "{{pod}}", "datasource": { "type": "prometheus", "uid": "${datasource}" } }]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Query Error Rate",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 20 } } },
+      "targets": [{ "expr": "rate(stardog_query_failed_total{namespace=~\"$namespace\"}[5m])", "legendFormat": "errors/sec — {{pod}}", "datasource": { "type": "prometheus", "uid": "${datasource}" } }]
+    },
+    {
+      "id": 4, "type": "heatmap", "title": "Query Latency Heatmap",
+      "description": "Distribution of query latency over time",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "options": { "calculate": false, "yAxis": { "unit": "ms" } },
+      "targets": [{ "expr": "rate(stardog_query_response_time_ms_bucket{namespace=~\"$namespace\"}[5m])", "legendFormat": "{{le}}", "format": "heatmap", "datasource": { "type": "prometheus", "uid": "${datasource}" } }]
+    }
+  ]
+}
