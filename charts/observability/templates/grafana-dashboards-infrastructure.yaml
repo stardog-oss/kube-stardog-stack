@@ -1,0 +1,15 @@
+{{- $files := .Files.Glob "dashboards/infrastructure/*.json" }}
+{{- if $files }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sdcommon.fullname" . }}-dashboards-infrastructure
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "observability.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "Infrastructure"
+data:
+  {{ $files.AsConfig | nindent 2 }}
+{{- end }}
