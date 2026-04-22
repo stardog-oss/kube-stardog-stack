@@ -1,0 +1,83 @@
+suite: Validate Grafana Dashboard ConfigMaps
+values:
+  - values/values-observability.yaml
+
+tests:
+  # ── Stardog folder ────────────────────────────────────────────────────────
+  - it: should create Stardog dashboard ConfigMap
+    template: grafana-dashboards-stardog.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.labels["grafana_dashboard"]
+          value: "1"
+      - equal:
+          path: metadata.annotations["grafana_folder"]
+          value: Stardog
+      - isNotEmpty:
+          path: data["stardog-overview.json"]
+      - isNotEmpty:
+          path: data["stardog-queries.json"]
+
+  # ── Infrastructure folder ─────────────────────────────────────────────────
+  - it: should create Infrastructure dashboard ConfigMap
+    template: grafana-dashboards-infrastructure.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.labels["grafana_dashboard"]
+          value: "1"
+      - equal:
+          path: metadata.annotations["grafana_folder"]
+          value: Infrastructure
+      - isNotEmpty:
+          path: data["jvm-overview.json"]
+
+  # ── Logs & Pipelines folder ───────────────────────────────────────────────
+  - it: should create Logs dashboard ConfigMap
+    template: grafana-dashboards-logs.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.labels["grafana_dashboard"]
+          value: "1"
+      - equal:
+          path: metadata.annotations["grafana_folder"]
+          value: "Logs & Pipelines"
+      - isNotEmpty:
+          path: data["loki-logs.json"]
+      - isNotEmpty:
+          path: data["stardog-logs.json"]
+      - isNotEmpty:
+          path: data["launchpad-logs.json"]
+      - isNotEmpty:
+          path: data["voicebox-logs.json"]
+      - isNotEmpty:
+          path: data["alloy-pipeline.json"]
+
+  # ── Datasource variable sanity check ─────────────────────────────────────
+  - it: stardog-overview.json should reference datasource variable not hardcoded UID
+    template: grafana-dashboards-stardog.yaml
+    asserts:
+      - matchRegex:
+          path: data["stardog-overview.json"]
+          pattern: '\$\{datasource\}'
+      - notMatchRegex:
+          path: data["stardog-overview.json"]
+          pattern: '"uid":\s*"[a-zA-Z0-9]{8,}"'
+
+  - it: stardog-logs.json should reference loki_datasource variable
+    template: grafana-dashboards-logs.yaml
+    asserts:
+      - matchRegex:
+          path: data["stardog-logs.json"]
+          pattern: '\$\{loki_datasource\}'
