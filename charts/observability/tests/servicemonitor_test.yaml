@@ -1,4 +1,7 @@
 suite: Validate Stardog ServiceMonitor
+capabilities:
+  apiVersions:
+    - monitoring.coreos.com/v1
 values:
   - values/values-observability.yaml
 templates:
@@ -32,14 +35,14 @@ tests:
     set:
       stardog.metricsEnabled: true
       stardog.metricsPort: 5820
-      stardog.metricsPath: /metrics
+      stardog.metricsPath: /admin/status/prometheus
     asserts:
       - equal:
           path: spec.endpoints[0].port
           value: http
       - equal:
           path: spec.endpoints[0].path
-          value: /metrics
+          value: /admin/status/prometheus
 
   - it: should configure scrape interval and timeout
     set:

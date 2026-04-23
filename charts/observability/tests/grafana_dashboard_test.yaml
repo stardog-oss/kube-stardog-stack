@@ -21,6 +21,8 @@ tests:
           path: data["stardog-overview.json"]
       - isNotEmpty:
           path: data["stardog-queries.json"]
+      - isNotEmpty:
+          path: data["stardog-databases.json"]
 
   # ── Infrastructure folder ─────────────────────────────────────────────────
   - it: should create Infrastructure dashboard ConfigMap

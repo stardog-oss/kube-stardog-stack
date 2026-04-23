@@ -1,4 +1,7 @@
 suite: Validate Stardog PrometheusRule
+capabilities:
+  apiVersions:
+    - monitoring.coreos.com/v1
 values:
   - values/values-observability.yaml
 templates:

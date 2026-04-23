@@ -1,7 +1,7 @@
 stardog:
   metricsEnabled: true
   metricsPort: 5820
-  metricsPath: /metrics
+  metricsPath: /admin/status/prometheus
   namespace: ""
   serviceMonitor:
     interval: 30s
