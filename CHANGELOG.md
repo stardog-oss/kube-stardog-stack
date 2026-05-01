@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.1
+- Prevent no-op Helm upgrades from restarting Stardog, Launchpad, and Voicebox pods by replacing unstable rollout checksums with deterministic checksums.
+- Preserve intended rollouts when chart-managed ConfigMaps or consumed Secret inputs change for the affected subchart.
+- Update bundled subcharts:
+  - Stardog: 4.0.3
+  - Launchpad: 1.0.3
+  - Voicebox: 1.1.1
+
 ## 1.1.0
 - Add umbrella-level external shared Gateway mode via `global.gateway.createGateway=false`.
 - Update release automation and validation for release and hotfix branches, release tags, and release process documentation.

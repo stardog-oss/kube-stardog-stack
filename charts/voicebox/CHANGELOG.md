@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1
+- Use deterministic pod-template checksums for chart-managed ConfigMaps and Secrets so no-op Helm upgrades do not restart Voicebox pods.
+- Restart Voicebox pods when chart-managed Voicebox configuration or image pull Secret inputs change.
+
 ## 1.1.0
 - Add Bites Service support. 
 - Use default port for voicebox.

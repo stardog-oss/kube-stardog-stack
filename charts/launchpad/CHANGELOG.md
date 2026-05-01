@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.3
+- Use deterministic pod-template checksums for Launchpad consumed Secret inputs so no-op Helm upgrades do not restart pods.
+- Restart Launchpad pods when chart-managed cookie or image pull Secret inputs change.
+
 ## 1.0.2
 - Standardized Voicebox port.
 - Add support for reusing an umbrella-level external shared Gateway via `global.gateway.*`.

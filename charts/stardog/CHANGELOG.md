@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.3
+- Use deterministic pod-template checksums for chart-managed ConfigMaps and Secrets so no-op Helm upgrades do not restart Stardog pods.
+- Restart Stardog pods when chart-managed Stardog configuration or consumed Secret inputs change.
+
 ## 4.0.2
 - Gated Upgrade
   - Add `upgrade.approval.targetVersion` as a version-scoped replacement for setting `upgrade.automatic` directly in `stardogProperties`.

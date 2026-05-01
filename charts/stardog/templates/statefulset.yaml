@@ -41,8 +41,8 @@ spec:
         stardog.com/deployname: {{ .Release.Name }}
         stardog.com/resource-type: cluster-node
       annotations:
-        checksum/config: {{ include "stardog.configmapChecksum" . | default (randAlphaNum 8) }}
-        checksum/secret: {{ include "stardog.secretChecksum" . | default (randAlphaNum 8) }}
+        checksum/config: {{ include "stardog.configmapChecksum" . }}
+        checksum/secret: {{ include "stardog.secretChecksum" . }}
     spec:
       serviceAccountName: {{ include "stardog.serviceAccountName" . }}
       {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" "stardog-license" "namespace" .Release.Namespace) }}

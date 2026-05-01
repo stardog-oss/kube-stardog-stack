@@ -23,15 +23,20 @@
 {{- end -}}
 
 {{- define "voicebox.configmapChecksum" -}}
-{{- $cm := (lookup "v1" "ConfigMap" .Release.Namespace (include "sdcommon.fullname" . ) ) }}
-{{- if $cm }}
-{{- $cm | toYaml | sha256sum }}
-{{- end }}
+{{- $payload := dict
+  "configFile" .Values.configFile
+  "bitesEnabled" .Values.bitesService.enabled
+  "bitesImage" .Values.bitesService.image
+  "bitesSparkApplication" .Values.bitesService.sparkApplication
+  "serviceAccountName" (.Values.serviceAccountName | default "voicebox")
+-}}
+{{- $payload | toJson | sha256sum -}}
 {{- end }}
 
 {{- define "voicebox.secretChecksum" -}}
-{{- $secret := (lookup "v1" "Secret" .Release.Namespace (printf "%s-voicebox-image-pull-secret" .Release.Name ) ) }}
-{{- if $secret }}
-{{- $secret | toYaml | sha256sum }}
-{{- end }}
+{{- $payload := dict -}}
+{{- if and (hasKey .Values "image") .Values.image.username .Values.image.password -}}
+  {{- $_ := set $payload "imagePullSecret" (include "voiceboximagePullSecret" .) -}}
+{{- end -}}
+{{- $payload | toJson | sha256sum -}}
 {{- end }}
