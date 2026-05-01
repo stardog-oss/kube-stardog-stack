@@ -10,9 +10,8 @@
 
 ./doc/private-notes
 doc/private-notes/*
+
 .debug
 
 package/*
 .helm-hook/
-CLAUDE.md
-/docs/values
