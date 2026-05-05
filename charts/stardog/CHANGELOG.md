@@ -6,8 +6,13 @@
   - Inject `upgrade.automatic=true` only when `upgrade.approval.targetVersion` exactly matches `image.tag`; mismatched or empty approval values do not inject it.
   - Fail chart rendering when `upgrade.automatic` is set directly in `stardogProperties`.
 - Stardog properties default update.
-  - Removed pack.node.join.retry.count=15,  default 20
-  - Removed pack.node.join.retry.delay=1m,  defualt 3s
+  - Previous chart versions overrode Stardog defaults with `pack.node.join.retry.count=15` and `pack.node.join.retry.delay=1m`.
+  - These chart-level overrides have been removed so Stardog uses its own defaults.
+  - To preserve the previous chart behavior after upgrading, add the following entries to `stardogProperties` in your values file:
+    ```properties
+    pack.node.join.retry.count=15
+    pack.node.join.retry.delay=1m
+    ```
 - Add support for umbrella-managed external shared Gateway references via `global.gateway.*`.
 - Auto-populate shared HTTPS, HTTP redirect, and BI TCP listener `parentRefs` from umbrella values.
 
