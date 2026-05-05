@@ -94,8 +94,8 @@ spec:
         stardog.com/deployname: {{ .Release.Name }}-launchpad
         stardog.com/resource-type: stardog-apps
       annotations:
-        checksum/config: {{ include "launchpad.configmapChecksum" . | default (randAlphaNum 8) }}
-        checksum/secret: {{ include "launchpad.secretChecksum" . | default (randAlphaNum 8) }}
+        checksum/config: {{ include "launchpad.configmapChecksum" . }}
+        checksum/secret: {{ include "launchpad.secretChecksum" . }}
     spec:
       {{- /* single imagePullSecrets block (avoid duplicates) */ -}}
       {{- if and (hasKey .Values "image") .Values.image.pullSecrets }}

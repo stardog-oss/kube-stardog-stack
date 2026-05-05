@@ -90,6 +90,15 @@ tests:
         path: metadata.labels["app.kubernetes.io/instance"]
         value: "RELEASE-NAME"
 
+- it: has stable rollout checksums for mounted config and secrets
+  asserts:
+    - matchRegex:
+        path: spec.template.metadata.annotations["checksum/config"]
+        pattern: "^[a-f0-9]{64}$"
+    - matchRegex:
+        path: spec.template.metadata.annotations["checksum/secret"]
+        pattern: "^[a-f0-9]{64}$"
+
 - it: enables SPARQL TLS when configured
   set:
     tls:

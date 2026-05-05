@@ -10,6 +10,7 @@
 
 ./doc/private-notes
 doc/private-notes/*
+
 .debug
 
 package/*

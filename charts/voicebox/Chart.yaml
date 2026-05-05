@@ -8,7 +8,7 @@ maintainers:
   name: Stardog Open-Source Community
   url: https://www.stardog.com
 name: voicebox
-version: 1.1.0
+version: 1.1.1
 dependencies:
 - name: common
   version: 0.1.6

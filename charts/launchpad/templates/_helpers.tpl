@@ -106,17 +106,18 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 
 {{- define "launchpad.configmapChecksum" -}}
-{{- $cm := (lookup "v1" "ConfigMap" .Release.Namespace (include "sdcommon.fullname" . ) ) }}
-{{- if $cm }}
-{{- $cm | toYaml | sha256sum }}
-{{- end }}
+{{- dict | toJson | sha256sum -}}
 {{- end }}
 
 {{- define "launchpad.secretChecksum" -}}
-{{- if and (hasKey .Values "image") .Values.image.username .Values.image.password  -}}
-  {{- $secret := (lookup "v1" "Secret" .Release.Namespace (include "sdcommon.fullname" . )) -}}
-  {{- if $secret -}}
-    {{- $secret | toYaml | sha256sum -}}
-  {{- end -}}
+{{- $payload := dict -}}
+{{- $env := default (dict) .Values.env -}}
+{{- $cookie := default "" (get $env "COOKIE_SECRET") -}}
+{{- if ne $cookie "" -}}
+  {{- $_ := set $payload "cookieSecret" $cookie -}}
 {{- end -}}
+{{- if and (hasKey .Values "image") .Values.image.username .Values.image.password -}}
+  {{- $_ := set $payload "imagePullSecret" (include "launchpadimagePullSecret" .) -}}
+{{- end -}}
+{{- $payload | toJson | sha256sum -}}
 {{- end -}}

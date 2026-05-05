@@ -11,7 +11,7 @@ dependencies:
 - condition: global.stardog.enabled
   name: stardog
   repository: file://charts/stardog
-  version: 4.0.2
+  version: 4.0.3
   import-values:
     - child: global
       parent: global
@@ -22,14 +22,14 @@ dependencies:
 - condition: global.launchpad.enabled
   name: launchpad
   repository: file://charts/launchpad
-  version: 1.0.2
+  version: 1.0.3
   import-values:
     - child: global
       parent: global
 - condition: global.voicebox.enabled
   name: voicebox
   repository: file://charts/voicebox
-  version: 1.1.0
+  version: 1.1.1
   import-values:
     - child: global
       parent: global
@@ -49,4 +49,4 @@ maintainers:
   name: Stardog Open-Source Community
   url: https://www.stardog.com
 name: kube-stardog-stack
-version: 1.1.0
+version: 1.1.1

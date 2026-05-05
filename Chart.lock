@@ -7,18 +7,18 @@ dependencies:
   version: 1.0.2
 - name: stardog
   repository: file://charts/stardog
-  version: 4.0.2
+  version: 4.0.3
 - name: zookeeper
   repository: file://charts/zookeeper
   version: 1.0.2
 - name: launchpad
   repository: file://charts/launchpad
-  version: 1.0.2
+  version: 1.0.3
 - name: voicebox
   repository: file://charts/voicebox
-  version: 1.1.0
+  version: 1.1.1
 - name: cachetarget
   repository: file://charts/cachetarget
   version: 1.0.2
-digest: sha256:34937fdeeaf22b94fbfc66c69632305a7a97dbd1488269278115b392617dc6e6
-generated: "2026-04-14T20:16:12.183456-04:00"
+digest: sha256:427d32c120a5c87c3866bacf7cb302b3b7482b805e573e5228f6c3c58e03d0a2
+generated: "2026-05-01T17:19:30.879753-04:00"

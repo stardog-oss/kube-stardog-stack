@@ -449,17 +449,27 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{- define "stardog.configmapChecksum" -}}
-{{- $cm := (lookup "v1" "ConfigMap" .Release.Namespace (include "sdcommon.fullname" . ) ) }}
-{{- if $cm }}
-{{- $cm | toYaml | sha256sum }}
-{{- end }}
+{{- $payload := dict
+  "log4jConfig" .Values.log4jConfig
+  "defaultLog4j" (.Files.Get "files/log4j2.xml")
+  "defaultProperties" (.Files.Get "files/stardog.properties")
+  "clusterEnabled" .Values.cluster.enabled
+  "zookeeperService" (include "stardog.zookeeperService" . | trim)
+  "jwtConfig" .Values.jwtConfig
+  "biEnabled" (include "stardog.effectiveBiEnabled" .)
+  "sparqlTlsEnabled" (include "stardog.sparqlTlsEnabled" .)
+  "truststoreEnabled" (or .Values.tls.truststore.enabled (eq (include "stardog.biTlsEnabled" .) "true"))
+  "tls" .Values.tls
+  "upgradeProperties" (include "stardog.upgradeProperties" . | trim)
+  "stardogProperties" .Values.stardogProperties
+-}}
+{{- $payload | toJson | sha256sum -}}
 {{- end }}
 
 {{- define "stardog.secretChecksum" -}}
-{{- if or (and (hasKey .Values "image") .Values.image.username .Values.image.password) .Values.backup.enabled -}}
-  {{- $secret := (lookup "v1" "Secret" .Release.Namespace (include "sdcommon.fullname" . )) -}}
-  {{- if $secret -}}
-    {{- $secret | toYaml | sha256sum -}}
-  {{- end -}}
+{{- $payload := dict "adminPassword" .Values.admin.password -}}
+{{- if and (hasKey .Values "image") .Values.image.username .Values.image.password -}}
+  {{- $_ := set $payload "imagePullSecret" (include "imagePullSecret" .) -}}
 {{- end -}}
+{{- $payload | toJson | sha256sum -}}
 {{- end -}}
