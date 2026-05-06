@@ -3,7 +3,7 @@ entries:
   cachetarget:
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.355649593Z"
+    created: "2026-05-06T14:03:35.384472015Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -22,7 +22,7 @@ entries:
     version: 1.0.2
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.354317318Z"
+    created: "2026-05-06T14:03:35.383629033Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -41,7 +41,7 @@ entries:
     version: 1.0.1
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.353098131Z"
+    created: "2026-05-06T14:03:35.382755635Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -61,7 +61,7 @@ entries:
   gateway:
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.356918134Z"
+    created: "2026-05-06T14:03:35.385653007Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -80,7 +80,7 @@ entries:
     version: 1.0.2
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.35645525Z"
+    created: "2026-05-06T14:03:35.38522024Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -99,7 +99,7 @@ entries:
     version: 1.0.1
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.35607105Z"
+    created: "2026-05-06T14:03:35.384845501Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -119,7 +119,63 @@ entries:
   kube-stardog-stack:
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.39291978Z"
+    created: "2026-05-06T14:03:35.426810232Z"
+    dependencies:
+    - name: common
+      repository: file://charts/common
+      version: 0.1.6
+    - condition: global.gateway.enabled
+      name: gateway
+      repository: file://charts/gateway
+      version: 1.0.2
+    - condition: global.stardog.enabled
+      import-values:
+      - child: global
+        parent: global
+      name: stardog
+      repository: file://charts/stardog
+      version: 4.0.3
+    - condition: global.zookeeper.enabled
+      name: zookeeper
+      repository: file://charts/zookeeper
+      version: 1.0.2
+    - condition: global.launchpad.enabled
+      import-values:
+      - child: global
+        parent: global
+      name: launchpad
+      repository: file://charts/launchpad
+      version: 1.0.3
+    - condition: global.voicebox.enabled
+      import-values:
+      - child: global
+        parent: global
+      name: voicebox
+      repository: file://charts/voicebox
+      version: 1.1.1
+    - condition: global.cachetarget.enabled
+      import-values:
+      - child: global
+        parent: global
+      name: cachetarget
+      repository: file://charts/cachetarget
+      version: 1.0.2
+    description: Helm chart to deploy the complete Stardog ecosystem, including Stardog,
+      Launchpad, and Voicebox
+    digest: e045c9fffbd0787aae573dde07f055687bf1f69be469397558410e9e49810e17
+    home: https://stardog-union.github.io/kube-stardog-stack/
+    icon: https://stardog-oss.github.io/kube-stardog-stack/stardog_open_source.png
+    maintainers:
+    - email: oss@stardog.com
+      name: Stardog Open-Source Community
+      url: https://www.stardog.com
+    name: kube-stardog-stack
+    urls:
+    - https://stardog-oss.github.io/kube-stardog-stack/kube-stardog-stack-1.1.1.tgz
+    version: 1.1.1
+  - apiVersion: v2
+    appVersion: latest
+    created: "2026-05-06T14:03:35.420083363Z"
     dependencies:
     - name: common
       repository: file://charts/common
@@ -175,7 +231,7 @@ entries:
     version: 1.1.0
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.386082147Z"
+    created: "2026-05-06T14:03:35.414158847Z"
     dependencies:
     - name: common
       repository: file://charts/common
@@ -231,7 +287,7 @@ entries:
     version: 1.0.4
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.380386956Z"
+    created: "2026-05-06T14:03:35.408230542Z"
     dependencies:
     - name: common
       repository: file://charts/common
@@ -287,7 +343,7 @@ entries:
     version: 1.0.3
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.363666633Z"
+    created: "2026-05-06T14:03:35.391859631Z"
     dependencies:
     - name: common
       repository: file://charts/common
@@ -344,7 +400,26 @@ entries:
   launchpad:
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.397140099Z"
+    created: "2026-05-06T14:03:35.432372996Z"
+    dependencies:
+    - name: common
+      repository: file://../common
+      version: 0.1.6
+    description: Helm chart to deploy Stardog Launchpad
+    digest: 6d3975ffdd89cd751909c6de6dc4a3ebd625001e24db49a956ce5f8157d26224
+    home: https://stardog-union.github.io/kube-stardog-stack/
+    icon: https://s3.amazonaws.com/stardog-logos.public/stardog-logo.png
+    maintainers:
+    - email: oss@stardog.com
+      name: Stardog Open-Source Community
+      url: https://www.stardog.com
+    name: launchpad
+    urls:
+    - https://stardog-oss.github.io/kube-stardog-stack/launchpad-1.0.3.tgz
+    version: 1.0.3
+  - apiVersion: v2
+    appVersion: latest
+    created: "2026-05-06T14:03:35.431269379Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -363,7 +438,7 @@ entries:
     version: 1.0.2
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.395062171Z"
+    created: "2026-05-06T14:03:35.430134232Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -382,7 +457,7 @@ entries:
     version: 1.0.1
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.394006108Z"
+    created: "2026-05-06T14:03:35.428802299Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -402,7 +477,26 @@ entries:
   stardog:
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.403248359Z"
+    created: "2026-05-06T14:03:35.441100075Z"
+    dependencies:
+    - name: common
+      repository: file://../common
+      version: 0.1.6
+    description: Helm chart to deploy Stardog Cluster and associated services
+    digest: 1517b0123ed03e3a2849a120221a0556526e2910fc6e94686d7e43ed3b31e247
+    home: https://stardog-union.github.io/kube-stardog-stack/
+    icon: https://s3.amazonaws.com/stardog-logos.public/stardog-logo.png
+    maintainers:
+    - email: oss@stardog.com
+      name: Stardog Open-Source Community
+      url: https://www.stardog.com
+    name: stardog
+    urls:
+    - https://stardog-oss.github.io/kube-stardog-stack/stardog-4.0.3.tgz
+    version: 4.0.3
+  - apiVersion: v2
+    appVersion: latest
+    created: "2026-05-06T14:03:35.439057647Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -421,7 +515,7 @@ entries:
     version: 4.0.2
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.401236894Z"
+    created: "2026-05-06T14:03:35.437011452Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -440,7 +534,7 @@ entries:
     version: 4.0.1
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.399093381Z"
+    created: "2026-05-06T14:03:35.434648435Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -460,7 +554,26 @@ entries:
   voicebox:
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.406305936Z"
+    created: "2026-05-06T14:03:35.44496325Z"
+    dependencies:
+    - name: common
+      repository: file://../common
+      version: 0.1.6
+    description: Helm chart to deploy Stardog Voicebox service
+    digest: f5b0795959d3bf3b3f26a54b093d1fd95c5f25a9e0b1c2ea3b8c4e5c61463138
+    home: https://stardog-union.github.io/kube-stardog-stack/
+    icon: https://s3.amazonaws.com/stardog-logos.public/stardog-logo.png
+    maintainers:
+    - email: oss@stardog.com
+      name: Stardog Open-Source Community
+      url: https://www.stardog.com
+    name: voicebox
+    urls:
+    - https://stardog-oss.github.io/kube-stardog-stack/voicebox-1.1.1.tgz
+    version: 1.1.1
+  - apiVersion: v2
+    appVersion: latest
+    created: "2026-05-06T14:03:35.444060747Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -479,7 +592,7 @@ entries:
     version: 1.1.0
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.405325792Z"
+    created: "2026-05-06T14:03:35.443132476Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -498,7 +611,7 @@ entries:
     version: 1.0.1
   - apiVersion: v2
     appVersion: latest
-    created: "2026-04-15T21:09:50.404693882Z"
+    created: "2026-05-06T14:03:35.442191412Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -518,7 +631,7 @@ entries:
   zookeeper:
   - apiVersion: v2
     appVersion: 3.9.4
-    created: "2026-04-15T21:09:50.409737651Z"
+    created: "2026-05-06T14:03:35.449341122Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -537,7 +650,7 @@ entries:
     version: 1.0.2
   - apiVersion: v2
     appVersion: 3.9.4
-    created: "2026-04-15T21:09:50.408591158Z"
+    created: "2026-05-06T14:03:35.447189019Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -556,7 +669,7 @@ entries:
     version: 1.0.1
   - apiVersion: v2
     appVersion: 3.9.4
-    created: "2026-04-15T21:09:50.40748068Z"
+    created: "2026-05-06T14:03:35.446070464Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -573,4 +686,4 @@ entries:
     urls:
     - https://stardog-oss.github.io/kube-stardog-stack/zookeeper-1.0.0.tgz
     version: 1.0.0
-generated: "2026-04-15T21:09:50.352046487Z"
+generated: "2026-05-06T14:03:35.38170687Z"
