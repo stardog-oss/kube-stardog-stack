@@ -9,6 +9,7 @@ The first set of articles was migrated from the Stardog Support knowledge base f
 - [Run a server backup](run-server-backup.md)
 - [Run a server restore](run-server-restore.md)
 - [Run a server restore from S3](run-server-restore-from-s3.md)
+- [Run a transaction log export](run-transaction-log-export.md)
 - [Can we use Kubernetes VolumeSnapshot or PVC `dataSource` for Stardog restore?](use-kubernetes-volumesnapshot-for-stardog-restore.md)
 
 ## Troubleshooting
