@@ -2,7 +2,7 @@
 
 Server restore is a recovery workflow. Do not delete production PVCs until you have a verified backup and an approved recovery plan.
 
-For S3 restores, see [Run a server restore from S3](server-restore-from-s3.md).
+For S3 restores, see [Run a server restore from S3](run-server-restore-from-s3.md).
 
 ## Prerequisites
 
@@ -13,9 +13,7 @@ For S3 restores, see [Run a server restore from S3](server-restore-from-s3.md).
 
 ## Save the Existing PVC Definitions
 
-Before deleting any data PVC, export sanitized copies of the PVC definitions. This preserves the current PVC name, storage class, access mode, size, and labels, and avoids manually rebuilding those values later.
-
-For a Stardog cluster, save each Stardog data PVC:
+Before deleting data PVCs, export sanitized copies of the Stardog data PVC definitions. This preserves the current PVC names, storage class, access mode, size, and labels, and avoids manually rebuilding those values later.
 
 ```bash
 for i in 0 1 2; do
@@ -36,28 +34,9 @@ done
 
 If your release or namespace is different, replace the PVC names and namespace.
 
-Do the same for ZooKeeper if you intend to recreate ZooKeeper PVCs:
+The backup PVC is the source for the restore pod. The recreated Stardog data PVC is the destination that `stardog-admin server restore` repopulates.
 
-```bash
-for i in 0 1 2; do
-  kubectl get pvc data-zookeeper-sd-stack-${i} -n stardog -o yaml \
-    | yq 'del(
-        .metadata.annotations."kubectl.kubernetes.io/last-applied-configuration",
-        .metadata.creationTimestamp,
-        .metadata.finalizers,
-        .metadata.resourceVersion,
-        .metadata.uid,
-        .metadata.managedFields,
-        .status,
-        .spec.volumeName
-      )' \
-    > data-zookeeper-sd-stack-${i}.restore.yaml
-done
-```
-
-Do not add `dataSource` when restoring from a Stardog server backup stored on a backup PVC. The backup PVC contains backup files; it is mounted into the restore pod. The Stardog data PVC is recreated as an empty volume with the same shape, and `stardog-admin server restore` writes the restored server data into it.
-
-Use `dataSource` only when recreating a PVC directly from a Kubernetes `VolumeSnapshot` or PVC clone.
+ZooKeeper PVCs are intentionally deleted and recreated by the ZooKeeper StatefulSet. Do not restore old ZooKeeper PVC data as part of this workflow.
 
 ## Scale Stardog and ZooKeeper Down
 
@@ -69,6 +48,14 @@ kubectl scale statefulset zookeeper-sd-stack --replicas=0 -n stardog
 ## Delete Existing Data PVCs
 
 Only do this after confirming the backup is usable.
+
+Before deleting PVCs, check the reclaim policy for the Stardog data storage class:
+
+```bash
+kubectl get storageclass default -o jsonpath='{.reclaimPolicy}{"\n"}'
+```
+
+If the reclaim policy is `Retain`, follow [Delete a PV with `Retain` reclaim policy](delete-retained-pv.md) before recreating the PVCs. Otherwise, the new PVCs may rebind to old retained PVs instead of getting fresh empty volumes.
 
 ```bash
 kubectl delete pvc -n stardog \
@@ -82,24 +69,27 @@ kubectl delete pvc -n stardog \
 
 ## Recreate Empty Data PVCs
 
-Apply the sanitized PVC definitions you saved earlier:
+Apply the sanitized Stardog PVC definitions you saved earlier:
 
 ```bash
-kubectl apply -f stardog-data-stardog-sd-stack-0.restore.yaml -n stardog
-kubectl apply -f data-zookeeper-sd-stack-0.restore.yaml -n stardog
+for i in 0 1 2; do
+  kubectl apply -f stardog-data-stardog-sd-stack-${i}.restore.yaml -n stardog
+done
 ```
 
-For server restore, Stardog starts from one restored data PVC first. ZooKeeper also starts fresh. The remaining Stardog data PVCs can be recreated by applying their saved manifests before scaling the cluster back up, or allowed to be recreated by the StatefulSet if the chart owns the volume claim templates.
+Stardog can replicate restored data between nodes after startup, but restoring all three Stardog data PVCs before restarting the cluster can reduce the time needed to return the cluster to a healthy state. ZooKeeper starts fresh and its PVCs are recreated by the ZooKeeper StatefulSet.
 
-## Run a Restore Pod
+## Run Restore Pods
 
-Use a temporary pod that mounts the restored Stardog home PVC, the backup volume, and the license secret.
+Run one temporary restore pod per Stardog data PVC. Each pod mounts one fresh Stardog home PVC, the backup volume, and the license secret.
 
-```yaml
+```bash
+for i in 0 1 2; do
+  cat <<EOF | kubectl apply -n stardog -f -
 apiVersion: v1
 kind: Pod
 metadata:
-  name: stardog-restore-runner
+  name: stardog-restore-runner-${i}
 spec:
   securityContext:
     runAsUser: 1000
@@ -124,7 +114,7 @@ spec:
           find /var/opt/stardog ! -name 'stardog-license-key.bin' -mindepth 1 -delete
           /opt/stardog/bin/stardog-admin server restore \
             -u <username> \
-            -p "${STARDOG_PASSWORD}" \
+            -p "\${STARDOG_PASSWORD}" \
             -- /backup/stardog_backup
           echo "[INFO] Restore complete!"
           tail -f /dev/null
@@ -139,7 +129,7 @@ spec:
   volumes:
     - name: stardog-home
       persistentVolumeClaim:
-        claimName: stardog-data-stardog-sd-stack-0
+        claimName: stardog-data-stardog-sd-stack-${i}
     - name: stardog-backup
       persistentVolumeClaim:
         claimName: stardog-backup-output
@@ -147,23 +137,34 @@ spec:
       secret:
         secretName: stardog-license
   restartPolicy: Never
+EOF
+done
 ```
 
 Monitor logs:
 
 ```bash
-kubectl logs stardog-restore-runner -n stardog
+for i in 0 1 2; do
+  kubectl logs -f stardog-restore-runner-${i} -n stardog
+done
 ```
 
-Delete the restore pod after the restore completes.
+Delete the restore pods after the restore completes:
+
+```bash
+kubectl delete pod -n stardog \
+  stardog-restore-runner-0 \
+  stardog-restore-runner-1 \
+  stardog-restore-runner-2
+```
 
 ## Scale Back Up
 
-Scale ZooKeeper first, then Stardog one pod at a time:
+Scale ZooKeeper first, then Stardog:
 
 ```bash
 kubectl scale statefulset zookeeper-sd-stack --replicas=3 -n stardog
-kubectl scale statefulset stardog-sd-stack --replicas=1 -n stardog
+kubectl scale statefulset stardog-sd-stack --replicas=3 -n stardog
 ```
 
-After the first Stardog pod is healthy, continue scaling until you reach the desired replica count. Large datasets may take significant time to synchronize.
+Because each Stardog data PVC was restored before startup, the cluster should require less catch-up replication than a single-node restore followed by scale-out. Still validate each pod before reopening traffic.

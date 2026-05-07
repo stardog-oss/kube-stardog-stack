@@ -1,6 +1,6 @@
 # Run a Server Restore from S3
 
-Use this workflow when the server backup is stored in S3. If the backup is stored on a Kubernetes volume or snapshot, see [Run a server restore](server-restore.md).
+Use this workflow when the server backup is stored in S3. If the backup is stored on a Kubernetes volume or snapshot, see [Run a server restore](run-server-restore.md).
 
 ## Prerequisites
 

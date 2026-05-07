@@ -22,8 +22,8 @@ Restoring one PVC, or even a set of PVCs, does not run Stardog restore logic and
 
 Use one of the documented Stardog restore workflows:
 
-- [Run a server restore](server-restore.md) for backups stored on a mounted backup volume.
-- [Run a server restore from S3](server-restore-from-s3.md) for backups stored in S3.
+- [Run a server restore](run-server-restore.md) for backups stored on a mounted backup volume.
+- [Run a server restore from S3](run-server-restore-from-s3.md) for backups stored in S3.
 
 If your organization has a storage-level disaster recovery process based on snapshots, validate it separately with Stardog Support before relying on it. Do not treat it as equivalent to Stardog server restore.
 

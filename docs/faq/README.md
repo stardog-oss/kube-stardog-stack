@@ -6,10 +6,10 @@ The first set of articles was migrated from the Stardog Support knowledge base f
 
 ## Backup and Restore
 
-- [Run a server backup](server-backup.md)
-- [Run a server restore](server-restore.md)
-- [Run a server restore from S3](server-restore-from-s3.md)
-- [Can we use Kubernetes VolumeSnapshot or PVC `dataSource` for Stardog restore?](restore-from-kubernetes-volumesnapshot.md)
+- [Run a server backup](run-server-backup.md)
+- [Run a server restore](run-server-restore.md)
+- [Run a server restore from S3](run-server-restore-from-s3.md)
+- [Can we use Kubernetes VolumeSnapshot or PVC `dataSource` for Stardog restore?](use-kubernetes-volumesnapshot-for-stardog-restore.md)
 
 ## Troubleshooting
 
@@ -23,6 +23,7 @@ The first set of articles was migrated from the Stardog Support knowledge base f
 
 ## Other
 
+- [Delete a PV with `Retain` reclaim policy](delete-retained-pv.md)
 - [Set the time zone in Kubernetes pods](set-time-zone-in-kubernetes-pods.md)
 - [Resize a PVC](resize-a-pvc.md)
 - [Push an image to your own container registry](push-image-to-private-registry.md)
