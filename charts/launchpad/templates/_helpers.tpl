@@ -93,12 +93,12 @@ Create launchpad host
 {{- default (printf "%s-certissuer-lp" .Release.Name) .Values.certIssuer.name -}}
 {{- end }}
 
-{{- define "certIssuer.privateKeySecretName" -}}
+{{- define "certIssuer.privateKeySecretName.lp" -}}
 {{- $issuer := (include "sdcommon.effectiveCertIssuer" . | fromYaml) -}}
 {{- default (printf "%s-account-key" (include "certIssuer.name.lp" .)) $issuer.acme.privateKeySecretName -}}
 {{- end -}}
 
-{{- define "certIssuer.labels" -}}
+{{- define "certIssuer.labels.lp" -}}
 app.kubernetes.io/name: {{ include "certIssuer.name.lp" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{ include "sdcommon.labels.component" . }}

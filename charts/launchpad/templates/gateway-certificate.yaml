@@ -4,7 +4,14 @@
 {{- $globalGateway := default (dict) (index $globalValues "gateway") -}}
 {{- $globalTls := default (dict) (index $globalGateway "tls") -}}
 {{- $globalTlsEnabled := default true (index $globalTls "enabled") -}}
-{{- $tlsEnabled := or (default false .Values.gateway.http.tls.enabled) (and $globalGatewayManaged $globalTlsEnabled) -}}
+{{- $globalGatewayExternal := eq (include "sdcommon.globalGatewayExternal" .) "true" -}}
+{{- $globalIssuer := default (dict) (index $globalValues "certIssuer") -}}
+{{- $globalCertSecret := trim (default "" (index $globalIssuer "secretName")) -}}
+{{- $globalCertTpl := trim (default "" (index $globalIssuer "secretNameTpl")) -}}
+{{- $globalGatewayTlsSecret := trim (default "" (index $globalTls "secretName")) -}}
+{{- $globalGatewayLaunchpadTlsSecret := trim (default "" (index $globalTls "launchpadSecretName")) -}}
+{{- $externalGlobalTlsConfigured := and $globalGatewayExternal $globalTlsEnabled (or (ne $globalGatewayTlsSecret "") (ne $globalGatewayLaunchpadTlsSecret "") (ne $globalCertSecret "") (ne $globalCertTpl "")) -}}
+{{- $tlsEnabled := or (default false .Values.gateway.http.tls.enabled) (and $globalGatewayManaged $globalTlsEnabled) $externalGlobalTlsConfigured -}}
 {{- $issuer := (include "sdcommon.effectiveCertIssuer" . | fromYaml) -}}
 {{- $useGlobalSecret := eq (include "sdcommon.usesGlobalCertSecret" (dict "context" .)) "true" -}}
 {{- $globalStardog := default (dict) (index (default (dict) .Values.global) "stardog") -}}
@@ -17,7 +24,7 @@
     {{- $_ := set $gatewayConfig "tls" (dict) }}
   {{- end }}
   {{- $globalGatewayNamespace := include "sdcommon.globalGatewayNamespace" . }}
-  {{- if and $globalGatewayManaged (ne $globalGatewayNamespace .Release.Namespace) }}
+  {{- if and (or $globalGatewayManaged $globalGatewayExternal) (ne $globalGatewayNamespace .Release.Namespace) }}
     {{- $_ := set $gatewayConfig.tls "secretNamespace" $globalGatewayNamespace }}
   {{- end }}
   {{- $domain := trim (default "" $gatewayConfig.domain) }}
@@ -29,12 +36,18 @@
     {{- fail "gateway.http.domain must be set to create the Gateway certificate." -}}
   {{- end }}
   {{- $tlsSecret := default "" $gatewayConfig.tls.secretName }}
+  {{- if and (eq (trim $tlsSecret) "") $globalGatewayExternal }}
+    {{- $tlsSecret = $globalGatewayTlsSecret }}
+    {{- if eq (trim $tlsSecret) "" }}
+      {{- $tlsSecret = $globalGatewayLaunchpadTlsSecret }}
+    {{- end }}
+  {{- end }}
   {{- if eq (trim $tlsSecret) "" }}
     {{- $_ := set $gatewayConfig.tls "secretName" (include "certIssuer.secretName.lp" .) }}
     {{- $tlsSecret = $gatewayConfig.tls.secretName }}
   {{- end }}
   {{- $secretNamespace := default .Release.Namespace $gatewayConfig.tls.secretNamespace }}
-  {{- if and (ne $secretNamespace .Release.Namespace) (not $issuer.clusterScoped) }}
+  {{- if and (ne $secretNamespace .Release.Namespace) (not $issuer.clusterScoped) (ne $secretNamespace (include "sdcommon.certIssuerNamespace" .)) }}
     {{- fail "gateway.http.tls.secretNamespace outside the release namespace requires certIssuer.clusterScoped=true." -}}
   {{- end }}
   {{- $host := printf "%s.%s" (default "launchpad" $gatewayConfig.subdomain) $domain }}

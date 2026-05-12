@@ -2,8 +2,16 @@
 
 ## 1.1.2
 - Use `global.gateway.domain` as the default Launchpad redirect hostname base for managed umbrella Gateway deployments.
+- Support cert-manager Certificate creation for external shared Gateway deployments using `global.gateway.createGateway=false`.
+- Add shared and per-service Gateway TLS secret controls for Stardog, Launchpad, and BI hostnames.
 - Update bundled subcharts:
+  - Common: 0.1.7
+  - Gateway: 1.0.3
   - Stardog: 4.0.4
+  - Launchpad: 1.0.4
+  - Voicebox: 1.1.2
+  - CacheTarget: 1.0.3
+  - Zookeeper: 1.0.3
 
 ## 1.1.1
 - Prevent no-op Helm upgrades from restarting Stardog, Launchpad, and Voicebox pods by replacing unstable rollout checksums with deterministic checksums.
