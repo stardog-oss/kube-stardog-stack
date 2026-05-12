@@ -60,7 +60,7 @@
   {{- $renderSeparateBiCertificate := false }}
   {{- if eq (include "stardog.effectiveBiEnabled" .) "true" }}
     {{- $biHost = printf "%s.%s" (default "bi" $gatewayConfig.biSubdomain) $domain }}
-    {{- $renderSeparateBiCertificate = and $globalGatewayExternal (not $useGlobalSecret) (ne $globalGatewayBiTlsSecret "") (ne $globalGatewayBiTlsSecret $tlsSecret) }}
+    {{- $renderSeparateBiCertificate = and $globalGatewayExternal (ne $globalGatewayBiTlsSecret "") (ne $globalGatewayBiTlsSecret $tlsSecret) }}
     {{- if not $renderSeparateBiCertificate }}
       {{- $dnsNames = append $dnsNames $biHost }}
     {{- end }}

@@ -44,6 +44,11 @@ global:
     http:
       port: 443
       httpPort: 80
+    # Gateway Certificate TLS secret resolution priority, highest to lowest:
+    # 1. gateway.tls.secretName (shared/SAN certificate; overrides component-specific names)
+    # 2. gateway.tls.sparqlSecretName / launchpadSecretName / biSecretName
+    # 3. certIssuer.secretName
+    # 4. certIssuer.secretNameTpl
     tls:
       enabled: true
       # Optional shared secret for all HTTPS listeners.
