@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.4
+- Use `global.gateway.domain` as the default domain for the auto-enabled Launchpad redirect hostname when `global.launchpad.enabled=true`.
+- Keep `gateway.redirectToLaunchpad.hostname` as the explicit override for the Stardog root-path Launchpad redirect.
+
 ## 4.0.3
 - Use deterministic pod-template checksums for chart-managed ConfigMaps and Secrets so no-op Helm upgrades do not restart Stardog pods.
 - Restart Stardog pods when chart-managed Stardog configuration or consumed Secret inputs change.

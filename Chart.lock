@@ -7,7 +7,7 @@ dependencies:
   version: 1.0.2
 - name: stardog
   repository: file://charts/stardog
-  version: 4.0.3
+  version: 4.0.4
 - name: zookeeper
   repository: file://charts/zookeeper
   version: 1.0.2
@@ -20,5 +20,5 @@ dependencies:
 - name: cachetarget
   repository: file://charts/cachetarget
   version: 1.0.2
-digest: sha256:427d32c120a5c87c3866bacf7cb302b3b7482b805e573e5228f6c3c58e03d0a2
-generated: "2026-05-01T17:19:30.879753-04:00"
+digest: sha256:691a0b4eb901c1433529a75bb348da3d5eba40d82446b1d782269cc1024524d5
+generated: "2026-05-12T09:51:03.398856-04:00"

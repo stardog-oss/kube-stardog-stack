@@ -14,7 +14,12 @@ Compute the redirect configuration for gateway root path handling.
 {{- end -}}
 {{- $gatewayVals := default (dict) .Values.gateway -}}
 {{- $httpGateway := default (dict) $gatewayVals.http -}}
-{{- $stardogDomain := default "" $httpGateway.domain -}}
+{{- $globalGateway := default (dict) (index (default (dict) .Values.global) "gateway") -}}
+{{- $globalGatewayDomain := trim (default "" (index $globalGateway "domain")) -}}
+{{- $stardogDomain := trim (default "" $httpGateway.domain) -}}
+{{- if and (eq $stardogDomain "") (ne $globalGatewayDomain "") -}}
+  {{- $stardogDomain = $globalGatewayDomain -}}
+{{- end -}}
 {{- $httpRedirect := default (dict) $httpGateway.redirectToLaunchpad -}}
 {{- $topRedirect := default (dict) $gatewayVals.redirectToLaunchpad -}}
 {{- $user := merge (dict) $httpRedirect $topRedirect -}}

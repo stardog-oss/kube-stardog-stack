@@ -308,6 +308,65 @@ tests:
           path: spec.parentRefs[0].sectionName
           value: shared-bi
 
+  - it: computes launchpad redirect hostname from global gateway domain
+    set:
+      gateway:
+        enabled: false
+        http:
+          skipApiValidation: true
+          redirect:
+            enabled: true
+      global:
+        gateway:
+          enabled: true
+          createGateway: false
+          name: shared-gw
+          namespace: gateway-system
+          domain: example.com
+          sparqlSectionName: shared-https
+          sparqlHttpSectionName: shared-http
+        launchpad:
+          enabled: true
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - documentIndex: 0
+        equal:
+          path: spec.rules[0].filters[0].requestRedirect.hostname
+          value: launchpad.example.com
+
+  - it: computes launchpad redirect hostname from managed global gateway domain
+    set:
+      gateway:
+        enabled: false
+        http:
+          skipApiValidation: true
+          redirect:
+            enabled: true
+      global:
+        gateway:
+          enabled: true
+          createGateway: true
+          name: shared-gw
+          namespace: gateway-system
+          domain: example.com
+          sparqlSectionName: shared-https
+          sparqlHttpSectionName: shared-http
+        certIssuer:
+          enabled: true
+          secretName: shared-tls
+        launchpad:
+          enabled: true
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - documentIndex: 0
+        equal:
+          path: spec.rules[0].filters[0].requestRedirect.hostname
+          value: launchpad.example.com
+
   - it: routes root path to redirect backend when mode backend
     set:
       gateway:
