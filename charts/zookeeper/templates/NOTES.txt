@@ -1,5 +1,10 @@
 ZooKeeper has been deployed.
 
+Disclaimer:
+  Apache ZooKeeper support in this chart is provided as a convenience. Stardog
+  does not own or harden the ZooKeeper container image. For production systems,
+  use a commercially supported or internally hardened ZooKeeper deployment.
+
 Release: {{ .Release.Name }}
 Namespace: {{ .Release.Namespace }}
 

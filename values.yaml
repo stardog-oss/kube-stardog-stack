@@ -17,6 +17,10 @@ global:
   voicebox:
     enabled: false
 
+  # Apache ZooKeeper support is provided as a convenience for non-production or
+  # simple deployments. Stardog does not own or harden the ZooKeeper container
+  # image used by this chart. For production, use a commercially supported or
+  # internally hardened ZooKeeper deployment and configure Stardog to use it.
   zookeeper:
     enabled: false
 

@@ -48,7 +48,9 @@ Web-based UI to access Stardog applications (Designer, Explorer, Studio). Enable
 Natural language interface for Stardog. Enable with `global.voicebox.enabled: true`
 
 ### ZooKeeper
-Coordination service for clustered Stardog deployments. Enable with `global.zookeeper.enabled: true`
+Coordination service for clustered Stardog deployments. Enable with `global.zookeeper.enabled: true`.
+
+Apache ZooKeeper support in this umbrella chart is provided as a convenience. Stardog does not own or harden the ZooKeeper container image. For production systems, use a commercially supported or internally hardened ZooKeeper deployment and configure Stardog to use it.
 
 ## Shared Resources
 
@@ -231,7 +233,7 @@ In external mode, subcharts such as Stardog and Launchpad automatically reuse th
 | `global.cachetarget.enabled` | `false` | Deploy cache target nodes that register with Stardog |
 | `global.launchpad.enabled` | `false` | Deploy Launchpad |
 | `global.voicebox.enabled` | `false` | Deploy Voicebox |
-| `global.zookeeper.enabled` | `false` | Deploy a shared ZooKeeper ensemble |
+| `global.zookeeper.enabled` | `false` | Deploy a shared ZooKeeper ensemble. Convenience only; for production, use a commercially supported or internally hardened ZooKeeper deployment. |
 
 ### Example Configurations
 
