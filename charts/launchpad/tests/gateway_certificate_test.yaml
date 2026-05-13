@@ -199,3 +199,28 @@ tests:
         equal:
           path: spec.dnsNames[0]
           value: launchpad.example.com
+
+  - it: uses managed global gateway TLS secret over certIssuer secretName
+    set:
+      global:
+        stardog:
+          enabled: false
+        gateway:
+          enabled: true
+          createGateway: true
+          domain: example.com
+          tls:
+            secretName: shared-gateway-tls
+        certIssuer:
+          enabled: true
+          secretName: issuer-shared-tls
+          type: acme
+      gateway:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - documentIndex: 0
+        equal:
+          path: spec.secretName
+          value: shared-gateway-tls

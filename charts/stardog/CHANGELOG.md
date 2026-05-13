@@ -5,6 +5,7 @@
 - Keep `gateway.redirectToLaunchpad.hostname` as the explicit override for the Stardog root-path Launchpad redirect.
 - Create Stardog Gateway Certificates in the shared Gateway namespace when `global.gateway.createGateway=false`.
 - Honor shared, SPARQL-specific, and template-derived Gateway TLS secret names, and optionally render a separate BI Certificate with `global.gateway.tls.biSecretName`.
+- Ensure managed shared Gateway Certificates target `global.gateway.tls.secretName` when it is set, matching the Gateway listener secret.
 - Update the common chart dependency to `0.1.7`.
 
 ## 4.0.3

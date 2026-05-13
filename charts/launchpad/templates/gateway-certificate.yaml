@@ -36,7 +36,7 @@
     {{- fail "gateway.http.domain must be set to create the Gateway certificate." -}}
   {{- end }}
   {{- $tlsSecret := default "" $gatewayConfig.tls.secretName }}
-  {{- if and (eq (trim $tlsSecret) "") $globalGatewayExternal }}
+  {{- if and (eq (trim $tlsSecret) "") (or $globalGatewayManaged $globalGatewayExternal) }}
     {{- $tlsSecret = $globalGatewayTlsSecret }}
     {{- if eq (trim $tlsSecret) "" }}
       {{- $tlsSecret = $globalGatewayLaunchpadTlsSecret }}

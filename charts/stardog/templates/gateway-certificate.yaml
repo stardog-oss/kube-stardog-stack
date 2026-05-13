@@ -40,7 +40,7 @@
   {{- end }}
   {{- $useGlobalSecret := eq (include "sdcommon.usesGlobalCertSecret" (dict "context" .)) "true" }}
   {{- $tlsSecret := default "" $gatewayConfig.tls.secretName }}
-  {{- if and (eq (trim $tlsSecret) "") $globalGatewayExternal }}
+  {{- if and (eq (trim $tlsSecret) "") (or $globalGatewayManaged $globalGatewayExternal) }}
     {{- $tlsSecret = $globalGatewayTlsSecret }}
     {{- if eq (trim $tlsSecret) "" }}
       {{- $tlsSecret = $globalGatewaySparqlTlsSecret }}

@@ -4,6 +4,7 @@
 - Use `global.gateway.domain` as the default Launchpad redirect hostname base for managed umbrella Gateway deployments.
 - Support cert-manager Certificate creation for external shared Gateway deployments using `global.gateway.createGateway=false`.
 - Add shared and per-service Gateway TLS secret controls for Stardog, Launchpad, and BI hostnames.
+- Ensure managed shared Gateway Certificates target `global.gateway.tls.secretName` when it is set, matching the Gateway listener secret.
 - Fix post-install NOTES incorrectly displaying the BI endpoint when `global.bi.enabled=false`.
 - Document that bundled Apache ZooKeeper support is a convenience and production systems should use a commercially supported or internally hardened ZooKeeper deployment.
 - Update bundled subcharts:
