@@ -61,3 +61,25 @@ tests:
       - notMatchRegex:
           path: raw
           pattern: 'kubectl port-forward'
+
+  - it: suppresses auto-generated backup credentials block when user supplies credentialsSecret
+    set:
+      backup:
+        enabled: true
+        credentialsSecret: my-external-backup-secret
+    asserts:
+      - notMatchRegex:
+          path: raw
+          pattern: 'Please save these backup user credentials'
+      - notMatchRegex:
+          path: raw
+          pattern: 'backup-credentials'
+
+  - it: gates the backup credentials block on backup.enabled
+    set:
+      backup:
+        enabled: false
+    asserts:
+      - notMatchRegex:
+          path: raw
+          pattern: 'Please save these backup user credentials'
