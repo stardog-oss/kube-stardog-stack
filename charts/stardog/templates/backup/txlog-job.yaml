@@ -1,8 +1,24 @@
-{{- if and .Values.txLogShipping.enabled .Values.txLogShipping.cronjob.enabled }}
+{{- if .Values.backup.txlog.enabled }}
+  {{- if not .Values.backup.enabled }}
+    {{- fail "backup.txlog.enabled=true requires backup.enabled=true. Enable the backup feature to use transaction log shipping." }}
+  {{- end }}
+  {{- $hasMount := or .Values.backup.location.persistentVolume.enabled .Values.backup.location.azure.enabled }}
+  {{- if and .Values.backup.location.s3.enabled (not $hasMount) }}
+    {{- fail "backup.txlog is not supported with backup.location.s3. stardog-admin tx log --output writes to a local filesystem path and has no s3:// output form (unlike stardog-admin server backup), so the shipping CronJob has nowhere to land files when S3 is the only backend. Use backup.location.persistentVolume or backup.location.azure (the chart's Azure backend is a CSI-mounted PVC). Adding S3 destination support is a Stardog product change planned for the future." }}
+  {{- end }}
+  {{- if not $hasMount }}
+    {{- fail "backup.txlog requires a writable PVC-backed destination: set either backup.location.persistentVolume.enabled=true or backup.location.azure.enabled=true." }}
+  {{- end }}
+{{- end }}
+{{- if and .Values.backup.enabled .Values.backup.txlog.enabled .Values.backup.txlog.cronjob.enabled }}
 {{- $fullname := include "sdcommon.fullname" . }}
-{{- $credentialsSecret := .Values.txLogShipping.credentialsSecret | default (printf "%s-txlog-credentials" $fullname) }}
-{{- $azureSecret := .Values.txLogShipping.azure.existingSecret | default (printf "%s-stardog-txlog-azure-secret" .Release.Name) }}
-{{- $rcloneImage := printf "%s:%s" .Values.txLogShipping.rclone.image.repository .Values.txLogShipping.rclone.image.tag }}
+{{- $credentialsSecret := .Values.backup.credentialsSecret | default (printf "%s-backup-credentials" $fullname) }}
+{{- $backupDir := "" }}
+{{- if .Values.backup.location.persistentVolume.enabled }}
+  {{- $backupDir = .Values.backup.location.persistentVolume.backupDir }}
+{{- else if .Values.backup.location.azure.enabled }}
+  {{- $backupDir = .Values.backup.location.azure.backupDir }}
+{{- end }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -10,56 +26,55 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{ include "sdcommon.labels.standard" . | nindent 4 }}
-  {{- if .Values.txLogShipping.cronjob.timezone }}
+  {{- if .Values.backup.txlog.cronjob.timeZone }}
   annotations:
-    cronjob.kubernetes.io/timezone: {{ .Values.txLogShipping.cronjob.timezone | quote }}
+    cronjob.kubernetes.io/timezone: {{ .Values.backup.txlog.cronjob.timeZone | quote }}
   {{- end }}
 spec:
-  schedule: {{ .Values.txLogShipping.cronjob.schedule | quote }}
+  schedule: {{ .Values.backup.txlog.cronjob.schedule | quote }}
+  concurrencyPolicy: {{ .Values.backup.txlog.cronjob.concurrencyPolicy }}
   jobTemplate:
     spec:
-      ttlSecondsAfterFinished: {{ .Values.txLogShipping.cronjob.ttlSecondsAfterFinished }}
-      backoffLimit: {{ .Values.txLogShipping.cronjob.backoffLimit }}
+      ttlSecondsAfterFinished: {{ .Values.backup.txlog.cronjob.ttlSecondsAfterFinished }}
+      backoffLimit: {{ .Values.backup.txlog.cronjob.backoffLimit }}
       template:
         metadata:
           labels:
             {{ include "sdcommon.labels.standard" . | nindent 12 }}
         spec:
           restartPolicy: Never
-          {{- if .Values.txLogShipping.credentialsSecret }}
-          {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" .Values.txLogShipping.credentialsSecret "namespace" .Release.Namespace) }}
-          {{- end }}
-          {{- if .Values.txLogShipping.azure.existingSecret }}
-          {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" .Values.txLogShipping.azure.existingSecret "namespace" .Release.Namespace) }}
+          {{- if .Values.backup.credentialsSecret }}
+          {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" .Values.backup.credentialsSecret "namespace" .Release.Namespace) }}
           {{- end }}
           securityContext:
           {{- toYaml .Values.securityContext | nindent 12 }}
           volumes:
-          - name: scratch
-            emptyDir:
-              sizeLimit: {{ .Values.txLogShipping.scratch.sizeLimit }}
-          # /tmp is required writable because stardog-admin's HTTP client spools the
-          # tx log response to `java.io.tmpdir` before handing it to the caller, and
-          # the containers run with `readOnlyRootFilesystem: true`. rclone similarly
-          # benefits from a writable /tmp. Two separate emptyDirs avoid accidental
-          # cross-container collisions.
+          # /tmp must be writable: stardog-admin's HTTP client spools the tx
+          # log response to java.io.tmpdir, and the container runs with
+          # readOnlyRootFilesystem: true.
           - name: dump-tmp
             emptyDir: {}
-          - name: upload-tmp
-            emptyDir: {}
-          initContainers:
-          - name: tx-log-dump
+          - name: {{ $fullname }}-backup
+            persistentVolumeClaim:
+              {{- if .Values.backup.location.persistentVolume.enabled }}
+              claimName: {{ .Values.backup.location.persistentVolume.customPersitentVolumeClaim }}
+              {{- else if .Values.backup.location.azure.enabled }}
+              claimName: {{ include "sdcommon.pvcName" (dict "context" . "chart" "stardog" "id" "backup-azure") }}
+              {{- end }}
+          containers:
+          - name: tx-log-shipper
             image: {{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
             imagePullPolicy: {{ .Values.image.pullPolicy }}
             securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 14 }}
             resources:
-              {{- toYaml .Values.txLogShipping.resources.dump | nindent 14 }}
+              {{- toYaml .Values.backup.txlog.resources | nindent 14 }}
             volumeMounts:
-            - name: scratch
-              mountPath: /scratch
             - name: dump-tmp
               mountPath: /tmp
+            - name: {{ $fullname }}-backup
+              mountPath: /var/opt/stardog/backups
+              readOnly: false
             env:
             - name: STARDOG_HOST
               value: "http://{{ $fullname }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.ports.server }}"
@@ -74,9 +89,15 @@ spec:
                   name: {{ $credentialsSecret }}
                   key: password
             - name: TXLOG_INCLUDE
-              value: {{ join " " .Values.txLogShipping.databases.include | quote }}
+              value: {{ join " " .Values.backup.txlog.databases.include | quote }}
             - name: TXLOG_EXCLUDE
-              value: {{ join " " .Values.txLogShipping.databases.exclude | quote }}
+              value: {{ join " " .Values.backup.txlog.databases.exclude | quote }}
+            - name: BACKUP_LOCATION
+              value: {{ $backupDir | quote }}
+            - name: RELEASE_NAME
+              value: {{ .Release.Name | quote }}
+            - name: TXLOG_PATH_PREFIX
+              value: {{ .Values.backup.txlog.pathPrefix | quote }}
             command:
             - /bin/bash
             - -c
@@ -106,9 +127,11 @@ spec:
                 exit 1
               fi
 
-              TIMESTAMP=$(date -u +"%Y/%m/%d/%H%M%SZ")
-              echo "${TIMESTAMP}" > /scratch/.timestamp
+              TIMESTAMP=$(date -u +"%Y%m%dT%H%M%SZ")
               echo "Run timestamp: ${TIMESTAMP}"
+
+              DEST_ROOT="/var/opt/stardog/backups/${BACKUP_LOCATION}/${RELEASE_NAME}/${TXLOG_PATH_PREFIX}"
+              echo "Destination root: ${DEST_ROOT}"
 
               DBS_RESPONSE=$(curl -sS --fail -u "${STARDOG_USERNAME}:${STARDOG_PASSWORD}" "${STARDOG_HOST}/admin/databases")
               if [ $? -ne 0 ]; then
@@ -117,7 +140,7 @@ spec:
               fi
 
               # Response shape: {"databases":["db1","db2",...]}
-              # jq is not present in the Stardog image, so we parse with shell tools and then
+              # jq is not present in the Stardog image, so parse with shell tools and then
               # defensively validate each parsed name against Stardog's allowed character set.
               ALL_DBS=$(echo "${DBS_RESPONSE}" | tr -d '[:space:]' | grep -oE '\[[^]]*\]' | tr -d '[]"' | tr ',' '\n' | grep -v '^$' || true)
 
@@ -165,10 +188,13 @@ spec:
               FAILED=""
               SKIPPED_EMPTY=""
               for db in ${SELECTED}; do
-                echo "Dumping transaction log for database: ${db}"
+                DB_DIR="${DEST_ROOT}/${db}"
+                OUT_FILE="${DB_DIR}/${TIMESTAMP}.txlog"
+                mkdir -p "${DB_DIR}"
+                echo "Dumping transaction log for database: ${db} -> ${OUT_FILE}"
                 DUMP_OUT=$(/opt/stardog/bin/stardog-admin --server "${STARDOG_HOST}" tx log \
                   -u "${STARDOG_USERNAME}" -p "${STARDOG_PASSWORD}" \
-                  --format raw --output "/scratch/${db}.txlog" \
+                  --format raw --output "${OUT_FILE}" \
                   -- "${db}" 2>&1)
                 rc=$?
                 echo "${DUMP_OUT}"
@@ -178,10 +204,10 @@ spec:
                 # The server returns UnknownTransactionException / "Failed to find any data
                 # in the txn log for the provided range" when a database has no transactions
                 # recorded yet (or only system-internal traffic). This is not a failure from
-                # a DR perspective — there's just nothing to ship. Treat it as a warning.
+                # a DR perspective - there's just nothing to ship. Treat it as a warning.
                 if echo "${DUMP_OUT}" | grep -q "Failed to find any data in the txn log"; then
                   echo "  -> no transactions recorded for ${db}; skipping."
-                  rm -f "/scratch/${db}.txlog"
+                  rm -f "${OUT_FILE}"
                   SKIPPED_EMPTY="${SKIPPED_EMPTY} ${db}"
                   continue
                 fi
@@ -199,69 +225,6 @@ spec:
               fi
 
               echo "All transaction log dumps completed successfully."
-          containers:
-          - name: rclone-upload
-            image: {{ $rcloneImage }}
-            imagePullPolicy: {{ .Values.txLogShipping.rclone.image.pullPolicy }}
-            securityContext:
-            {{- toYaml .Values.containerSecurityContext | nindent 14 }}
-            resources:
-              {{- toYaml .Values.txLogShipping.resources.upload | nindent 14 }}
-            volumeMounts:
-            - name: scratch
-              mountPath: /scratch
-            - name: upload-tmp
-              mountPath: /tmp
-            env:
-            - name: RCLONE_CONFIG_AZ_TYPE
-              value: azureblob
-            - name: RCLONE_CONFIG_AZ_ACCOUNT
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $azureSecret }}
-                  key: accountname
-            - name: RCLONE_CONFIG_AZ_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $azureSecret }}
-                  key: accountkey
-            - name: AZURE_CONTAINER
-              value: {{ required "txLogShipping.azure.container is required when txLogShipping.enabled=true" .Values.txLogShipping.azure.container | quote }}
-            - name: AZURE_PATH_PREFIX
-              value: {{ .Values.txLogShipping.azure.pathPrefix | quote }}
-            - name: RELEASE_SCOPE
-              value: {{ printf "%s-%s" .Release.Name .Release.Namespace | quote }}
-            - name: RCLONE_EXTRA_ARGS
-              value: {{ join " " .Values.txLogShipping.rclone.extraArgs | quote }}
-            command:
-            - /bin/sh
-            - -c
-            - |
-              set -e
-
-              if [ ! -f /scratch/.timestamp ]; then
-                echo "No timestamp marker found in /scratch; dump step likely did not run. Aborting upload."
-                exit 1
-              fi
-              TIMESTAMP=$(cat /scratch/.timestamp)
-              rm -f /scratch/.timestamp
-
-              # Compose the destination path.
-              if [ -n "${AZURE_PATH_PREFIX}" ]; then
-                DEST="az:${AZURE_CONTAINER}/${AZURE_PATH_PREFIX}/${RELEASE_SCOPE}/${TIMESTAMP}"
-              else
-                DEST="az:${AZURE_CONTAINER}/${RELEASE_SCOPE}/${TIMESTAMP}"
-              fi
-
-              # Bail out cleanly if nothing was dumped (e.g., zero databases matched filters).
-              if [ -z "$(ls -A /scratch 2>/dev/null)" ]; then
-                echo "Scratch directory empty after dump; nothing to upload."
-                exit 0
-              fi
-
-              echo "Uploading /scratch/ to ${DEST}"
-              # shellcheck disable=SC2086
-              rclone copy /scratch/ "${DEST}" --exclude '.*' ${RCLONE_EXTRA_ARGS}
           {{- if and (hasKey .Values "image") .Values.image.pullSecrets }}
           imagePullSecrets:
           {{ toYaml .Values.image.pullSecrets | nindent 12 }}

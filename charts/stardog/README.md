@@ -25,7 +25,7 @@ Configuration Parameters
 | `admin.password`                             | Stardog admin password |
 | `additionalStardogProperties`                | Allow adding extra settings to the `stardog.properties` file |
 | `backup.*`                                   | Enables the built-in backup CronJob and selects the storage target; see [`BACKUP.md`](BACKUP.md) for the complete matrix |
-| `txLogShipping.*`                            | Enables scheduled shipping of Stardog transaction logs to Azure Blob Storage; see the "Transaction log shipping" section below |
+| `backup.txlog.*`                             | Enables scheduled shipping of Stardog per-database transaction logs to the same backup destination configured via `backup.location.*`; see the "Transaction log shipping" section below |
 | `cluster.enabled`                            | Enable Stardog Cluster |
 | `cluster.zookeeperService`                   | ZooKeeper connection string (CSV of `host:port` pairs) when using a shared or external ensemble |
 | `debug.sleepOnFailureSeconds`               | Sleep for N seconds after Stardog exits with a non-zero status (troubleshooting) |
@@ -241,37 +241,41 @@ Transaction log shipping
 ------------------------
 
 Stardog 12 introduced a per-database transaction log that can be exported in raw
-form and later replayed to reconstruct database state. This chart can ship those
-logs to Azure Blob Storage on a schedule for disaster recovery and point-in-time
-restore. Background:
-<https://docs.stardog.com/operating-stardog/database-administration/transaction-logs>.
+form and later replayed to reconstruct database state. With
+`backup.txlog.enabled=true`, the chart installs a CronJob that exports those
+logs alongside the regular backups for point-in-time recovery. See our 
+tutorial at <https://docs.stardog.com/tutorials/point-in-time-recovery> and the
+[transaction logs product docs](https://docs.stardog.com/operating-stardog/database-administration/transaction-logs)
+for the broader recovery model.
 
 ### What it does
 
-When `txLogShipping.enabled=true`, the chart installs a CronJob that, on every
-fire:
+When `backup.enabled=true` and `backup.txlog.enabled=true`, the chart installs
+a CronJob that on every fire:
 
 1. Queries `/admin/databases` on the running Stardog server, applies the
    configured include/exclude filter, and selects the set of databases to ship.
-2. Runs `stardog-admin tx log --format raw --output /scratch/<db>.txlog` for
-   each selected database, authenticating as a dedicated `txlog_user`.
-3. Uploads the contents of `/scratch/` to the configured Azure Blob container
-   using `rclone`, laid out as
-   `<container>/[<pathPrefix>/]<release>-<namespace>/YYYY/MM/DD/HHMMSSZ/<db>.txlog`.
+2. Runs `stardog-admin tx log --format raw --output <path>` for each selected
+   database, authenticating as the shared `backup_user`.
+3. Writes the dumped log file directly onto the same PVC the backup feature
+   already mounts, laid out as
+   `<backupDir>/<release>/<pathPrefix>/<db>/<timestamp>.txlog`
+   (default `pathPrefix` is `txlogs`).
 
-Dump and upload run as an init container and main container in the same Pod;
-the upload runs only if every dump succeeded. Each CronJob invocation exports
-the whole current log for every selected database — there is no incremental
-mode. Azure Blob lifecycle policies are the intended retention mechanism.
+The CronJob mounts the backup PVC at
+`/var/opt/stardog/backups` (mirroring the Stardog StatefulSet's mount path)
+and writes there directly. For the `azure` backend this is the CSI-mounted
+blob container; for the `persistentVolume` backend it is the user-supplied
+RWX PVC. The same lifecycle / retention policy you put on the backup
+destination applies to shipped txlogs too.
+
+Each CronJob run exports the whole current log for every selected database;
+there is no incremental mode. See "Limitations" below for the v2 plan.
 
 ### Prerequisites
 
-- An Azure Blob Storage account and container to receive the uploads. Create the
-  container beforehand; the chart does not manage it.
-- Storage account name + account key. The chart accepts either inline values
-  (`azure.accountName` / `azure.accountKey`, generating a Secret) or a
-  reference to an existing Secret via `azure.existingSecret` with keys
-  `accountname` and `accountkey`.
+- `backup.enabled=true` and a working backup destination (`persistentVolume`
+  or `azure`). See [`BACKUP.md`](BACKUP.md) for the full backup setup.
 - **Cluster mode:** no Stardog-side configuration is required — transaction
   logging is always on.
 - **Single node:** transaction logging is per-database and off by default.
@@ -283,86 +287,102 @@ mode. Azure Blob lifecycle policies are the intended retention mechanism.
   stardog-admin metadata set -o transaction.logging=true -- mydb
   stardog-admin db online mydb
   ```
+- The server's `transaction.logging.rotation.remove` property must be
+  `false` (the default; preserves rotated log files so shipping can
+  pick them up). See the tutorial linked above for why this matters.
 
 ### Enabling
 
-Minimal values snippet:
+Minimal values snippet on top of a working `backup` config (PV backend
+shown):
 
 ```yaml
-txLogShipping:
+backup:
   enabled: true
-  azure:
-    container: "stardog-txlogs"
-    accountName: "<account>"
-    accountKey: "<key>"
+  location:
+    persistentVolume:
+      enabled: true
+      customPersitentVolumeClaim: my-backup-pvc
+  txlog:
+    enabled: true
 ```
 
-Typical production snippet with an externally managed Secret and scoped
-database list:
+Or with the Azure CSI-mounted backend:
 
 ```yaml
-txLogShipping:
+backup:
   enabled: true
-  cronjob:
-    schedule: "*/30 * * * *"
-    timezone: "UTC"
-  databases:
-    include: ["orders", "inventory"]
-  azure:
-    container: "stardog-txlogs"
-    pathPrefix: "prod"
-    existingSecret: "stardog-txlog-azure"   # must contain `accountname` and `accountkey`
+  location:
+    azure:
+      enabled: true
+      accountName: <STORAGE_ACCOUNT_NAME>
+      accountKey:  <STORAGE_ACCOUNT_KEY>
+      containerName: <BLOB_CONTAINER>
+  txlog:
+    enabled: true
 ```
 
-On `helm install`, the post-install Job provisions a `txlog` role granted
-`EXECUTE admin:*` and `READ db:*`, a `txlog_user`, and a Secret
-`<release>-stardog-txlog-credentials` with a random password. The Secret is
-annotated `helm.sh/resource-policy: keep` so it survives `helm uninstall` — do
-not delete it manually between reinstalls or the user/role in Stardog will fall
-out of sync with the Secret.
+Typical production tuning with a scoped database list and a tighter
+schedule:
 
-### Azure lifecycle policy
-
-The chart does not prune shipped logs. Configure an Azure Blob lifecycle
-management policy on the target container to age out old uploads. Example JSON
-(age out files older than 30 days, delete at 90):
-
-```json
-{
-  "rules": [
-    {
-      "enabled": true,
-      "name": "stardog-txlog-retention",
-      "type": "Lifecycle",
-      "definition": {
-        "filters": {
-          "blobTypes": ["blockBlob"],
-          "prefixMatch": ["stardog-txlogs/"]
-        },
-        "actions": {
-          "baseBlob": {
-            "tierToCool":   { "daysAfterModificationGreaterThan": 30 },
-            "delete":       { "daysAfterModificationGreaterThan": 90 }
-          }
-        }
-      }
-    }
-  ]
-}
+```yaml
+backup:
+  enabled: true
+  ...
+  txlog:
+    enabled: true
+    cronjob:
+      schedule: "*/5 * * * *"   # default
+      timeZone: "UTC"
+      concurrencyPolicy: Allow
+    databases:
+      include: ["orders", "inventory"]
+    pathPrefix: "txlogs"        # subdirectory under <backupDir>/<release>/
 ```
+
+The shipping CronJob reuses the `backup_user` credentials that the backup
+feature already provisions. On `helm install` / `helm upgrade`, the post-install
+Job ensures the `backup` role carries the three permissions the combined
+backup + shipping workflow needs:
+
+- `execute on dbms-admin:backup-all` (server backup)
+- `execute on admin:*` (`stardog-admin tx log`)
+- `read on db:*` (`/admin/databases` enumeration)
+
+### On-storage layout
+
+For a release named `prod`, default `pathPrefix: txlogs`, the Azure
+backend with `backupDir: stardog-backups`, and a run that ships databases
+`orders` and `inventory`, the resulting blob layout is:
+
+```
+stardog-backups/
+  prod/                              # release name (cluster handle)
+    <node-name>/                     # backup files written by the server
+      orders/...
+      inventory/...
+    txlogs/                          # backup.txlog.pathPrefix
+      orders/
+        20260514T210500Z.txlog
+      inventory/
+        20260514T210500Z.txlog
+```
+
+Backups (under `<node-name>/`) and shipped txlogs (under `<pathPrefix>/`)
+live as siblings under the same per-release root.
 
 ### Recovery workflow
 
-Downloaded files are compatible with `stardog-admin tx replay`. The high-level
-DR flow is:
+Downloaded files are compatible with `stardog-admin tx replay`. The DR
+flow is:
 
 1. Restore the database from its most recent `stardog-admin server backup`.
-2. Download the relevant `.txlog` files from Azure Blob for the time window
-   between the backup and the target recovery point.
+2. Identify the relevant `.txlog` files for the time window between the
+   backup and the target recovery point.
 3. Replay them, in order, against the restored database:
 
    ```bash
-   stardog-admin tx replay mydb 2026-04-16/T1030Z/mydb.txlog
+   stardog-admin tx replay mydb .../txlogs/mydb/20260514T210500Z.txlog
    ```
 
 Shipped snapshots are typically mid-stream — each run exports the log's
@@ -383,29 +403,36 @@ stardog-admin tx replay --dry-run --skip-validate mydb …/mydb.txlog
 stardog-admin tx replay           --skip-validate mydb …/mydb.txlog
 ```
 
-See the [transaction logs product docs](https://docs.stardog.com/operating-stardog/database-administration/transaction-logs)
-for full recovery mechanics, including how `tx replay` validates continuity via
-parent-transaction UUIDs.
-
 ### Sizing and cadence notes
 
 - Transaction logs rotate by size (default 500 MiB) and Stardog keeps at most
   one rotation behind the live file. If shipping runs less frequently than the
-  log rotates twice, entries can be lost. Pick a cadence that keeps the window
-  comfortably smaller than typical rotation time for your workload.
-- `scratch.sizeLimit` caps the in-pod emptyDir used for staging dumps; it must
-  be large enough to hold the live logs of every selected database at once.
-- The default hourly schedule is a starting point only. Tune `cronjob.schedule`
-  and `transaction.logging.rotation.size` together.
+  log rotates twice, entries can be lost. The default 5-minute schedule keeps
+  the window comfortably under typical rotation times; tune down for very
+  write-heavy databases and up for quiet ones.
+- The default `concurrencyPolicy: Allow` matches the backup CronJob's
+  behavior. With a 5-minute cadence a run that exceeds 5 minutes will overlap
+  with the next slot, doubling read load on Stardog and write load on the
+  backup volume for the overlap window. Flip to `Forbid` if you would rather
+  skip a slot than overlap.
+- The shipping CronJob writes onto the same PVC as backups. Size that volume
+  for the combined steady-state of both: each shipped run produces files up to
+  one rotation's worth (default 500 MiB) per database.
 
 ### Limitations
 
-- Azure Blob Storage is the only supported backend.
-- Static storage account key authentication only; no Azure Workload Identity
-  or managed identity.
-- Whole-log shipping only; no incremental `--from-time` / `--from-uuid`
-  filtering yet.
-- No chart-side retention or cleanup Job; rely on Azure lifecycle policies.
+- Only the `persistentVolume` and `azure` backup backends are supported.
+  S3 is **not** supported. Server backups have a built-in mechanism to
+  communicate with S3 directly, and this functionality has not been
+  implemented for the transaction log yet. Adding S3 destination support is a
+  Stardog product change, not a chart change.
+  The chart fails fast at template time when `backup.txlog.enabled=true` and
+  `backup.location.s3.enabled=true`. 
+- Static credentials only; no Azure Workload Identity or managed identity.
+- Whole-log shipping only; no incremental `--from-uuid` filtering yet. A
+  future v2 will switch to incremental.
+- No chart-side retention or cleanup Job; rely on the lifecycle / retention
+  policy on the underlying backup destination.
 - No metrics, ServiceMonitor, or alerting resources are emitted.
 
 Limitations

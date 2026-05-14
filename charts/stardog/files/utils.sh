@@ -65,53 +65,28 @@ function backup_credentials {
     PASSWORD=${3}
 
     /opt/stardog/bin/stardog-admin --server ${HOST} user permission -- ${USERNAME}
-    if [[ $? -eq 0 ]];
-    then
-      echo "Backup role and user already exist"
-	    return 0
-    else
+    if [[ $? -ne 0 ]]; then
       echo "Creating Backup Role: /opt/stardog/bin/stardog-admin  --server ${HOST} role add backup"
       /opt/stardog/bin/stardog-admin  --server ${HOST} role add backup
-      echo "Adding Backup Role permissions:/opt/stardog/bin/stardog-admin  --server ${HOST} role grant backup execute -o 'dbms-admin:backup-all'"  
-      /opt/stardog/bin/stardog-admin  --server ${HOST} role grant backup -a execute -o "dbms-admin:backup-all" 
-      echo "Creating Backup User: /opt/stardog/bin/stardog-admin  --server ${HOST} user add ${USERNAME} -N ${PASSWORD}" 
+      echo "Creating Backup User: /opt/stardog/bin/stardog-admin  --server ${HOST} user add ${USERNAME} -N ${PASSWORD}"
       /opt/stardog/bin/stardog-admin  --server ${HOST} user add ${USERNAME} -N ${PASSWORD}
-      echo "Adding Backup Role to Backup User:/opt/stardog/bin/stardog-admin  --server ${HOST} user addrole -R backup ${USERNAME}"
-      /opt/stardog/bin/stardog-admin  --server ${HOST} user addrole -R backup ${USERNAME}  
-      echo "Backup role and user successfully created"
-      return 0
-    fi
-    )
-}
-
-function txlog_credentials {
-    (
-    set +e
-    HOST=${1}
-    USERNAME=${2}
-    PASSWORD=${3}
-
-    /opt/stardog/bin/stardog-admin --server ${HOST} user permission -- ${USERNAME}
-    if [[ $? -eq 0 ]];
-    then
-      echo "Txlog role and user already exist"
-	    return 0
+      echo "Adding Backup Role to Backup User: /opt/stardog/bin/stardog-admin  --server ${HOST} user addrole -R backup ${USERNAME}"
+      /opt/stardog/bin/stardog-admin  --server ${HOST} user addrole -R backup ${USERNAME}
     else
-      echo "Creating Txlog Role: /opt/stardog/bin/stardog-admin  --server ${HOST} role add txlog"
-      /opt/stardog/bin/stardog-admin  --server ${HOST} role add txlog
-      # 'execute on admin:*' authorizes `stardog-admin tx log`.
-      # 'read on db:*' is required for /admin/databases to return the list of databases
-      echo "Adding Txlog Role permissions: /opt/stardog/bin/stardog-admin --server ${HOST} role grant txlog -a execute -o 'admin:*'"
-      /opt/stardog/bin/stardog-admin  --server ${HOST} role grant txlog -a execute -o "admin:*"
-      echo "Adding Txlog Role permissions: /opt/stardog/bin/stardog-admin --server ${HOST} role grant txlog -a read -o 'db:*'"
-      /opt/stardog/bin/stardog-admin  --server ${HOST} role grant txlog -a read -o "db:*"
-      echo "Creating Txlog User: /opt/stardog/bin/stardog-admin  --server ${HOST} user add ${USERNAME} -N ${PASSWORD}"
-      /opt/stardog/bin/stardog-admin  --server ${HOST} user add ${USERNAME} -N ${PASSWORD}
-      echo "Adding Txlog Role to Txlog User: /opt/stardog/bin/stardog-admin --server ${HOST} user addrole -R txlog ${USERNAME}"
-      /opt/stardog/bin/stardog-admin  --server ${HOST} user addrole -R txlog ${USERNAME}
-      echo "Txlog role and user successfully created"
-      return 0
+      echo "Backup role and user already exist"
     fi
+    # Re-apply grants on every run so existing installs pick up additions on
+    # the next helm upgrade. role grant is idempotent server-side.
+    #   execute on dbms-admin:backup-all  -> stardog-admin server backup
+    #   execute on admin:*                -> stardog-admin tx log (txlog shipping)
+    #   read on db:*                      -> /admin/databases enumeration (txlog shipping)
+    echo "Granting backup role: execute on dbms-admin:backup-all"
+    /opt/stardog/bin/stardog-admin  --server ${HOST} role grant backup -a execute -o "dbms-admin:backup-all"
+    echo "Granting backup role: execute on admin:*"
+    /opt/stardog/bin/stardog-admin  --server ${HOST} role grant backup -a execute -o "admin:*"
+    echo "Granting backup role: read on db:*"
+    /opt/stardog/bin/stardog-admin  --server ${HOST} role grant backup -a read -o "db:*"
+    return 0
     )
 }
 

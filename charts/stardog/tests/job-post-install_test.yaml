@@ -42,3 +42,46 @@ tests:
   - equal:
       path: spec.template.spec.imagePullSecrets[0].name
       value: "RELEASE-NAME-image-pull-secret"
+
+# =======================
+# Test backup credentials
+# =======================
+# backup_credentials must grant the full permission set the combined
+# backup + tx-log-shipping workflow needs.
+# Backups require dbms-admin:backup-all.
+# Tx log shipping requires (admin:* execute and db:* read);
+#  without them, /admin/databases returns an empty list and
+# `stardog-admin tx log` is unauthorized. role grant is idempotent server-side, 
+# so emitting the grants on every run is safe for existing installs.
+- it: backup_credentials grants execute on dbms-admin:backup-all
+  values:
+    - values/values-stardog.yaml
+  set:
+    backup:
+      enabled: true
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: 'role grant backup -a execute -o "dbms-admin:backup-all"'
+
+- it: backup_credentials grants execute on admin (required for tx log shipping)
+  values:
+    - values/values-stardog.yaml
+  set:
+    backup:
+      enabled: true
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: 'role grant backup -a execute -o "admin:\*"'
+
+- it: backup_credentials grants read on db (required for /admin/databases enumeration)
+  values:
+    - values/values-stardog.yaml
+  set:
+    backup:
+      enabled: true
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: 'role grant backup -a read -o "db:\*"'

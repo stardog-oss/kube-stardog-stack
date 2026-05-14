@@ -23,9 +23,6 @@ spec:
       {{- if and .Values.backup.enabled .Values.backup.credentialsSecret }}
       {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" .Values.backup.credentialsSecret "namespace" .Release.Namespace) }}
       {{- end }}
-      {{- if and .Values.txLogShipping.enabled .Values.txLogShipping.credentialsSecret }}
-      {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" .Values.txLogShipping.credentialsSecret "namespace" .Release.Namespace) }}
-      {{- end }}
       containers:
       - name: post-install-job
         imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -56,18 +53,6 @@ spec:
               name: {{ .Values.backup.credentialsSecret |default ((include "sdcommon.fullname" .) | printf "%s-backup-credentials")  }}
               key: password
         {{- end }}
-        {{- if .Values.txLogShipping.enabled }}
-        - name: TXLOG_USERNAME
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.txLogShipping.credentialsSecret | default ((include "sdcommon.fullname" .) | printf "%s-txlog-credentials") }}
-              key: username
-        - name: TXLOG_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.txLogShipping.credentialsSecret | default ((include "sdcommon.fullname" .) | printf "%s-txlog-credentials") }}
-              key: password
-        {{- end }}
         - name: PORT
           value: "{{ .Values.ports.server }}"
         - name: HOST
@@ -84,9 +69,6 @@ spec:
           change_pw ${HOST} ${PORT} ${PROTOCOL}
           {{- if .Values.backup.enabled }}
           backup_credentials "${PROTOCOL}://${HOST}:${PORT}" ${BACKUP_USERNAME} ${BACKUP_PASSWORD}
-          {{- end }}
-          {{- if .Values.txLogShipping.enabled }}
-          txlog_credentials "${PROTOCOL}://${HOST}:${PORT}" ${TXLOG_USERNAME} ${TXLOG_PASSWORD}
           {{- end }}
   {{- if and (hasKey .Values "image") .Values.image.pullSecrets }}
   imagePullSecrets:
