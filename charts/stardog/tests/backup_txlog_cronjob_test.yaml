@@ -59,7 +59,7 @@ tests:
             region: us-east-1
     asserts:
       - failedTemplate:
-          errorMessage: "backup.txlog is not supported with backup.location.s3. stardog-admin tx log --output writes to a local filesystem path and the Stardog CLI has no s3:// output form, so the shipping CronJob has nowhere to land files when S3 is the only backend. Use backup.location.persistentVolume or backup.location.azure (the chart's Azure backend is a CSI-mounted PVC). Adding S3 destination support is a Stardog product change, not a chart change."
+          errorMessage: "backup.txlog is not supported with backup.location.s3. stardog-admin tx log --output writes to a local filesystem path and has no s3:// output form (unlike stardog-admin server backup), so the shipping CronJob has nowhere to land files when S3 is the only backend. Use backup.location.persistentVolume or backup.location.azure (the chart's Azure backend is a CSI-mounted PVC). Adding S3 destination support is a Stardog product change planned for the future."
 
   - it: fails when backup.txlog is enabled but no PVC-backed destination is configured
     values:
