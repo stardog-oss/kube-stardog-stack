@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.2
+- Update the common chart dependency to `0.1.7`.
+
 ## 1.1.1
 - Use deterministic pod-template checksums for chart-managed ConfigMaps and Secrets so no-op Helm upgrades do not restart Voicebox pods.
 - Restart Voicebox pods when chart-managed Voicebox configuration or image pull Secret inputs change.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.4
+- Create Launchpad Gateway Certificates in the shared Gateway namespace when `global.gateway.createGateway=false`.
+- Honor `global.gateway.tls.secretName`, `global.gateway.tls.launchpadSecretName`, and `global.certIssuer.secretNameTpl` for Gateway TLS secret naming.
+- Ensure managed shared Gateway Certificates target `global.gateway.tls.secretName` when it is set, matching the Gateway listener secret.
+- Rename Launchpad certIssuer helpers from `certIssuer.privateKeySecretName` and `certIssuer.labels` to `certIssuer.privateKeySecretName.lp` and `certIssuer.labels.lp` to avoid overriding Stardog helper output in umbrella renders.
+- Update the common chart dependency to `0.1.7`.
+
 ## 1.0.3
 - Use deterministic pod-template checksums for Launchpad consumed Secret inputs so no-op Helm upgrades do not restart pods.
 - Restart Launchpad pods when chart-managed cookie or image pull Secret inputs change.

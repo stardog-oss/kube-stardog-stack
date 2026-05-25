@@ -1,24 +1,24 @@
 dependencies:
 - name: common
   repository: file://charts/common
-  version: 0.1.6
+  version: 0.1.7
 - name: gateway
   repository: file://charts/gateway
-  version: 1.0.2
+  version: 1.0.3
 - name: stardog
   repository: file://charts/stardog
-  version: 4.0.3
+  version: 4.0.4
 - name: zookeeper
   repository: file://charts/zookeeper
-  version: 1.0.2
+  version: 1.0.3
 - name: launchpad
   repository: file://charts/launchpad
-  version: 1.0.3
+  version: 1.0.4
 - name: voicebox
   repository: file://charts/voicebox
-  version: 1.1.1
+  version: 1.1.2
 - name: cachetarget
   repository: file://charts/cachetarget
-  version: 1.0.2
-digest: sha256:427d32c120a5c87c3866bacf7cb302b3b7482b805e573e5228f6c3c58e03d0a2
-generated: "2026-05-01T17:19:30.879753-04:00"
+  version: 1.0.3
+digest: sha256:bd656e88ea3c885e6347ca86345540a6761901fdb829931b370ad51733655d56
+generated: "2026-05-12T15:24:52.485084-04:00"

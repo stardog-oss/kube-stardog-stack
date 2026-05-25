@@ -4,7 +4,15 @@
 {{- $globalGateway := default (dict) (index $globalValues "gateway") -}}
 {{- $globalTls := default (dict) (index $globalGateway "tls") -}}
 {{- $globalTlsEnabled := default true (index $globalTls "enabled") -}}
-{{- $tlsEnabled := or (default false .Values.gateway.http.tls.enabled) (and $globalGatewayManaged $globalTlsEnabled) -}}
+{{- $globalGatewayExternal := eq (include "sdcommon.globalGatewayExternal" .) "true" -}}
+{{- $globalIssuer := default (dict) (index $globalValues "certIssuer") -}}
+{{- $globalCertSecret := trim (default "" (index $globalIssuer "secretName")) -}}
+{{- $globalCertTpl := trim (default "" (index $globalIssuer "secretNameTpl")) -}}
+{{- $globalGatewayTlsSecret := trim (default "" (index $globalTls "secretName")) -}}
+{{- $globalGatewaySparqlTlsSecret := trim (default "" (index $globalTls "sparqlSecretName")) -}}
+{{- $globalGatewayBiTlsSecret := trim (default "" (index $globalTls "biSecretName")) -}}
+{{- $externalGlobalTlsConfigured := and $globalGatewayExternal $globalTlsEnabled (or (ne $globalGatewayTlsSecret "") (ne $globalGatewaySparqlTlsSecret "") (ne $globalGatewayBiTlsSecret "") (ne $globalCertSecret "") (ne $globalCertTpl "")) -}}
+{{- $tlsEnabled := or (default false .Values.gateway.http.tls.enabled) (and $globalGatewayManaged $globalTlsEnabled) $externalGlobalTlsConfigured -}}
   {{- $issuer := (include "sdcommon.effectiveCertIssuer" . | fromYaml) -}}
   {{- $launchpadEnabled := false }}
   {{- if and (hasKey .Values "global") (hasKey .Values.global "launchpad") (hasKey .Values.global.launchpad "enabled") -}}
@@ -19,7 +27,7 @@
     {{- $_ := set $gatewayConfig "tls" (dict) }}
   {{- end }}
   {{- $globalGatewayNamespace := include "sdcommon.globalGatewayNamespace" . }}
-  {{- if and $globalGatewayManaged (ne $globalGatewayNamespace .Release.Namespace) }}
+  {{- if and (or $globalGatewayManaged $globalGatewayExternal) (ne $globalGatewayNamespace .Release.Namespace) }}
     {{- $_ := set $gatewayConfig.tls "secretNamespace" $globalGatewayNamespace }}
   {{- end }}
   {{- $domain := trim (default "" $gatewayConfig.domain) }}
@@ -32,21 +40,32 @@
   {{- end }}
   {{- $useGlobalSecret := eq (include "sdcommon.usesGlobalCertSecret" (dict "context" .)) "true" }}
   {{- $tlsSecret := default "" $gatewayConfig.tls.secretName }}
+  {{- if and (eq (trim $tlsSecret) "") (or $globalGatewayManaged $globalGatewayExternal) }}
+    {{- $tlsSecret = $globalGatewayTlsSecret }}
+    {{- if eq (trim $tlsSecret) "" }}
+      {{- $tlsSecret = $globalGatewaySparqlTlsSecret }}
+    {{- end }}
+  {{- end }}
   {{- if eq (trim $tlsSecret) "" }}
     {{- $_ := set $gatewayConfig.tls "secretName" (include "certIssuer.secretName" .) }}
     {{- $tlsSecret = $gatewayConfig.tls.secretName }}
   {{- end }}
   {{- $secretNamespace := default .Release.Namespace $gatewayConfig.tls.secretNamespace }}
-  {{- if and (ne $secretNamespace .Release.Namespace) (not $issuer.clusterScoped) }}
+  {{- if and (ne $secretNamespace .Release.Namespace) (not $issuer.clusterScoped) (ne $secretNamespace (include "sdcommon.certIssuerNamespace" .)) }}
     {{- fail "gateway.http.tls.secretNamespace outside the release namespace requires certIssuer.clusterScoped=true." -}}
   {{- end }}
   {{- $sparqlHost := printf "%s.%s" (default "sparql" $gatewayConfig.sparqlSubdomain) $domain }}
   {{- $dnsNames := list $sparqlHost }}
+  {{- $biHost := "" }}
+  {{- $renderSeparateBiCertificate := false }}
   {{- if eq (include "stardog.effectiveBiEnabled" .) "true" }}
-    {{- $biHost := printf "%s.%s" (default "bi" $gatewayConfig.biSubdomain) $domain }}
-    {{- $dnsNames = append $dnsNames $biHost }}
+    {{- $biHost = printf "%s.%s" (default "bi" $gatewayConfig.biSubdomain) $domain }}
+    {{- $renderSeparateBiCertificate = and $globalGatewayExternal (ne $globalGatewayBiTlsSecret "") (ne $globalGatewayBiTlsSecret $tlsSecret) }}
+    {{- if not $renderSeparateBiCertificate }}
+      {{- $dnsNames = append $dnsNames $biHost }}
+    {{- end }}
   {{- end }}
-  {{- if and $useGlobalSecret $globalGatewayManaged $launchpadEnabled }}
+  {{- if and $useGlobalSecret (or $globalGatewayManaged $globalGatewayExternal) $launchpadEnabled }}
     {{- $launchpadHost := printf "%s.%s" "launchpad" $domain }}
     {{- $dnsNames = append $dnsNames $launchpadHost }}
   {{- end }}
@@ -71,5 +90,22 @@ spec:
   dnsNames:
   {{- range $dnsNames }}
     - {{ . | quote }}
+  {{- end }}
+  {{- if $renderSeparateBiCertificate }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ printf "%s-bi-gateway-cert" (include "sdcommon.fullname" .) }}
+  namespace: {{ $secretNamespace }}
+  labels:
+{{ include "sdcommon.labels.standard" . | indent 4 }}
+spec:
+  secretName: {{ $globalGatewayBiTlsSecret }}
+  issuerRef:
+    name: {{ include "certIssuer.name" . }}
+    kind: {{ include "certIssuer.kind" . }}
+  dnsNames:
+    - {{ $biHost | quote }}
   {{- end }}
 {{- end }}

@@ -5,7 +5,7 @@ kind: {{ include "certIssuer.kind" . }}
 metadata:
   name: {{ include "certIssuer.name" . }}
   {{- if not $issuer.clusterScoped }}
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "sdcommon.certIssuerNamespace" . }}
   {{- end }}
   labels:
     {{- include "certIssuer.labels" . | nindent 4 }}

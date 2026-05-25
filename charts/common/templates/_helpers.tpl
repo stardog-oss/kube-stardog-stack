@@ -233,6 +233,17 @@ storageClassName: {{ $value | quote }}
   {{- end -}}
 {{- end -}}
 {{- $issuer := ternary $global (deepCopy (default dict .Values.certIssuer)) $useGlobal -}}
+{{- if eq (include "sdcommon.globalGatewayExternal" .) "true" -}}
+  {{- $globalGateway := default (dict) (index (default (dict) .Values.global) "gateway") -}}
+  {{- $globalGatewayTls := default (dict) (index $globalGateway "tls") -}}
+  {{- $globalGatewaySecretName := trim (default "" (index $globalGatewayTls "secretName")) -}}
+  {{- if ne $globalGatewaySecretName "" -}}
+    {{- $issuerSecretName := trim (default "" (index $issuer "secretName")) -}}
+    {{- if eq $issuerSecretName "" -}}
+      {{- $_ := set $issuer "secretName" $globalGatewaySecretName -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
 {{- $gateway := default (dict) .Values.gateway -}}
 {{- $http := default (dict) (index $gateway "http") -}}
 {{- $gatewayTls := default (dict) (index $http "tls") -}}
@@ -275,6 +286,23 @@ storageClassName: {{ $value | quote }}
 {{- $globalIssuer := default (dict) (index $globalValues "certIssuer") -}}
 {{- $globalSecret := trim (default "" (index $globalIssuer "secretName")) -}}
 {{- $globalTpl := trim (default "" (index $globalIssuer "secretNameTpl")) -}}
+{{- $globalGateway := default (dict) (index $globalValues "gateway") -}}
+{{- $globalGatewayTls := default (dict) (index $globalGateway "tls") -}}
+{{- $globalGatewayEnabled := eq (include "sdcommon.globalGatewayEnabled" $ctx) "true" -}}
+{{- $globalGatewaySecret := "" -}}
+{{- if $globalGatewayEnabled -}}
+  {{- $globalGatewaySecret = trim (default "" (index $globalGatewayTls "secretName")) -}}
+{{- end -}}
+{{- $globalGatewayComponentSecret := "" -}}
+{{- if $globalGatewayEnabled -}}
+  {{- if eq $component "stardog" -}}
+    {{- $globalGatewayComponentSecret = trim (default "" (index $globalGatewayTls "sparqlSecretName")) -}}
+  {{- else if eq $component "launchpad" -}}
+    {{- $globalGatewayComponentSecret = trim (default "" (index $globalGatewayTls "launchpadSecretName")) -}}
+  {{- else if eq $component "bi" -}}
+    {{- $globalGatewayComponentSecret = trim (default "" (index $globalGatewayTls "biSecretName")) -}}
+  {{- end -}}
+{{- end -}}
 {{- $chartIssuer := default (dict) $ctx.Values.certIssuer -}}
 {{- $chartSecret := trim (default "" (index $chartIssuer "secretName")) -}}
 {{- $ingressSecret := "" -}}
@@ -288,6 +316,10 @@ storageClassName: {{ $value | quote }}
 {{- $result = $ingressSecret -}}
 {{- else if ne $globalSecret "" -}}
 {{- $result = $globalSecret -}}
+{{- else if ne $globalGatewaySecret "" -}}
+{{- $result = $globalGatewaySecret -}}
+{{- else if ne $globalGatewayComponentSecret "" -}}
+{{- $result = $globalGatewayComponentSecret -}}
 {{- else if ne $globalTpl "" -}}
   {{- if ne $component "" -}}
 {{- $result = printf "%s-%s" $component $globalTpl -}}
@@ -305,18 +337,31 @@ storageClassName: {{ $value | quote }}
 {{- $result -}}
 {{- end -}}
 
+{{- define "sdcommon.certIssuerNamespace" -}}
+{{- $issuer := (include "sdcommon.effectiveCertIssuer" . | fromYaml) -}}
+{{- if $issuer.clusterScoped -}}
+{{- else if eq (include "sdcommon.globalGatewayExternal" .) "true" -}}
+{{- include "sdcommon.globalGatewayNamespace" . -}}
+{{- else -}}
+{{- .Release.Namespace -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "sdcommon.usesGlobalCertSecret" -}}
 {{- $ctx := .context -}}
 {{- $globalValues := default (dict) $ctx.Values.global -}}
 {{- $globalIssuer := default (dict) (index $globalValues "certIssuer") -}}
 {{- $globalSecret := trim (default "" (index $globalIssuer "secretName")) -}}
+{{- $globalGateway := default (dict) (index $globalValues "gateway") -}}
+{{- $globalGatewayTls := default (dict) (index $globalGateway "tls") -}}
+{{- $globalGatewaySecret := trim (default "" (index $globalGatewayTls "secretName")) -}}
 {{- $chartIssuer := default (dict) $ctx.Values.certIssuer -}}
 {{- $chartSecret := trim (default "" (index $chartIssuer "secretName")) -}}
 {{- $ingressSecret := "" -}}
 {{- if and (hasKey $ctx.Values "ingress") (hasKey $ctx.Values.ingress "tls") -}}
   {{- $ingressSecret = trim (default "" (index $ctx.Values.ingress.tls "secretName")) -}}
 {{- end -}}
-{{- if and (ne $globalSecret "") (eq $chartSecret "") (eq $ingressSecret "") -}}
+{{- if and (or (ne $globalSecret "") (and (eq (include "sdcommon.globalGatewayExternal" $ctx) "true") (ne $globalGatewaySecret ""))) (eq $chartSecret "") (eq $ingressSecret "") -}}
 true
 {{- else -}}
 false
@@ -459,19 +504,27 @@ Auto-configure ACME HTTP-01 solvers based on ingress/gateway settings when custo
     {{- $parentRefs := list }}
     {{- if $globalGatewayEnabled }}
       {{- $sectionName := "" -}}
-      {{- if eq $ctx.Chart.Name "stardog" -}}
-        {{- $redirect := default (dict) (index (default (dict) (index (default (dict) $values.gateway) "http")) "redirect") -}}
-        {{- if default false (index $redirect "enabled") -}}
+      {{- if eq (include "sdcommon.globalGatewayExternal" $ctx) "true" -}}
+        {{- if eq $ctx.Chart.Name "stardog" -}}
           {{- $sectionName = include "sdcommon.globalGatewaySparqlHttpSectionName" $ctx -}}
-        {{- else -}}
-          {{- $sectionName = include "sdcommon.globalGatewaySparqlSectionName" $ctx -}}
-        {{- end -}}
-      {{- else if eq $ctx.Chart.Name "launchpad" -}}
-        {{- $redirect := default (dict) (index (default (dict) (index (default (dict) $values.gateway) "http")) "redirect") -}}
-        {{- if default false (index $redirect "enabled") -}}
+        {{- else if eq $ctx.Chart.Name "launchpad" -}}
           {{- $sectionName = include "sdcommon.globalGatewayLaunchpadHttpSectionName" $ctx -}}
-        {{- else -}}
-          {{- $sectionName = include "sdcommon.globalGatewayLaunchpadSectionName" $ctx -}}
+        {{- end -}}
+      {{- else -}}
+        {{- if eq $ctx.Chart.Name "stardog" -}}
+          {{- $redirect := default (dict) (index (default (dict) (index (default (dict) $values.gateway) "http")) "redirect") -}}
+          {{- if default false (index $redirect "enabled") -}}
+            {{- $sectionName = include "sdcommon.globalGatewaySparqlHttpSectionName" $ctx -}}
+          {{- else -}}
+            {{- $sectionName = include "sdcommon.globalGatewaySparqlSectionName" $ctx -}}
+          {{- end -}}
+        {{- else if eq $ctx.Chart.Name "launchpad" -}}
+          {{- $redirect := default (dict) (index (default (dict) (index (default (dict) $values.gateway) "http")) "redirect") -}}
+          {{- if default false (index $redirect "enabled") -}}
+            {{- $sectionName = include "sdcommon.globalGatewayLaunchpadHttpSectionName" $ctx -}}
+          {{- else -}}
+            {{- $sectionName = include "sdcommon.globalGatewayLaunchpadSectionName" $ctx -}}
+          {{- end -}}
         {{- end -}}
       {{- end -}}
       {{- $ref := dict "name" (include "sdcommon.globalGatewayName" $ctx) "namespace" (include "sdcommon.globalGatewayNamespace" $ctx) -}}

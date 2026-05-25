@@ -17,6 +17,10 @@ global:
   voicebox:
     enabled: false
 
+  # Apache ZooKeeper support is provided as a convenience for non-production or
+  # simple deployments. Stardog does not own or harden the ZooKeeper container
+  # image used by this chart. For production, use a commercially supported or
+  # internally hardened ZooKeeper deployment and configure Stardog to use it.
   zookeeper:
     enabled: false
 
@@ -40,6 +44,11 @@ global:
     http:
       port: 443
       httpPort: 80
+    # Gateway Certificate TLS secret resolution priority, highest to lowest:
+    # 1. gateway.tls.secretName (shared/SAN certificate; overrides component-specific names)
+    # 2. gateway.tls.sparqlSecretName / launchpadSecretName / biSecretName
+    # 3. certIssuer.secretName
+    # 4. certIssuer.secretNameTpl
     tls:
       enabled: true
       # Optional shared secret for all HTTPS listeners.
@@ -49,6 +58,8 @@ global:
       sparqlSecretName: ""
       # Optional override for launchpad secret. Leave empty to use certIssuer-derived names.
       launchpadSecretName: ""
+      # Optional override for BI secret. Leave empty to use the Stardog/SAN certificate.
+      biSecretName: ""
       bootstrap:
         enabled: true # Create placeholder TLS secrets for shared Gateway ACME HTTP-01
     tcpBi:

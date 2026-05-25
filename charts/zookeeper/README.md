@@ -2,6 +2,10 @@
 
 Deploy Apache ZooKeeper (standalone or ensemble) using the **Docker Official Image** `zookeeper`.
 
+> Apache ZooKeeper support in this chart is provided as a convenience. Stardog
+> does not own or harden the ZooKeeper container image. For production systems,
+> use a commercially supported or internally hardened ZooKeeper deployment.
+
 Key behaviors match the official image contract:
 - Replicated mode uses `ZOO_MY_ID` and `ZOO_SERVERS`
 - Config lives in `/conf`, can be overridden by mounting `zoo.cfg`, or extended via `ZOO_CFG_EXTRA`

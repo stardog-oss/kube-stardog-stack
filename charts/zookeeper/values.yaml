@@ -7,7 +7,10 @@ fullnameOverride: ""
 clusterDomain: cluster.local
 
 image:
-  # You should not rely on Docker up for you production environment. You should ALWAYS use an implicit tag
+  # Apache ZooKeeper support is provided as a convenience for non-production or
+  # simple deployments. Stardog does not own or harden this container image.
+  # For production, use a commercially supported or internally hardened
+  # ZooKeeper image/deployment.
   registry: docker.io
   repository: zookeeper
   tag: 3.9.4

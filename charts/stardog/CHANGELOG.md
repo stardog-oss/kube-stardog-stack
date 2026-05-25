@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.4
+- Use `global.gateway.domain` as the default domain for the auto-enabled Launchpad redirect hostname when `global.launchpad.enabled=true`.
+- Keep `gateway.redirectToLaunchpad.hostname` as the explicit override for the Stardog root-path Launchpad redirect.
+- Create Stardog Gateway Certificates in the shared Gateway namespace when `global.gateway.createGateway=false`.
+- Honor shared, SPARQL-specific, and template-derived Gateway TLS secret names, and optionally render a separate BI Certificate with `global.gateway.tls.biSecretName`.
+- Ensure managed shared Gateway Certificates target `global.gateway.tls.secretName` when it is set, matching the Gateway listener secret.
+- Update the common chart dependency to `0.1.7`.
+
 ## 4.0.3
 - Use deterministic pod-template checksums for chart-managed ConfigMaps and Secrets so no-op Helm upgrades do not restart Stardog pods.
 - Restart Stardog pods when chart-managed Stardog configuration or consumed Secret inputs change.
