@@ -390,6 +390,53 @@ For detailed configuration options for each component, see:
 
 ## Troubleshooting
 
+### FAQ: Microsoft Entra B2B guests can access Azure Portal but not Azure CLI
+
+When a user is invited as a Microsoft Entra B2B guest, the invite creates a
+guest object in the resource tenant. The guest object can receive Azure RBAC,
+group membership, and application assignments, but the authentication method is
+chosen when the user redeems the invitation.
+
+Two users invited through the same process can redeem through different identity
+paths. For example:
+
+```text
+issuer = MicrosoftAccount
+issuer = mail
+```
+
+`issuer = mail` usually indicates an email one-time passcode style external
+identity. That can be sufficient for some Microsoft web experiences, and it can
+still show `externalUserState = Accepted`, but it is not always equivalent to a
+Microsoft account or Entra work/school identity for Azure administration flows.
+
+If Azure Portal access works only with the tenant-specific URL, use:
+
+```text
+https://portal.azure.com/#@<tenant-domain>
+```
+
+For CLI-heavy workflows, validate Azure CLI access before relying on the account:
+
+```bash
+az login --tenant <tenant-domain> --use-device-code
+az account show
+az group show -n <resource-group>
+az aks get-credentials -g <resource-group> -n <aks-name>
+```
+
+If the CLI cannot authenticate the same guest identity, use a different external
+identity baseline for operational users:
+
+- Microsoft account-backed guest
+- Entra work/school account-backed guest
+- Native training or operations tenant user
+- Configured and tested external federation for the user's domain
+
+Do not treat `externalUserState = Accepted` as proof that Azure Portal, Azure
+CLI, AKS, Key Vault, and Terraform workflows will all work. For operational
+access, test the actual management-plane workflow.
+
 ### Common Issues
 
 1. **Dependency Resolution**: Ensure all sub-charts are available in the `charts/` directory
