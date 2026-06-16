@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0
+- Changed bundled ZooKeeper AdminServer default from enabled to disabled. Set `zookeeper.adminServerEnabled=true` to keep the previous pod-local AdminServer behavior, and `zookeeper.service.exposeAdmin=true` to expose it through the Service.
+- Update bundled ZooKeeper subchart to `1.1.0`.
+
 ## 1.1.2
 - Use `global.gateway.domain` as the default Launchpad redirect hostname base for managed umbrella Gateway deployments.
 - Support cert-manager Certificate creation for external shared Gateway deployments using `global.gateway.createGateway=false`.

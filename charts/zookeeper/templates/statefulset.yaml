@@ -98,8 +98,10 @@ spec:
               containerPort: {{ .Values.ports.quorum }}
             - name: leader-election
               containerPort: {{ .Values.ports.leaderElection }}
+            {{- if .Values.adminServerEnabled }}
             - name: admin
               containerPort: {{ .Values.ports.admin }}
+            {{- end }}
             {{- if .Values.metrics.enabled }}
             - name: metrics
               containerPort: {{ .Values.ports.metrics }}
@@ -201,10 +203,14 @@ spec:
           readinessProbe:
             exec:
               command:
-                - sh
+                - bash
                 - -ec
                 - |
-                  curl -fsS --max-time {{ .Values.probes.readiness.timeoutSeconds }} http://127.0.0.1:{{ .Values.ports.admin }}/commands/ruok | grep error | grep null
+                  exec 3<>/dev/tcp/127.0.0.1/{{ .Values.ports.client }} || exit 1
+                  printf "srvr" >&3
+                  IFS= read -r -t {{ .Values.probes.readiness.timeoutSeconds }} resp <&3
+                  exec 3>&-
+                  [ -n "$resp" ]
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
@@ -219,10 +225,14 @@ spec:
           livenessProbe:
             exec:
               command:
-                - sh
+                - bash
                 - -ec
                 - |
-                  curl -fsS --max-time {{ .Values.probes.liveness.timeoutSeconds }} http://127.0.0.1:{{ .Values.ports.admin }}/commands/ruok | grep ruok
+                  exec 3<>/dev/tcp/127.0.0.1/{{ .Values.ports.client }} || exit 1
+                  printf "ruok" >&3
+                  IFS= read -r -t {{ .Values.probes.liveness.timeoutSeconds }} resp <&3
+                  exec 3>&-
+                  [ "$resp" = "imok" ]
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}

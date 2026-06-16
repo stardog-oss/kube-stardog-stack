@@ -34,8 +34,8 @@ minServerId: 3
 standaloneEnabled: null
 
 # Enable ZooKeeper AdminServer (official image env: ZOO_ADMINSERVER_ENABLED).
-# Default probes use AdminServer endpoints on localhost to avoid log-noise.
-adminServerEnabled: true
+# Disabled by default because the chart probes use the ZooKeeper client port.
+adminServerEnabled: false
 
 ports:
   client: 2181
@@ -48,6 +48,7 @@ service:
   type: ClusterIP
   annotations: {}
   labels: {}
+  # Expose the AdminServer port through the Service only when adminServerEnabled is true.
   exposeAdmin: false
   exposeMetrics: true
 
@@ -99,7 +100,11 @@ config:
   snapCount: ""
   maxSessionTimeout: ""
 
-  fourLetterWordsWhitelist: "ruok,stat,srvr,mntr,conf,isro"
+  # Chart default probes require only `ruok` for liveness and `srvr` for readiness.
+  # Add more commands only when you need them for custom probes or operational
+  # debugging. Refer to the Apache ZooKeeper documentation for allowed commands:
+  # https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_zkCommands
+  fourLetterWordsWhitelist: "ruok,srvr"
 
   autopurge:
     purgeInterval: 0

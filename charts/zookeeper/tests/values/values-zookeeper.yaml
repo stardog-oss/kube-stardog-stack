@@ -20,7 +20,7 @@ ports:
 
 service:
   type: ClusterIP
-  exposeAdmin: true
+  exposeAdmin: false
   exposeMetrics: true
 
 persistence:
@@ -34,7 +34,7 @@ config:
   initLimit: 10
   syncLimit: 5
   maxClientCnxns: 60
-  fourLetterWordsWhitelist: "ruok,stat,srvr,mntr,conf,isro"
+  fourLetterWordsWhitelist: "ruok,srvr"
 
 serviceAccount:
   create: true

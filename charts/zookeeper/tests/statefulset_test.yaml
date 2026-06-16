@@ -84,6 +84,13 @@ tests:
             name: admin
             containerPort: 8080
 
+  - it: should not expose admin port by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: admin
+
   - it: should expose metrics port when metrics are enabled
     set:
       metrics.enabled: true
@@ -210,6 +217,14 @@ tests:
             name: ZOO_ADMINSERVER_ENABLED
             value: "true"
 
+  - it: should disable admin server by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ZOO_ADMINSERVER_ENABLED
+            value: "false"
+
   # Update Strategy
   - it: should use RollingUpdate strategy by default
     asserts:
@@ -290,6 +305,15 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
           value: 10
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[0]
+          value: bash
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: 'printf "srvr"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command[2]
+          pattern: '\[ -n "\$resp" \]'
 
   - it: should configure liveness probe when enabled
     set:
@@ -304,6 +328,15 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.initialDelaySeconds
           value: 20
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command[0]
+          value: bash
+      - matchRegex:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command[2]
+          pattern: 'printf "ruok"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command[2]
+          pattern: '\[ "\$resp" = "imok" \]'
 
   # Init Containers
   - it: should add volume permissions init container when enabled

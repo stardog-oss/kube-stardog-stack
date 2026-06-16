@@ -52,6 +52,10 @@ Coordination service for clustered Stardog deployments. Enable with `global.zook
 
 Apache ZooKeeper support in this umbrella chart is provided as a convenience. Stardog does not own or harden the ZooKeeper container image. For production systems, use a commercially supported or internally hardened ZooKeeper deployment and configure Stardog to use it.
 
+The bundled ZooKeeper AdminServer is disabled by default. Enable it with `zookeeper.adminServerEnabled=true`; expose it on the ZooKeeper Service only when needed with `zookeeper.service.exposeAdmin=true`.
+
+The bundled ZooKeeper probes use the client port four-letter commands `ruok` and `srvr`, so the chart default whitelist is limited to `ruok,srvr`. Add more commands only for custom probes or operational debugging, and refer to the Apache ZooKeeper documentation for the supported command list: https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_zkCommands
+
 ## Shared Resources
 
 ### ClusterIssuer
