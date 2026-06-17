@@ -69,6 +69,11 @@ kubectl -n ${namespace} get pods
 
 ### Break-Glass Override
 
+WARNING: this override is a last resort. Scale Stardog down to 0 and wait for
+all Stardog pods to stop before using it. Using the override while Stardog is
+running can restart ZooKeeper pods in parallel and can cause serious Stardog
+cluster disruption or data/state consistency issues.
+
 If you intentionally want Helm to proceed while the existing StatefulSet still
 uses `podManagementPolicy: Parallel`, set:
 
