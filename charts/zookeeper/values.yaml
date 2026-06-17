@@ -22,6 +22,17 @@ image:
 
 replicaCount: 3
 
+# Default pod management policy for new ZooKeeper StatefulSets.
+# Kubernetes treats spec.podManagementPolicy as immutable, so upgrades preserve
+# the already deployed StatefulSet value when one exists.
+podManagementPolicy: OrderedReady
+
+upgrade:
+  # Break-glass override for upgrades from an existing StatefulSet with
+  # podManagementPolicy: Parallel. Leave false unless you intentionally accept
+  # the risk that a rolling update can restart all ZooKeeper pods in parallel.
+  allowParallelPodManagementPolicy: false
+
 # minServerId added to pod ordinal (default 1).
 # Example: pod "-0" => myid=1, "-1" => myid=2, ...
 minServerId: 3

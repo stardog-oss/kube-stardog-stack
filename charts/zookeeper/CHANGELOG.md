@@ -2,6 +2,8 @@
 
 ## 1.1.0
 - Changed `adminServerEnabled` default from `true` to `false`. Set `adminServerEnabled=true` to keep the previous pod-local AdminServer behavior, and `service.exposeAdmin=true` to expose it through the Service.
+- Default new ZooKeeper StatefulSets to `podManagementPolicy: OrderedReady`.
+- Stop upgrades from existing ZooKeeper StatefulSets that still use `podManagementPolicy: Parallel`; follow `UPGRADE.md` to migrate because the field is immutable and parallel ZooKeeper restarts can disrupt Stardog.
 - Update the common chart dependency to `0.1.7`.
 - Document that this chart's Apache ZooKeeper support is a convenience and production systems should use a commercially supported or internally hardened ZooKeeper deployment.
 - Switch default probes from AdminServer `curl` checks to ZooKeeper client-port four-letter commands: `srvr` for readiness and `ruok` for liveness.

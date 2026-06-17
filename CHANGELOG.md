@@ -2,6 +2,8 @@
 
 ## 1.2.0
 - Changed bundled ZooKeeper AdminServer default from enabled to disabled. Set `zookeeper.adminServerEnabled=true` to keep the previous pod-local AdminServer behavior, and `zookeeper.service.exposeAdmin=true` to expose it through the Service.
+- Default new bundled ZooKeeper StatefulSets to `podManagementPolicy: OrderedReady`.
+- Stop upgrades from existing bundled ZooKeeper StatefulSets that still use `podManagementPolicy: Parallel`; follow `charts/zookeeper/UPGRADE.md` to migrate because the field is immutable and parallel ZooKeeper restarts can disrupt Stardog.
 - Fix the bundled ZooKeeper `ruok` liveness probe to read ZooKeeper's four-byte `imok` response without requiring a trailing newline.
 - Update bundled ZooKeeper subchart to `1.1.0`.
 

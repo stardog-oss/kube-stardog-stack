@@ -21,6 +21,14 @@ tests:
           value: 3
       - equal:
           path: spec.podManagementPolicy
+          value: OrderedReady
+
+  - it: should support explicit Parallel pod management policy
+    set:
+      podManagementPolicy: Parallel
+    asserts:
+      - equal:
+          path: spec.podManagementPolicy
           value: Parallel
 
   # Image Configuration

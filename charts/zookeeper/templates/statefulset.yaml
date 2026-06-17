@@ -1,3 +1,13 @@
+{{- $existingStatefulSet := lookup "apps/v1" "StatefulSet" .Release.Namespace (include "zookeeper.fullname" .) -}}
+{{- $podManagementPolicy := .Values.podManagementPolicy | default "OrderedReady" -}}
+{{- $existingPodManagementPolicy := "" -}}
+{{- if and $existingStatefulSet $existingStatefulSet.spec $existingStatefulSet.spec.podManagementPolicy -}}
+{{- $existingPodManagementPolicy = $existingStatefulSet.spec.podManagementPolicy -}}
+{{- $podManagementPolicy = $existingPodManagementPolicy -}}
+{{- end -}}
+{{- if and (eq $existingPodManagementPolicy "Parallel") (not (dig "upgrade" "allowParallelPodManagementPolicy" false .Values)) -}}
+{{- fail "Existing ZooKeeper StatefulSet uses podManagementPolicy=Parallel. This chart stops the upgrade because a rolling update can restart all ZooKeeper pods in parallel and disrupt Stardog. Follow charts/zookeeper/UPGRADE.md#parallel-to-orderedready-migration before upgrading. Break-glass override: set upgrade.allowParallelPodManagementPolicy=true for the standalone chart, or zookeeper.upgrade.allowParallelPodManagementPolicy=true for the umbrella chart." -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -7,7 +17,7 @@ metadata:
 spec:
   serviceName: {{ include "zookeeper.headlessServiceName" . }}
   replicas: {{ .Values.replicaCount }}
-  podManagementPolicy: Parallel
+  podManagementPolicy: {{ $podManagementPolicy }}
   updateStrategy:
     type: {{ .Values.updateStrategy.type }}
     {{- if eq .Values.updateStrategy.type "RollingUpdate" }}
