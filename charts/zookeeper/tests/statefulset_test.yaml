@@ -336,6 +336,9 @@ tests:
           pattern: 'printf "ruok"'
       - matchRegex:
           path: spec.template.spec.containers[0].livenessProbe.exec.command[2]
+          pattern: 'head -c 4'
+      - matchRegex:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command[2]
           pattern: '\[ "\$resp" = "imok" \]'
 
   # Init Containers

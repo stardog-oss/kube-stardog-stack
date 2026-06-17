@@ -230,7 +230,7 @@ spec:
                 - |
                   exec 3<>/dev/tcp/127.0.0.1/{{ .Values.ports.client }} || exit 1
                   printf "ruok" >&3
-                  IFS= read -r -t {{ .Values.probes.liveness.timeoutSeconds }} resp <&3
+                  resp=$(timeout {{ .Values.probes.liveness.timeoutSeconds }} head -c 4 <&3)
                   exec 3>&-
                   [ "$resp" = "imok" ]
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
