@@ -60,7 +60,7 @@ The chart auto-generates:
 New installs use `podManagementPolicy: OrderedReady`. Upgrades from an older
 StatefulSet using `podManagementPolicy: Parallel` are blocked by default because
 that Kubernetes field is immutable and parallel ZooKeeper restarts can disrupt
-Stardog. See [UPGRADE.md](./UPGRADE.md#parallel-to-orderedready-migration).
+Stardog. See the [ZooKeeper upgrade notes](./UPGRADE.md#parallel-to-orderedready-migration).
 
 ## Persistence
 

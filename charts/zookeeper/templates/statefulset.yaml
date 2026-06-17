@@ -6,7 +6,7 @@
 {{- $podManagementPolicy = $existingPodManagementPolicy -}}
 {{- end -}}
 {{- if and (eq $existingPodManagementPolicy "Parallel") (not (dig "upgrade" "allowParallelPodManagementPolicy" false .Values)) -}}
-{{- fail "Existing ZooKeeper StatefulSet uses podManagementPolicy=Parallel. This chart stops the upgrade because a rolling update can restart all ZooKeeper pods in parallel and disrupt Stardog. Follow charts/zookeeper/UPGRADE.md#parallel-to-orderedready-migration before upgrading. Break-glass override: set upgrade.allowParallelPodManagementPolicy=true for the standalone chart, or zookeeper.upgrade.allowParallelPodManagementPolicy=true for the umbrella chart." -}}
+{{- fail (printf "ZooKeeper upgrade blocked: existing StatefulSet %q in namespace %q uses spec.podManagementPolicy=Parallel. Kubernetes cannot change this immutable field in place, and continuing can restart ZooKeeper pods in parallel and disrupt Stardog. Complete the documented migration first: https://github.com/stardog-oss/kube-stardog-stack/blob/main/charts/zookeeper/UPGRADE.md#parallel-to-orderedready-migration. Break-glass override: set upgrade.allowParallelPodManagementPolicy=true for the standalone chart, or zookeeper.upgrade.allowParallelPodManagementPolicy=true for the umbrella chart." (include "zookeeper.fullname" .) .Release.Namespace) -}}
 {{- end -}}
 apiVersion: apps/v1
 kind: StatefulSet
