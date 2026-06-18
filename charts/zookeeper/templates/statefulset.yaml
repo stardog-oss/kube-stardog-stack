@@ -63,7 +63,7 @@ spec:
           image: "{{ .Values.volumePermissions.image.repository }}:{{ .Values.volumePermissions.image.tag }}"
           imagePullPolicy: {{ .Values.volumePermissions.image.pullPolicy }}
           command:
-            - sh
+            - bash
             - -ec
             - |
               chown -R {{ .Values.containerSecurityContext.runAsUser }}:{{ .Values.containerSecurityContext.runAsGroup }} /data
@@ -170,7 +170,7 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
 
-          command: ["sh","-ec"]
+          command: ["bash","-ec"]
           args:
             - |
               ordinal="${HOSTNAME##*-}"

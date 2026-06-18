@@ -11,6 +11,7 @@ image:
   # simple deployments. Stardog does not own or harden this container image.
   # For production, use a commercially supported or internally hardened
   # ZooKeeper image/deployment.
+  # The image must include bash because the chart uses it for startup and probes.
   registry: docker.io
   repository: zookeeper
   tag: 3.9.4

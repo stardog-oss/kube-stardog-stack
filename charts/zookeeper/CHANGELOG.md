@@ -10,6 +10,7 @@
 - Limit the default four-letter command whitelist to `ruok,srvr`; add more commands explicitly for custom probes or debugging.
 - Disable ZooKeeper AdminServer by default and omit the admin container port unless `adminServerEnabled=true`.
 - Fix the `ruok` liveness probe to read ZooKeeper's four-byte `imok` response without requiring a trailing newline.
+- Use `bash` instead of `sh` for chart-generated startup and volume-permission commands.
 - Keep `minReadySeconds` configurable and default it to `20`.
 
 ## 1.0.2

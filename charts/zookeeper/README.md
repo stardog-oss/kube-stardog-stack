@@ -12,6 +12,7 @@ Key behaviors match the official image contract:
 - Data dirs: `/data` (snapshots) and `/datalog` (txn logs)
 - Default ports: 2181 (client), 2888/3888 (quorum)
 - AdminServer is disabled by default
+- The image includes `bash` for chart-generated startup and probe commands
 
 ## Quickstart
 
