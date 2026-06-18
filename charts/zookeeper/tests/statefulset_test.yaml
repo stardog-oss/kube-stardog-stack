@@ -22,6 +22,9 @@ tests:
       - equal:
           path: spec.podManagementPolicy
           value: OrderedReady
+      - equal:
+          path: spec.minReadySeconds
+          value: 60
 
   - it: should support explicit Parallel pod management policy
     set:
@@ -30,6 +33,14 @@ tests:
       - equal:
           path: spec.podManagementPolicy
           value: Parallel
+
+  - it: should support custom minReadySeconds
+    set:
+      minReadySeconds: 120
+    asserts:
+      - equal:
+          path: spec.minReadySeconds
+          value: 120
 
   # Image Configuration
   - it: should use correct image configuration

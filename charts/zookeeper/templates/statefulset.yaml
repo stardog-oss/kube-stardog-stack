@@ -19,6 +19,7 @@ metadata:
 spec:
   serviceName: {{ include "zookeeper.headlessServiceName" . }}
   replicas: {{ .Values.replicaCount }}
+  minReadySeconds: {{ .Values.minReadySeconds }}
   podManagementPolicy: {{ $podManagementPolicy }}
   updateStrategy:
     type: {{ .Values.updateStrategy.type }}
