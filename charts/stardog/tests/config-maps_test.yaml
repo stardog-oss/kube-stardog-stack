@@ -116,6 +116,15 @@ tests:
           path: data["stardog.properties"]
           pattern: "(?m)^upgrade\\.automatic=true$"
 
+  - it: disables shutdown when a node fails to rejoin
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.rejoin\\.shutdown=false$"
+
   - it: does not inject upgrade.automatic when upgrade approval targetVersion does not match image.tag
     values:
       - values/values-stardog.yaml

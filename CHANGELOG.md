@@ -6,6 +6,7 @@
 - Stop upgrades from existing bundled ZooKeeper StatefulSets that still use `podManagementPolicy: Parallel`; follow `charts/zookeeper/UPGRADE.md` to migrate because the field is immutable and parallel ZooKeeper restarts can disrupt Stardog.
 - Fix the bundled ZooKeeper `ruok` liveness probe to read ZooKeeper's four-byte `imok` response without requiring a trailing newline.
 - Add bundled ZooKeeper `minReadySeconds: 60` by default so rolling updates wait between Ready ordinals and reduce client reconnect churn.
+- Set Stardog `pack.rejoin.shutdown=false` by default so failed rejoin attempts do not immediately shut down the node.
 - Update bundled ZooKeeper subchart to `1.1.0`.
 
 ## 1.1.2
