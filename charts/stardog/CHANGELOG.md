@@ -2,6 +2,7 @@
 
 ## 4.0.4
 - Set `pack.rejoin.shutdown=false` by default so failed rejoin attempts do not immediately shut down the node.
+- Give clustered Stardog pods stable `pack.node.address` values through StatefulSet pod DNS and a headless service.
 - Use `global.gateway.domain` as the default domain for the auto-enabled Launchpad redirect hostname when `global.launchpad.enabled=true`.
 - Keep `gateway.redirectToLaunchpad.hostname` as the explicit override for the Stardog root-path Launchpad redirect.
 - Create Stardog Gateway Certificates in the shared Gateway namespace when `global.gateway.createGateway=false`.

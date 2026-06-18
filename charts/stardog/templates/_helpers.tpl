@@ -148,6 +148,18 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- end -}}
 {{- end -}}
 
+{{- define "stardog.headlessServiceName" -}}
+{{- printf "%s-headless" (include "sdcommon.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "stardog.statefulSetServiceName" -}}
+{{- if .Values.cluster.enabled -}}
+{{- include "stardog.headlessServiceName" . -}}
+{{- else -}}
+{{- include "sdcommon.fullname" . -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "stardog.validateClusterConfig" -}}
 {{- $cluster := .Values.cluster | default dict -}}
 {{- $clusterEnabled := default false $cluster.enabled -}}

@@ -42,6 +42,13 @@ service:
   annotations: {}
   # loadBalancerIP: ""
 
+headlessService:
+  annotations: {}
+  labels: {}
+  publishNotReadyAddresses: true
+
+clusterDomain: cluster.local
+
 bi:
   enabled: false # Defaults to global.bi.enabled when set.
   service:
@@ -203,6 +210,7 @@ stardogProperties: |
   # - logging.audit.enabled=true
   # - logging.audit.type=text
   # - pack.enabled=true
+  # - pack.node.address=<pod-headless-service-address> when cluster.enabled=true
   # - pack.zookeeper.address=<zookeeper-service>
   # - sql.server.enabled=true
   # - javax.net.ssl.keyStore*
