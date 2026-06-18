@@ -24,7 +24,7 @@ replicaCount: 3
 
 # Minimum seconds an updated ZooKeeper pod must stay Ready before StatefulSet
 # rolling updates continue to the next ordinal.
-minReadySeconds: 0
+minReadySeconds: 20
 
 # Default pod management policy for new ZooKeeper StatefulSets.
 # Kubernetes treats spec.podManagementPolicy as immutable, so upgrades preserve

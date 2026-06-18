@@ -51,6 +51,12 @@ tests:
       - matchRegex:
           path: data["stardog.properties"]
           pattern: "sql\\.server\\.enabled=true"
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.rejoin\\.shutdown=false$"
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.zookeeper\\.inactiveOnSuspend=false$"
 
   - it: uses explicit external ZooKeeper address unchanged
     values:

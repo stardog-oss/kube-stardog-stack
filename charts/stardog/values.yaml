@@ -240,6 +240,7 @@ stardogProperties: |
   #pack.node.join.retry.delay=5s
   #pack.join.retry.count=3
   pack.rejoin.shutdown=false
+  pack.zookeeper.inactiveOnSuspend=false
 
 upgrade:
   approval:

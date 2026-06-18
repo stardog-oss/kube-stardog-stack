@@ -5,8 +5,9 @@
 - Default new bundled ZooKeeper StatefulSets to `podManagementPolicy: OrderedReady`.
 - Stop upgrades from existing bundled ZooKeeper StatefulSets that still use `podManagementPolicy: Parallel`; follow `charts/zookeeper/UPGRADE.md` to migrate because the field is immutable and parallel ZooKeeper restarts can disrupt Stardog.
 - Fix the bundled ZooKeeper `ruok` liveness probe to read ZooKeeper's four-byte `imok` response without requiring a trailing newline.
-- Keep bundled ZooKeeper `minReadySeconds` configurable and default it to `0`.
+- Keep bundled ZooKeeper `minReadySeconds` configurable and default it to `20`.
 - Set Stardog `pack.rejoin.shutdown=false` by default so failed rejoin attempts do not immediately shut down the node.
+- Set Stardog `pack.zookeeper.inactiveOnSuspend=false` by default so ZooKeeper connection suspension does not immediately mark a node inactive.
 - Give clustered Stardog pods stable `pack.node.address` values through StatefulSet pod DNS and a headless service.
 - Render bundled ZooKeeper as a comma-separated headless pod DNS ensemble in `pack.zookeeper.address`.
 - Update bundled ZooKeeper subchart to `1.1.0`.

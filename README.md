@@ -58,7 +58,7 @@ The bundled ZooKeeper probes use the client port four-letter commands `ruok` and
 
 New bundled ZooKeeper installs use `podManagementPolicy: OrderedReady`. Upgrades from older bundled ZooKeeper StatefulSets using `podManagementPolicy: Parallel` are blocked by default because the field is immutable and parallel ZooKeeper restarts can disrupt Stardog. Follow the [ZooKeeper upgrade notes](./charts/zookeeper/UPGRADE.md#parallel-to-orderedready-migration) before upgrading those releases.
 
-Bundled ZooKeeper uses `zookeeper.minReadySeconds: 60` by default so rolling updates wait after each ZooKeeper pod becomes Ready before replacing the next ordinal. This reduces client reconnect churn during ZooKeeper member restarts; it is not a zero-downtime guarantee.
+Bundled ZooKeeper uses `zookeeper.minReadySeconds: 20` by default so rolling updates wait after each ZooKeeper pod becomes Ready before replacing the next ordinal. This reduces client reconnect churn during ZooKeeper member restarts; it is not a zero-downtime guarantee.
 
 ## Shared Resources
 
