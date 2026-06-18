@@ -82,7 +82,15 @@ The default values are specified in `values.yaml`.
 
 Starting in this release the chart fails fast when `stardog.cluster.enabled=true` but neither a ZooKeeper service (`stardog.cluster.zookeeperService`) nor a shared ZooKeeper (`global.zookeeper.enabled`) is configured. This prevents accidental deployment of clustered pods without quorum services.
 
-When `global.zookeeper.enabled=true`, the chart expects the ZooKeeper Service name to be `zookeeper-<release>` (for example `zookeeper-sd-stack`) and automatically connects to `zookeeper-<release>:2181`.
+For bundled ZooKeeper, Stardog renders `pack.zookeeper.address` as the ZooKeeper ensemble pod DNS list through the ZooKeeper headless Service:
+
+```text
+zookeeper-<release>-0.zookeeper-<release>-headless.<namespace>.svc.<clusterDomain>:2181,
+zookeeper-<release>-1.zookeeper-<release>-headless.<namespace>.svc.<clusterDomain>:2181,
+zookeeper-<release>-2.zookeeper-<release>-headless.<namespace>.svc.<clusterDomain>:2181
+```
+
+The generated list uses `global.zookeeper.replicaCount`, defaulting to `3`. If you override `zookeeper.replicaCount` in the umbrella chart, keep `global.zookeeper.replicaCount` in sync. If `stardog.cluster.zookeeperService` is set, the chart uses that explicit value unchanged instead.
 
 When `stardog.cluster.enabled=true`, the StatefulSet uses a headless Service named `<stardog-fullname>-headless` for pod DNS. Each pod appends its own `pack.node.address` at startup using:
 

@@ -200,8 +200,21 @@ upgrade.automatic=true
 {{- if ne $service "" -}}
 {{- $service -}}
 {{- else if (eq (include "stardog.globalZookeeperEnabled" .) "true") -}}
-{{- printf "zookeeper-%s:2181" .Release.Name -}}
+{{- include "stardog.bundledZookeeperConnectString" . -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "stardog.bundledZookeeperConnectString" -}}
+{{- $globalZk := default (dict) (index (default (dict) .Values.global) "zookeeper") -}}
+{{- $replicas := int (default 3 (index $globalZk "replicaCount")) -}}
+{{- $clusterDomain := default .Values.clusterDomain (index $globalZk "clusterDomain") -}}
+{{- $fullname := printf "zookeeper-%s" .Release.Name -}}
+{{- $headless := printf "%s-headless" $fullname -}}
+{{- $parts := list -}}
+{{- range $i, $_ := until $replicas -}}
+  {{- $parts = append $parts (printf "%s-%d.%s.%s.svc.%s:2181" $fullname $i $headless $.Release.Namespace $clusterDomain) -}}
+{{- end -}}
+{{- join "," $parts -}}
 {{- end -}}
 
 {{- define "stardog.globalZookeeperEnabled" -}}

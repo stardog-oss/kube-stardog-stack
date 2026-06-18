@@ -211,7 +211,7 @@ stardogProperties: |
   # - logging.audit.type=text
   # - pack.enabled=true
   # - pack.node.address=<pod-headless-service-address> when cluster.enabled=true
-  # - pack.zookeeper.address=<zookeeper-service>
+  # - pack.zookeeper.address=<zookeeper-connect-string>
   # - sql.server.enabled=true
   # - javax.net.ssl.keyStore*
   # - javax.net.ssl.trustStore*

@@ -23,6 +23,10 @@ global:
   # internally hardened ZooKeeper deployment and configure Stardog to use it.
   zookeeper:
     enabled: false
+    # Used by Stardog to generate the bundled ZooKeeper ensemble connect string.
+    # Keep this in sync with zookeeper.replicaCount when overriding it.
+    replicaCount: 3
+    clusterDomain: cluster.local
 
   bi:
     enabled: false

@@ -8,6 +8,7 @@
 - Add bundled ZooKeeper `minReadySeconds: 60` by default so rolling updates wait between Ready ordinals and reduce client reconnect churn.
 - Set Stardog `pack.rejoin.shutdown=false` by default so failed rejoin attempts do not immediately shut down the node.
 - Give clustered Stardog pods stable `pack.node.address` values through StatefulSet pod DNS and a headless service.
+- Render bundled ZooKeeper as a comma-separated headless pod DNS ensemble in `pack.zookeeper.address`.
 - Update bundled ZooKeeper subchart to `1.1.0`.
 
 ## 1.1.2
