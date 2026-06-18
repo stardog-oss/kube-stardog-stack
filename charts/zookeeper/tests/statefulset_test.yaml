@@ -24,7 +24,7 @@ tests:
           value: OrderedReady
       - equal:
           path: spec.minReadySeconds
-          value: 60
+          value: 0
 
   - it: should support explicit Parallel pod management policy
     set:

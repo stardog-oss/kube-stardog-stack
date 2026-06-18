@@ -62,10 +62,9 @@ StatefulSet using `podManagementPolicy: Parallel` are blocked by default because
 that Kubernetes field is immutable and parallel ZooKeeper restarts can disrupt
 Stardog. See the [ZooKeeper upgrade notes](./UPGRADE.md#parallel-to-orderedready-migration).
 
-The chart sets `minReadySeconds: 60` by default so rolling updates wait after
-each ZooKeeper pod becomes Ready before replacing the next ordinal. This reduces
-client reconnect churn during ZooKeeper member restarts; it is not a zero-downtime
-guarantee for applications using ZooKeeper.
+The chart defaults `minReadySeconds` to `0`. Increase it when you want rolling
+updates to wait after each ZooKeeper pod becomes Ready before replacing the next
+ordinal.
 
 ## Persistence
 

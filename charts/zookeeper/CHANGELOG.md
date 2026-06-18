@@ -10,7 +10,7 @@
 - Limit the default four-letter command whitelist to `ruok,srvr`; add more commands explicitly for custom probes or debugging.
 - Disable ZooKeeper AdminServer by default and omit the admin container port unless `adminServerEnabled=true`.
 - Fix the `ruok` liveness probe to read ZooKeeper's four-byte `imok` response without requiring a trailing newline.
-- Add `minReadySeconds: 60` by default so ZooKeeper rolling updates wait between Ready ordinals and reduce client reconnect churn.
+- Keep `minReadySeconds` configurable and default it to `0`.
 
 ## 1.0.2
 - Adopt the shared standard component label from the common library chart.
