@@ -1,8 +1,6 @@
 # Changelog
 
 ## 4.0.4
-- Set `pack.rejoin.shutdown=false` by default so failed rejoin attempts do not immediately shut down the node.
-- Set `pack.zookeeper.inactiveOnSuspend=false` by default so ZooKeeper connection suspension does not immediately mark a node inactive.
 - Give clustered Stardog pods stable `pack.node.address` values through StatefulSet pod DNS and a headless service.
 - Render bundled ZooKeeper as a comma-separated headless pod DNS ensemble in `pack.zookeeper.address`.
 - Use `global.gateway.domain` as the default domain for the auto-enabled Launchpad redirect hostname when `global.launchpad.enabled=true`.
