@@ -1,0 +1,187 @@
+# Template values for kube-stardog-stack on AKS with Envoy Gateway.
+#
+# Copy this file to cluster_values.yaml and replace every <PLACEHOLDER>.
+# The domains below assume the chart creates:
+#   - https://sparql.<BASE_DOMAIN>
+#   - https://launchpad.<BASE_DOMAIN>
+#
+# Install flow:
+#   1. Install cert-manager, Gateway API CRDs, and Envoy Gateway.
+#   2. Install Stardog once with these values to create the Gateway.
+#   3. Get the Gateway public IP and create DNS A records for both hostnames.
+#   4. Re-run the Stardog Helm install so cert-manager can issue certificates.
+
+global:
+  stardog:
+    enabled: true
+  launchpad:
+    enabled: true
+  voicebox:
+    enabled: true
+
+  gateway:
+    enabled: true
+    createGateway: true
+
+    # Name of the Gateway object created in the Envoy Gateway namespace.
+    name: <GATEWAY_NAME> # example: stardog-envoy-gateway
+
+    # Must be the namespace where the Envoy Gateway controller runs.
+    namespace: envoy-gateway
+
+    # Base DNS domain. The chart uses launchpad.<domain> and sparql.<domain>.
+    domain: <BASE_DOMAIN> # example: example.com
+
+    # Listener section names. These must match the Gateway listeners created by
+    # this chart. The ACME solvers below must use the HTTP listener names.
+    sparqlSectionName: sparql
+    sparqlHttpSectionName: sparql-http
+    launchpadSectionName: launchpad
+    launchpadHttpSectionName: launchpad-http
+
+    tls:
+      enabled: true
+      sparqlSecretName: <SPARQL_TLS_SECRET_NAME> # example: sparql-example-com-tls
+      launchpadSecretName: <LAUNCHPAD_TLS_SECRET_NAME> # example: launchpad-example-com-tls
+
+  certIssuer:
+    enabled: true
+
+    # Required because the Gateway and TLS secrets are in envoy-gateway while
+    # the Helm release is installed in stardog-ns.
+    clusterScoped: true
+    type: acme
+    acme:
+      email: <ACME_ACCOUNT_EMAIL> # example: platform@example.com
+
+      # Use Let's Encrypt staging for tests to avoid production rate limits:
+      # https://acme-staging-v02.api.letsencrypt.org/directory
+      server: https://acme-v02.api.letsencrypt.org/directory
+
+      # HTTP-01 challenges must attach to port-80 Gateway listeners. Do not use
+      # the HTTPS listener names here because those listeners need certificates
+      # before they can become ready.
+      solvers:
+        - selector:
+            dnsNames:
+              - sparql.<BASE_DOMAIN>
+          http01:
+            gatewayHTTPRoute:
+              parentRefs:
+                - name: <GATEWAY_NAME>
+                  namespace: envoy-gateway
+                  kind: Gateway
+                  sectionName: sparql-http
+        - selector:
+            dnsNames:
+              - launchpad.<BASE_DOMAIN>
+          http01:
+            gatewayHTTPRoute:
+              parentRefs:
+                - name: <GATEWAY_NAME>
+                  namespace: envoy-gateway
+                  kind: Gateway
+                  sectionName: launchpad-http
+
+stardog:
+  cluster:
+    # Set true and increase replicaCount for clustered Stardog deployments.
+    enabled: false
+    replicaCount: 1
+
+  image:
+    registry: <CONTAINER_REGISTRY> # example: myregistry.azurecr.io or docker.io
+    repository: stardog/stardog
+    tag: "12.1.0"
+
+  upgrade:
+    approval:
+      targetVersion: "12.1.0"
+
+  resources:
+    requests:
+      cpu: "<STARDOG_CPU_REQUEST>" # example: "2"
+      memory: "<STARDOG_MEMORY_REQUEST>" # example: "4Gi"
+    limits:
+      cpu: "<STARDOG_CPU_LIMIT>" # example: "4"
+      memory: "<STARDOG_MEMORY_LIMIT>" # example: "8Gi"
+
+  jvm:
+    minHeap: "<STARDOG_MIN_HEAP>" # example: "2g"
+    maxHeap: "<STARDOG_MAX_HEAP>" # example: "4g"
+    directMem: "<STARDOG_DIRECT_MEMORY>" # example: "1g"
+
+  # Optional: uncomment if Stardog should run only on labeled nodes.
+  # nodeSelector:
+  #   <NODE_LABEL_KEY>: <NODE_LABEL_VALUE>
+
+  # Optional: uncomment if Stardog nodes are tainted.
+  # tolerations:
+  #   - key: <TAINT_KEY>
+  #     value: <TAINT_VALUE>
+  #     effect: NoSchedule
+
+  jwtConfig:
+    # Enable when integrating with an identity provider.
+    enabled: false
+    issuers:
+      - roleMappingSource: token
+        usernameTemplates:
+          - "{preferred_username}"
+          - "{sub}"
+        autoCreateUsers: true
+        rolesClaimPath: roles
+        algorithms:
+          - name: RS256
+
+launchpad:
+  image:
+    registry: <CONTAINER_REGISTRY>
+    repository: stardog/launchpad
+    tag: "v3.10.0"
+
+  environmentVariables:
+    FRIENDLY_NAME: <LAUNCHPAD_FRIENDLY_NAME> # example: Stardog Applications
+
+    # Optional shared local login for test environments only.
+    SHARED_USER_AUTH_ENABLED: "false"
+    # SHARED_USER_USERNAME: <SHARED_USER_USERNAME>
+    # SHARED_USER_PASSWORD: <SHARED_USER_PASSWORD>
+
+    # Optional identity-provider flags.
+    # AZURE_AUTH_ENABLED: "true"
+
+voicebox:
+  image:
+    registry: <CONTAINER_REGISTRY>
+    repository: stardog/voicebox-service
+    tag: "v0.30.0"
+
+  environmentVariables:
+    # Store real API keys in a secret-management workflow for production.
+    AZURE_API_KEY: <AZURE_OPENAI_API_KEY>
+    VBX_CONFIG_FILE: /voicebox-config/vbx_config.json
+    TMPDIR: /tmp
+    PRODUCTION: "1"
+
+  configFile: |
+    {
+      "agent_selection_type": "llm",
+      "enable_lineage": true,
+      "enable_external_llm": true,
+      "enable_analytics": true,
+      "enable_charts": true,
+      "use_agents_automatically": false,
+      "default_llm_config": {
+        "llm_provider": "azure",
+        "llm_name": "<AZURE_OPENAI_MODEL_NAME>",
+        "server_url": "<AZURE_OPENAI_SERVER_URL>"
+      },
+      "query_kg_config": {
+        "generate_query_config": {
+          "llm_config": {
+            "max_tokens": 7000
+          }
+        }
+      }
+    }
