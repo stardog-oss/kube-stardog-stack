@@ -150,7 +150,7 @@ kubectl apply -f - <<EOF
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: EnvoyProxy
 metadata:
-  name: edap-internal-lb
+  name: stardog-envoy-proxy
   namespace: envoy-gateway
 spec:
   logging:
@@ -176,7 +176,7 @@ spec:
   parametersRef:
     group: gateway.envoyproxy.io
     kind: EnvoyProxy
-    name: edap-internal-lb
+    name: stardog-envoy-proxy
     namespace: envoy-gateway
 EOF
 ```
