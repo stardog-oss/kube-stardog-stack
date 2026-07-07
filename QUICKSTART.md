@@ -146,12 +146,38 @@ The kube-stardog-stack chart expects a `GatewayClass` named `stardog-envoy-gatew
 
 ```bash
 kubectl apply -f - <<EOF
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: edap-internal-lb
+  namespace: envoy-gateway
+spec:
+  logging:
+    level:
+      default: warn
+
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        type: LoadBalancer
+        annotations:
+          service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+        externalTrafficPolicy: Local
+
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
   name: stardog-envoy-gateway-class
 spec:
   controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  parametersRef:
+    group: gateway.envoyproxy.io
+    kind: EnvoyProxy
+    name: edap-internal-lb
+    namespace: envoy-gateway
 EOF
 ```
 
