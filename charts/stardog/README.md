@@ -41,6 +41,8 @@ Configuration Parameters
 | `gateway.http.*`                             | Configures the HTTP/HTTPS Gateway listeners and HTTPRoute resources |
 | `gateway.http.redirectToLaunchpad.*`         | Optional root-path proxy/redirect (Gateway) to Launchpad (service or external URL) |
 | `gateway.tcpBi.*`                            | Enables TCPRoute exposure for the BI/SQL port via the Gateway |
+| `headlessService.*`                          | Configures the headless Service used for clustered pod DNS and stable `pack.node.address` values |
+| `clusterDomain`                              | Kubernetes DNS cluster domain used when building per-pod Stardog addresses. Defaults to `cluster.local`. |
 | `upgrade.approval.targetVersion`             | One-time version-scoped approval for storage upgrades; when it matches `image.tag`, the chart injects `upgrade.automatic=true` |
 | `javaArgs`                                   | Java args for Stardog server |
 | `log4jConfig.content`                        | New Log4j configuration when overriding the default |
@@ -80,7 +82,25 @@ The default values are specified in `values.yaml`.
 
 Starting in this release the chart fails fast when `stardog.cluster.enabled=true` but neither a ZooKeeper service (`stardog.cluster.zookeeperService`) nor a shared ZooKeeper (`global.zookeeper.enabled`) is configured. This prevents accidental deployment of clustered pods without quorum services.
 
-When `global.zookeeper.enabled=true`, the chart expects the ZooKeeper Service name to be `zookeeper-<release>` (for example `zookeeper-sd-stack`) and automatically connects to `zookeeper-<release>:2181`.
+For bundled ZooKeeper, Stardog renders `pack.zookeeper.address` as the ZooKeeper ensemble pod DNS list through the ZooKeeper headless Service:
+
+```text
+zookeeper-<release>-0.zookeeper-<release>-headless.<namespace>.svc.<clusterDomain>:2181,
+zookeeper-<release>-1.zookeeper-<release>-headless.<namespace>.svc.<clusterDomain>:2181,
+zookeeper-<release>-2.zookeeper-<release>-headless.<namespace>.svc.<clusterDomain>:2181
+```
+
+The generated list uses `global.zookeeper.replicaCount`, defaulting to `3`. If you override `zookeeper.replicaCount` in the umbrella chart, keep `global.zookeeper.replicaCount` in sync. If `stardog.cluster.zookeeperService` is set, the chart uses that explicit value unchanged instead.
+
+When `stardog.cluster.enabled=true`, the StatefulSet uses a headless Service named `<stardog-fullname>-headless` for pod DNS. Each pod appends its own `pack.node.address` at startup using:
+
+```text
+<pod-name>.<stardog-fullname>-headless.<namespace>.svc.<clusterDomain>:<ports.server>
+```
+
+The normal Stardog Service remains available for clients. The headless Service exists for Stardog cluster members to identify and reach specific pods directly.
+
+Changing an existing clustered StatefulSet from the previous client Service to the headless Service changes `spec.serviceName`, which Kubernetes treats as immutable. Existing clustered installs need a StatefulSet migration, such as delete with `--cascade=orphan` and recreate through Helm, before this change can be applied in place.
 
 ### Service accounts and custom environment variables
 

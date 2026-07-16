@@ -148,6 +148,18 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- end -}}
 {{- end -}}
 
+{{- define "stardog.headlessServiceName" -}}
+{{- printf "%s-headless" (include "sdcommon.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "stardog.statefulSetServiceName" -}}
+{{- if .Values.cluster.enabled -}}
+{{- include "stardog.headlessServiceName" . -}}
+{{- else -}}
+{{- include "sdcommon.fullname" . -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "stardog.validateClusterConfig" -}}
 {{- $cluster := .Values.cluster | default dict -}}
 {{- $clusterEnabled := default false $cluster.enabled -}}
@@ -188,8 +200,21 @@ upgrade.automatic=true
 {{- if ne $service "" -}}
 {{- $service -}}
 {{- else if (eq (include "stardog.globalZookeeperEnabled" .) "true") -}}
-{{- printf "zookeeper-%s:2181" .Release.Name -}}
+{{- include "stardog.bundledZookeeperConnectString" . -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "stardog.bundledZookeeperConnectString" -}}
+{{- $globalZk := default (dict) (index (default (dict) .Values.global) "zookeeper") -}}
+{{- $replicas := int (default 3 (index $globalZk "replicaCount")) -}}
+{{- $clusterDomain := default .Values.clusterDomain (index $globalZk "clusterDomain") -}}
+{{- $fullname := printf "zookeeper-%s" .Release.Name -}}
+{{- $headless := printf "%s-headless" $fullname -}}
+{{- $parts := list -}}
+{{- range $i, $_ := until $replicas -}}
+  {{- $parts = append $parts (printf "%s-%d.%s.%s.svc.%s:2181" $fullname $i $headless $.Release.Namespace $clusterDomain) -}}
+{{- end -}}
+{{- join "," $parts -}}
 {{- end -}}
 
 {{- define "stardog.globalZookeeperEnabled" -}}

@@ -10,7 +10,7 @@ dependencies:
   version: 4.0.4
 - name: zookeeper
   repository: file://charts/zookeeper
-  version: 1.0.3
+  version: 1.1.0
 - name: launchpad
   repository: file://charts/launchpad
   version: 1.0.4
@@ -20,5 +20,5 @@ dependencies:
 - name: cachetarget
   repository: file://charts/cachetarget
   version: 1.0.3
-digest: sha256:bd656e88ea3c885e6347ca86345540a6761901fdb829931b370ad51733655d56
-generated: "2026-05-12T15:24:52.485084-04:00"
+digest: sha256:0aef1000e16dcdc1648689882e5bb61e9cf878cfb25d6777faf08a7fc4c99e61
+generated: "2026-06-16T19:07:00.469413-04:00"

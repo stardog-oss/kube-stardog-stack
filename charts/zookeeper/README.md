@@ -10,7 +10,9 @@ Key behaviors match the official image contract:
 - Replicated mode uses `ZOO_MY_ID` and `ZOO_SERVERS`
 - Config lives in `/conf`, can be overridden by mounting `zoo.cfg`, or extended via `ZOO_CFG_EXTRA`
 - Data dirs: `/data` (snapshots) and `/datalog` (txn logs)
-- Default ports: 2181 (client), 2888/3888 (quorum), AdminServer 8080
+- Default ports: 2181 (client), 2888/3888 (quorum)
+- AdminServer is disabled by default
+- The image includes `bash` for chart-generated startup and probe commands
 
 ## Quickstart
 
@@ -56,6 +58,15 @@ The chart auto-generates:
 - `ZOO_SERVERS` using stable FQDNs:
   `<pod>.<headless>.<ns>.svc.<clusterDomain>`
 
+New installs use `podManagementPolicy: OrderedReady`. Upgrades from an older
+StatefulSet using `podManagementPolicy: Parallel` are blocked by default because
+that Kubernetes field is immutable and parallel ZooKeeper restarts can disrupt
+Stardog. See the [ZooKeeper upgrade notes](./UPGRADE.md#parallel-to-orderedready-migration).
+
+The chart defaults `minReadySeconds` to `20`. Adjust it when you want rolling
+updates to wait a different amount of time after each ZooKeeper pod becomes
+Ready before replacing the next ordinal.
+
 ## Persistence
 
 Default: PVC for `/data` enabled.
@@ -88,6 +99,35 @@ helm install my-zk ./zookeeper \
   --set metrics.enabled=true \
   --set metrics.serviceMonitor.enabled=true
 ```
+
+## AdminServer
+
+The ZooKeeper AdminServer is disabled by default. The chart probes use the
+ZooKeeper client port and do not require AdminServer.
+
+Enable AdminServer inside the pod:
+
+```bash
+helm install my-zk ./zookeeper \
+  --set adminServerEnabled=true
+```
+
+Expose the AdminServer port through the Service only when you need in-cluster
+Service access to it:
+
+```bash
+helm install my-zk ./zookeeper \
+  --set adminServerEnabled=true \
+  --set service.exposeAdmin=true
+```
+
+## Four-letter commands
+
+The chart default probes require only `ruok` and `srvr`, so the default
+`config.fourLetterWordsWhitelist` is `ruok,srvr`. Add additional commands only
+when custom probes or operational debugging require them. See the Apache
+ZooKeeper documentation for the complete list of supported four-letter commands:
+https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_zkCommands
 
 ## Override zoo.cfg (ConfigMap mount)
 

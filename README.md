@@ -52,6 +52,14 @@ Coordination service for clustered Stardog deployments. Enable with `global.zook
 
 Apache ZooKeeper support in this umbrella chart is provided as a convenience. Stardog does not own or harden the ZooKeeper container image. For production systems, use a commercially supported or internally hardened ZooKeeper deployment and configure Stardog to use it.
 
+The bundled ZooKeeper AdminServer is disabled by default. Enable it with `zookeeper.adminServerEnabled=true`; expose it on the ZooKeeper Service only when needed with `zookeeper.service.exposeAdmin=true`.
+
+The bundled ZooKeeper probes use the client port four-letter commands `ruok` and `srvr`, so the chart default whitelist is limited to `ruok,srvr`. Add more commands only for custom probes or operational debugging, and refer to the Apache ZooKeeper documentation for the supported command list: https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_zkCommands
+
+New bundled ZooKeeper installs use `podManagementPolicy: OrderedReady`. Upgrades from older bundled ZooKeeper StatefulSets using `podManagementPolicy: Parallel` are blocked by default because the field is immutable and parallel ZooKeeper restarts can disrupt Stardog. Follow the [ZooKeeper upgrade notes](./charts/zookeeper/UPGRADE.md#parallel-to-orderedready-migration) before upgrading those releases.
+
+Bundled ZooKeeper uses `zookeeper.minReadySeconds: 20` by default so rolling updates wait after each ZooKeeper pod becomes Ready before replacing the next ordinal. This reduces client reconnect churn during ZooKeeper member restarts; it is not a zero-downtime guarantee.
+
 ## Shared Resources
 
 ### ClusterIssuer
@@ -100,7 +108,7 @@ It is fine to use the public Helm repo for evaluation environments, but no SLA i
 export VERSION=${VERSION}
 helm repo add stardog https://stardog-oss.github.io/kube-stardog-stack
 helm repo update
-helm install my-stardog-stack stardog/kube-stardog-stack --version ${VERSION}
+helm install my-stardog-stack stardog/kube-stardog-stack --version ${VERSION} --timeout 10m
 ```
 
 **Production (Recommended)**
@@ -111,7 +119,7 @@ export VERSION=${VERSION}
 helm repo add stardog https://stardog-oss.github.io/kube-stardog-stack
 helm repo update
 helm pull stardog/kube-stardog-stack --version ${VERSION}
-helm install my-stardog-stack ./kube-stardog-stack-${VERSION}.tgz
+helm install my-stardog-stack ./kube-stardog-stack-${VERSION}.tgz --timeout 10m
 ```
 
 If you run a local Helm repo, add it and install from there:
@@ -351,8 +359,20 @@ voicebox:
 ## Upgrading
 
 ```bash
-helm upgrade my-stardog-stack ./kube-stardog-stack
+helm upgrade my-stardog-stack ./kube-stardog-stack --timeout 10m
 ```
+
+If the release uses bundled ZooKeeper from an older chart, review the
+[ZooKeeper upgrade notes](./charts/zookeeper/UPGRADE.md#parallel-to-orderedready-migration)
+before upgrading. The chart blocks upgrades from an existing
+`podManagementPolicy: Parallel` ZooKeeper StatefulSet until the documented
+pre-upgrade migration is completed.
+
+The `--timeout 10m` flag is recommended when using bundled ZooKeeper because
+ordered ZooKeeper startup and Stardog readiness can exceed Helm's default
+five-minute wait. This timeout is a Helm client setting, so it must be set by
+the caller, for example Helm CLI, Terraform `helm_release.timeout`, or CI/CD
+automation.
 
 ## Uninstalling
 

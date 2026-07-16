@@ -1,6 +1,8 @@
 # Changelog
 
 ## 4.0.4
+- Give clustered Stardog pods stable `pack.node.address` values through StatefulSet pod DNS and a headless service.
+- Render bundled ZooKeeper as a comma-separated headless pod DNS ensemble in `pack.zookeeper.address`.
 - Use `global.gateway.domain` as the default domain for the auto-enabled Launchpad redirect hostname when `global.launchpad.enabled=true`.
 - Keep `gateway.redirectToLaunchpad.hostname` as the explicit override for the Stardog root-path Launchpad redirect.
 - Create Stardog Gateway Certificates in the shared Gateway namespace when `global.gateway.createGateway=false`.

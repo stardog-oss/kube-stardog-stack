@@ -52,6 +52,39 @@ tests:
           path: data["stardog.properties"]
           pattern: "sql\\.server\\.enabled=true"
 
+  - it: uses explicit external ZooKeeper address unchanged
+    values:
+      - values/values-stardog.yaml
+    set:
+      cluster:
+        enabled: true
+        zookeeperService: "zk-a:2181,zk-b:2181,zk-c:2181"
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.zookeeper\\.address=zk-a:2181,zk-b:2181,zk-c:2181$"
+
+  - it: uses bundled ZooKeeper pod DNS addresses
+    values:
+      - values/values-stardog.yaml
+    set:
+      cluster:
+        enabled: true
+      global:
+        zookeeper:
+          enabled: true
+          replicaCount: 3
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.zookeeper\\.address=zookeeper-RELEASE-NAME-0\\.zookeeper-RELEASE-NAME-headless\\.NAMESPACE\\.svc\\.cluster\\.local:2181,zookeeper-RELEASE-NAME-1\\.zookeeper-RELEASE-NAME-headless\\.NAMESPACE\\.svc\\.cluster\\.local:2181,zookeeper-RELEASE-NAME-2\\.zookeeper-RELEASE-NAME-headless\\.NAMESPACE\\.svc\\.cluster\\.local:2181$"
+
   - it: injects TLS settings into stardog.properties when enabled
     values:
       - values/values-stardog.yaml

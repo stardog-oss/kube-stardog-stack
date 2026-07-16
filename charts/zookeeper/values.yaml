@@ -11,6 +11,7 @@ image:
   # simple deployments. Stardog does not own or harden this container image.
   # For production, use a commercially supported or internally hardened
   # ZooKeeper image/deployment.
+  # The image must include bash because the chart uses it for startup and probes.
   registry: docker.io
   repository: zookeeper
   tag: 3.9.4
@@ -21,6 +22,21 @@ image:
   pullSecrets: []
 
 replicaCount: 3
+
+# Minimum seconds an updated ZooKeeper pod must stay Ready before StatefulSet
+# rolling updates continue to the next ordinal.
+minReadySeconds: 20
+
+# Default pod management policy for new ZooKeeper StatefulSets.
+# Kubernetes treats spec.podManagementPolicy as immutable, so upgrades preserve
+# the already deployed StatefulSet value when one exists.
+podManagementPolicy: OrderedReady
+
+upgrade:
+  # Break-glass override for upgrades from an existing StatefulSet with
+  # podManagementPolicy: Parallel. Leave false unless you intentionally accept
+  # the risk that a rolling update can restart all ZooKeeper pods in parallel.
+  allowParallelPodManagementPolicy: false
 
 # minServerId added to pod ordinal (default 1).
 # Example: pod "-0" => myid=1, "-1" => myid=2, ...
@@ -34,8 +50,8 @@ minServerId: 3
 standaloneEnabled: null
 
 # Enable ZooKeeper AdminServer (official image env: ZOO_ADMINSERVER_ENABLED).
-# Default probes use AdminServer endpoints on localhost to avoid log-noise.
-adminServerEnabled: true
+# Disabled by default because the chart probes use the ZooKeeper client port.
+adminServerEnabled: false
 
 ports:
   client: 2181
@@ -48,6 +64,7 @@ service:
   type: ClusterIP
   annotations: {}
   labels: {}
+  # Expose the AdminServer port through the Service only when adminServerEnabled is true.
   exposeAdmin: false
   exposeMetrics: true
 
@@ -99,7 +116,11 @@ config:
   snapCount: ""
   maxSessionTimeout: ""
 
-  fourLetterWordsWhitelist: "ruok,stat,srvr,mntr,conf,isro"
+  # Chart default probes require only `ruok` for liveness and `srvr` for readiness.
+  # Add more commands only when you need them for custom probes or operational
+  # debugging. Refer to the Apache ZooKeeper documentation for allowed commands:
+  # https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_zkCommands
+  fourLetterWordsWhitelist: "ruok,srvr"
 
   autopurge:
     purgeInterval: 0

@@ -1,3 +1,15 @@
+{{- $existingStatefulSet := lookup "apps/v1" "StatefulSet" .Release.Namespace (include "zookeeper.fullname" .) -}}
+{{- $podManagementPolicy := .Values.podManagementPolicy | default "OrderedReady" -}}
+{{- $existingPodManagementPolicy := "" -}}
+{{- if and $existingStatefulSet $existingStatefulSet.spec $existingStatefulSet.spec.podManagementPolicy -}}
+{{- $existingPodManagementPolicy = $existingStatefulSet.spec.podManagementPolicy -}}
+{{- $podManagementPolicy = $existingPodManagementPolicy -}}
+{{- end -}}
+{{- $upgradeValues := default (dict) (index .Values "upgrade") -}}
+{{- $allowParallelPodManagementPolicy := default false (index $upgradeValues "allowParallelPodManagementPolicy") -}}
+{{- if and (eq $existingPodManagementPolicy "Parallel") (not $allowParallelPodManagementPolicy) -}}
+{{- fail (printf "ZooKeeper upgrade blocked: existing StatefulSet %q in namespace %q uses spec.podManagementPolicy=Parallel. Kubernetes cannot change this immutable field in place, and continuing can restart ZooKeeper pods in parallel and disrupt Stardog. Complete the documented migration first: https://github.com/stardog-oss/kube-stardog-stack/blob/main/charts/zookeeper/UPGRADE.md#parallel-to-orderedready-migration. WARNING: the break-glass override is a last resort. Before using it, scale Stardog down to 0 and wait for its pods to stop. Using the override while Stardog is running can cause serious cluster disruption or data/state consistency issues. Break-glass override: set upgrade.allowParallelPodManagementPolicy=true for the standalone chart, or zookeeper.upgrade.allowParallelPodManagementPolicy=true for the umbrella chart." (include "zookeeper.fullname" .) .Release.Namespace) -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -7,7 +19,8 @@ metadata:
 spec:
   serviceName: {{ include "zookeeper.headlessServiceName" . }}
   replicas: {{ .Values.replicaCount }}
-  podManagementPolicy: Parallel
+  minReadySeconds: {{ .Values.minReadySeconds }}
+  podManagementPolicy: {{ $podManagementPolicy }}
   updateStrategy:
     type: {{ .Values.updateStrategy.type }}
     {{- if eq .Values.updateStrategy.type "RollingUpdate" }}
@@ -50,7 +63,7 @@ spec:
           image: "{{ .Values.volumePermissions.image.repository }}:{{ .Values.volumePermissions.image.tag }}"
           imagePullPolicy: {{ .Values.volumePermissions.image.pullPolicy }}
           command:
-            - sh
+            - bash
             - -ec
             - |
               chown -R {{ .Values.containerSecurityContext.runAsUser }}:{{ .Values.containerSecurityContext.runAsGroup }} /data
@@ -98,8 +111,10 @@ spec:
               containerPort: {{ .Values.ports.quorum }}
             - name: leader-election
               containerPort: {{ .Values.ports.leaderElection }}
+            {{- if .Values.adminServerEnabled }}
             - name: admin
               containerPort: {{ .Values.ports.admin }}
+            {{- end }}
             {{- if .Values.metrics.enabled }}
             - name: metrics
               containerPort: {{ .Values.ports.metrics }}
@@ -155,7 +170,7 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
 
-          command: ["sh","-ec"]
+          command: ["bash","-ec"]
           args:
             - |
               ordinal="${HOSTNAME##*-}"
@@ -201,10 +216,14 @@ spec:
           readinessProbe:
             exec:
               command:
-                - sh
+                - bash
                 - -ec
                 - |
-                  curl -fsS --max-time {{ .Values.probes.readiness.timeoutSeconds }} http://127.0.0.1:{{ .Values.ports.admin }}/commands/ruok | grep error | grep null
+                  exec 3<>/dev/tcp/127.0.0.1/{{ .Values.ports.client }} || exit 1
+                  printf "srvr" >&3
+                  IFS= read -r -t {{ .Values.probes.readiness.timeoutSeconds }} resp <&3
+                  exec 3>&-
+                  [ -n "$resp" ]
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
@@ -219,10 +238,14 @@ spec:
           livenessProbe:
             exec:
               command:
-                - sh
+                - bash
                 - -ec
                 - |
-                  curl -fsS --max-time {{ .Values.probes.liveness.timeoutSeconds }} http://127.0.0.1:{{ .Values.ports.admin }}/commands/ruok | grep ruok
+                  exec 3<>/dev/tcp/127.0.0.1/{{ .Values.ports.client }} || exit 1
+                  printf "ruok" >&3
+                  resp=$(timeout {{ .Values.probes.liveness.timeoutSeconds }} head -c 4 <&3)
+                  exec 3>&-
+                  [ "$resp" = "imok" ]
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}

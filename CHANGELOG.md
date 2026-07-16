@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.0
+- Changed bundled ZooKeeper AdminServer default from enabled to disabled. Set `zookeeper.adminServerEnabled=true` to keep the previous pod-local AdminServer behavior, and `zookeeper.service.exposeAdmin=true` to expose it through the Service.
+- Default new bundled ZooKeeper StatefulSets to `podManagementPolicy: OrderedReady`.
+- Stop upgrades from existing bundled ZooKeeper StatefulSets that still use `podManagementPolicy: Parallel`; follow `charts/zookeeper/UPGRADE.md` to migrate because the field is immutable and parallel ZooKeeper restarts can disrupt Stardog.
+- Fix the bundled ZooKeeper `ruok` liveness probe to read ZooKeeper's four-byte `imok` response without requiring a trailing newline.
+- Use `bash` instead of `sh` for chart-generated ZooKeeper startup and volume-permission commands.
+- Keep bundled ZooKeeper `minReadySeconds` configurable and default it to `20`.
+- Give clustered Stardog pods stable `pack.node.address` values through StatefulSet pod DNS and a headless service.
+- Render bundled ZooKeeper as a comma-separated headless pod DNS ensemble in `pack.zookeeper.address`.
+- Update bundled ZooKeeper subchart to `1.1.0`.
+
 ## 1.1.2
 - Use `global.gateway.domain` as the default Launchpad redirect hostname base for managed umbrella Gateway deployments.
 - Support cert-manager Certificate creation for external shared Gateway deployments using `global.gateway.createGateway=false`.
