@@ -462,6 +462,37 @@ backup:
     timeZone: ""  #America/New_York Time zone for the cron job
     ttlSecondsAfterFinished: 86400 # Time to live for the job after it finishes 86,400 seconds = 1 day
 
+  # Transaction log shipping. When enabled, a separate CronJob exports the
+  # per-database transaction logs and lands them under the same backup root
+  # as the regular backups. Requires backup.enabled=true and either
+  # location.persistentVolume.enabled or location.azure.enabled (S3 is not
+  # supported at the moment - see README "Transaction log shipping").
+  txlog:
+    enabled: false
+    cronjob:
+      enabled: true
+      schedule: "*/5 * * * *"
+      timeZone: ""
+      ttlSecondsAfterFinished: 86400
+      backoffLimit: 3
+      concurrencyPolicy: Allow
+    # Database selection at run time (queried from /admin/databases).
+    databases:
+      include: []
+      exclude: []
+    # Subdirectory under the per-release backup root where shipped logs
+    # land. Layout:
+    #   <backupDir>/<release>/<pathPrefix>/<db>/<timestamp>.txlog
+    pathPrefix: "txlogs"
+    # Resources for the single shipper container.
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 300m
+      limits:
+        memory: 512Mi
+        cpu: 500m
+
   credentialsSecret: ""  # Stardog backup credentials secret
   credentials:  # Stardog backup credentials
     username: "backup_user" # Stardog user name
@@ -526,7 +557,6 @@ backup:
       customStorageClass: "" # Custom storage class
       customPersitentVolume: "" # Custom persistent volume
       customPersitentVolumeClaim: "" # Custom persistent volume claim
-
 
 # The JWT configuration will be automatically generated from the below variables
 # when enabled is set to true.
