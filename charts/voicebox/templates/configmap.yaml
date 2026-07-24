@@ -7,8 +7,22 @@ metadata:
   labels:
     {{- include "sdcommon.labels.standard" . | nindent 4 }}
 data:
-  vbx_config.json: {{ .Values.configFile | quote }}
+  vbx_config.json: {{ include "voicebox.configFileJson" . | quote }}
 ---
+{{- $customCaBundle := .Values.customCaBundle | default (dict) -}}
+{{- if and $customCaBundle.enabled $customCaBundle.bundle }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "voicebox.customCaBundleName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdcommon.labels.standard" . | nindent 4 }}
+data:
+  {{ $customCaBundle.key | default "ca-bundle.crt" }}: |-
+{{ $customCaBundle.bundle | indent 4 }}
+---
+{{- end }}
 {{- if and .Values.bitesService.enabled }}
 apiVersion: v1
 kind: ConfigMap

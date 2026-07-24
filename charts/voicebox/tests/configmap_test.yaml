@@ -12,6 +12,41 @@ tests:
       - hasDocuments:
           count: 1
 
+  - it: should create custom CA bundle ConfigMap from inline PEM
+    set:
+      customCaBundle:
+        enabled: true
+        bundle: |-
+          -----BEGIN CERTIFICATE-----
+          MIIBtest
+          -----END CERTIFICATE-----
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 1
+        isKind:
+          of: ConfigMap
+      - documentIndex: 1
+        equal:
+          path: metadata.name
+          value: voicebox-RELEASE-NAME-ca-bundle
+      - documentIndex: 1
+        equal:
+          path: data["ca-bundle.crt"]
+          value: |-
+            -----BEGIN CERTIFICATE-----
+            MIIBtest
+            -----END CERTIFICATE-----
+
+  - it: should not create custom CA bundle ConfigMap when an existing ConfigMap is used
+    set:
+      customCaBundle:
+        enabled: true
+        existingConfigMap: internal-ca
+    asserts:
+      - hasDocuments:
+          count: 1
+
   # Test 1: Ensure the ConfigMap is created with basic configuration
   - it: should create a Voicebox ConfigMap with basic configuration
     values:
@@ -28,18 +63,19 @@ tests:
           path: data["vbx_config.json"]
           value: '{"agent_selection_type": "llm", "enable_lineage": true}'
 
-  # Test 2: Validate ConfigMap with empty config
-  - it: should create ConfigMap with empty config
+  - it: should fail when configFile is empty
     set:
       configFile: ""
     asserts:
-      - isKind:
-          of: ConfigMap
-      - exists:
-          path: data
-      - equal:
-          path: data["vbx_config.json"]
-          value: ""
+      - failedTemplate:
+          errorMessage: "voicebox.configFile must be valid JSON and cannot be empty."
+
+  - it: should fail when configFile is malformed JSON
+    set:
+      configFile: '{"agent_selection_type": "llm",}'
+    asserts:
+      - failedTemplate:
+          errorMessage: 'executing "voicebox/templates/configmap.yaml" at <include "voicebox.configFileJson" .>: error calling include: template: voicebox/templates/_helpers.tpl:43:10: executing "voicebox.configFileJson" at <mustFromJson $configFile>: error calling mustFromJson: invalid character ''}'' looking for beginning of object key string'
 
   - it: should create bites ConfigMap when bites service is enabled
     set:

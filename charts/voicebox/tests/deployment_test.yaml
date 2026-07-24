@@ -163,6 +163,119 @@ tests:
             subPath: vbx_config.json
             readOnly: true
 
+  - it: should mount inline custom CA bundle and configure Python TLS env vars
+    set:
+      customCaBundle:
+        enabled: true
+        bundle: |-
+          -----BEGIN CERTIFICATE-----
+          MIIBtest
+          -----END CERTIFICATE-----
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REQUESTS_CA_BUNDLE
+            value: /etc/ssl/certs/voicebox-custom-ca-bundle.crt
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/ssl/certs/voicebox-custom-ca-bundle.crt
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: voicebox-custom-ca-bundle
+            mountPath: /etc/ssl/certs/voicebox-custom-ca-bundle.crt
+            subPath: ca-bundle.crt
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: voicebox-custom-ca-bundle
+            configMap:
+              name: voicebox-RELEASE-NAME-ca-bundle
+              items:
+                - key: ca-bundle.crt
+                  path: ca-bundle.crt
+
+  - it: should mount custom CA bundle from an existing ConfigMap
+    set:
+      customCaBundle:
+        enabled: true
+        existingConfigMap: internal-ca
+        key: internal-root.pem
+        mountPath: /var/run/voicebox-ca/internal-root.pem
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REQUESTS_CA_BUNDLE
+            value: /var/run/voicebox-ca/internal-root.pem
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: voicebox-custom-ca-bundle
+            mountPath: /var/run/voicebox-ca/internal-root.pem
+            subPath: ca-bundle.crt
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: voicebox-custom-ca-bundle
+            configMap:
+              name: internal-ca
+              items:
+                - key: internal-root.pem
+                  path: ca-bundle.crt
+
+  - it: should mount custom CA bundle from an existing Secret
+    set:
+      customCaBundle:
+        enabled: true
+        existingSecret: internal-ca-secret
+        key: ca.pem
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: voicebox-custom-ca-bundle
+            secret:
+              secretName: internal-ca-secret
+              items:
+                - key: ca.pem
+                  path: ca-bundle.crt
+
+  - it: should not duplicate TLS env vars when custom CA bundle is enabled
+    set:
+      customCaBundle:
+        enabled: true
+        existingConfigMap: internal-ca
+      environmentVariables:
+        REQUESTS_CA_BUNDLE: /manual/requests.pem
+        SSL_CERT_FILE: /manual/ssl.pem
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[2]
+          value:
+            name: REQUESTS_CA_BUNDLE
+            value: /etc/ssl/certs/voicebox-custom-ca-bundle.crt
+      - equal:
+          path: spec.template.spec.containers[0].env[3]
+          value:
+            name: SSL_CERT_FILE
+            value: /etc/ssl/certs/voicebox-custom-ca-bundle.crt
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REQUESTS_CA_BUNDLE
+            value: /manual/requests.pem
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /manual/ssl.pem
+
   # Test 6: Validate security context
   - it: should set security context
     values:

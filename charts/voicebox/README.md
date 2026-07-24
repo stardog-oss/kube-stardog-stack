@@ -42,9 +42,15 @@ The following table lists the configurable parameters of the Voicebox chart and 
 | `image.password` | Registry password | `""` |
 | `service.type` | Kubernetes service type | `ClusterIP` |
 | `service.port` | Service port | `8080` |
-| `configFile` | Voicebox configuration JSON | `""` |
+| `configFile` | Voicebox configuration JSON. Must be valid JSON. | `{}` |
 | `environmentVariables.AZURE_API_KEY` | Azure API key | `"azure-api-key"` |
 | `environmentVariables.PRODUCTION` | Production mode flag | `1` |
+| `customCaBundle.enabled` | Mount a custom CA bundle and set `REQUESTS_CA_BUNDLE`/`SSL_CERT_FILE` | `false` |
+| `customCaBundle.bundle` | Inline PEM-encoded CA bundle; creates a ConfigMap when set | `""` |
+| `customCaBundle.existingConfigMap` | Existing ConfigMap containing the CA bundle; mutually exclusive with `bundle` and `existingSecret` | `""` |
+| `customCaBundle.existingSecret` | Existing Secret containing the CA bundle; mutually exclusive with `bundle` and `existingConfigMap` | `""` |
+| `customCaBundle.key` | Key in the created ConfigMap or referenced ConfigMap/Secret | `ca-bundle.crt` |
+| `customCaBundle.mountPath` | File path where the CA bundle is mounted in the Voicebox container | `/etc/ssl/certs/voicebox-custom-ca-bundle.crt` |
 | `securityContext.*` | Pod-level security context (seccomp, UID/GID, fsGroup) | See `values.yaml` |
 | `containerSecurityContext.*` | Container-level security context (readOnlyRootFilesystem, privilege escalation) | See `values.yaml` |
 | `resources.requests/limits.*` | CPU/memory reservations and limits | `500m/1Gi` requests, `1 vCPU/2Gi` limits |
@@ -100,6 +106,8 @@ The `configFile` parameter allows you to configure Voicebox behavior. Example co
 }
 ```
 
+The chart validates `configFile` as JSON during rendering, so malformed JSON fails before Kubernetes creates the ConfigMap.
+
 **Supported Llama Models:**
 - `Meta-Llama-3.1-70B-Instruct`
 - `Meta-Llama-3.3-70B-Instruct`
@@ -110,6 +118,32 @@ The chart supports various environment variables:
 
 - `AZURE_API_KEY`: Azure OpenAI API key
 - `PRODUCTION`: Set to 1 for production, 0 for development
+
+### Custom CA Bundle
+
+Enable `customCaBundle` when Voicebox must connect to Stardog or another HTTPS service whose certificate is signed by an internal CA. The chart mounts the PEM bundle and sets both `REQUESTS_CA_BUNDLE` and `SSL_CERT_FILE` to the mounted file path.
+
+Inline PEM example:
+
+```yaml
+customCaBundle:
+  enabled: true
+  bundle: |-
+    -----BEGIN CERTIFICATE-----
+    ...
+    -----END CERTIFICATE-----
+```
+
+Existing ConfigMap example:
+
+```yaml
+customCaBundle:
+  enabled: true
+  existingConfigMap: internal-ca
+  key: ca-bundle.crt
+```
+
+Use exactly one of `bundle`, `existingConfigMap`, or `existingSecret` when `customCaBundle.enabled` is `true`.
 
 ### Operational Settings
 

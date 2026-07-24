@@ -343,6 +343,10 @@ voicebox:
     registry: your-registry.com
     repository: your-org/voicebox
     tag: latest
+  customCaBundle:
+    enabled: true
+    existingConfigMap: internal-ca
+    key: ca-bundle.crt
   environmentVariables:
     AZURE_API_KEY: "your-azure-api-key"
     PRODUCTION: 1
