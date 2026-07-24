@@ -1,4 +1,7 @@
 # Changelog
+## 1.1.3
+- Add `customCaBundle` support to mount a private CA bundle into Voicebox and set `REQUESTS_CA_BUNDLE`/`SSL_CERT_FILE` for HTTPS trust.
+- Validate `configFile` as JSON during rendering so malformed `vbx_config.json` content fails before install or upgrade.
 
 ## 1.1.2
 - Use `global.gateway.domain` as the default Launchpad redirect hostname base for managed umbrella Gateway deployments.
