@@ -63,6 +63,40 @@ tests:
           path: data["vbx_config.json"]
           value: '{"agent_selection_type": "llm", "enable_lineage": true}'
 
+  - it: should create ConfigMap with nested query KG configuration
+    set:
+      configFile: |-
+        {
+          "agent_selection_type": "llm",
+          "enable_lineage": true,
+          "enable_charts": true,
+          "use_agents_automatically": false,
+          "query_kg_config": {
+            "generate_query_config": {
+              "llm_config": {
+                "max_tokens": 7000
+              }
+            }
+          }
+        }
+    asserts:
+      - equal:
+          path: data["vbx_config.json"]
+          value: |-
+            {
+              "agent_selection_type": "llm",
+              "enable_lineage": true,
+              "enable_charts": true,
+              "use_agents_automatically": false,
+              "query_kg_config": {
+                "generate_query_config": {
+                  "llm_config": {
+                    "max_tokens": 7000
+                  }
+                }
+              }
+            }
+
   - it: should fail when configFile is empty
     set:
       configFile: ""
