@@ -148,6 +148,18 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- end -}}
 {{- end -}}
 
+{{- define "stardog.headlessServiceName" -}}
+{{- printf "%s-headless" (include "sdcommon.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "stardog.statefulSetServiceName" -}}
+{{- if .Values.cluster.enabled -}}
+{{- include "stardog.headlessServiceName" . -}}
+{{- else -}}
+{{- include "sdcommon.fullname" . -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "stardog.validateClusterConfig" -}}
 {{- $cluster := .Values.cluster | default dict -}}
 {{- $clusterEnabled := default false $cluster.enabled -}}
@@ -169,6 +181,12 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- if regexMatch `(?m)^\s*upgrade\.automatic\s*=` $properties -}}
 {{- fail "Do not set upgrade.automatic in stardogProperties; use upgrade.approval.targetVersion instead." -}}
 {{- end -}}
+{{- if regexMatch `(?m)^\s*pack\.rejoin\.shutdown\s*=` $properties -}}
+{{- fail "Do not set pack.rejoin.shutdown in stardogProperties; use cluster.zookeeperSessionTolerance.rejoinShutdown instead." -}}
+{{- end -}}
+{{- if regexMatch `(?m)^\s*pack\.zookeeper\.inactiveOnSuspend\s*=` $properties -}}
+{{- fail "Do not set pack.zookeeper.inactiveOnSuspend in stardogProperties; use cluster.zookeeperSessionTolerance.inactiveOnSuspend instead." -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "stardog.upgradeProperties" -}}
@@ -188,8 +206,21 @@ upgrade.automatic=true
 {{- if ne $service "" -}}
 {{- $service -}}
 {{- else if (eq (include "stardog.globalZookeeperEnabled" .) "true") -}}
-{{- printf "zookeeper-%s:2181" .Release.Name -}}
+{{- include "stardog.bundledZookeeperConnectString" . -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "stardog.bundledZookeeperConnectString" -}}
+{{- $globalZk := default (dict) (index (default (dict) .Values.global) "zookeeper") -}}
+{{- $replicas := int (default 3 (index $globalZk "replicaCount")) -}}
+{{- $clusterDomain := default .Values.clusterDomain (index $globalZk "clusterDomain") -}}
+{{- $fullname := printf "zookeeper-%s" .Release.Name -}}
+{{- $headless := printf "%s-headless" $fullname -}}
+{{- $parts := list -}}
+{{- range $i, $_ := until $replicas -}}
+  {{- $parts = append $parts (printf "%s-%d.%s.%s.svc.%s:2181" $fullname $i $headless $.Release.Namespace $clusterDomain) -}}
+{{- end -}}
+{{- join "," $parts -}}
 {{- end -}}
 
 {{- define "stardog.globalZookeeperEnabled" -}}

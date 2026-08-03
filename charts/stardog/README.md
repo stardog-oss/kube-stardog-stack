@@ -17,6 +17,34 @@ This chart does the following:
 - Optionally tune resource requests and limits for the pods
 - Optionally tune JVM resources for Stardog
 
+Installing
+----------
+
+```bash
+helm dependency build ./stardog
+helm install my-stardog ./stardog
+```
+
+Upgrading
+---------
+
+> [!WARNING]
+> Upgrading from any version earlier than `4.1.0` to `4.1.0` or later requires a StatefulSet migration for clustered installs (`cluster.enabled=true`). This chart version changes `spec.serviceName` (moved to a headless Service) and `spec.podManagementPolicy` (now `Parallel`), both of which Kubernetes treats as immutable on an existing StatefulSet. This applies whether the chart is installed standalone or bundled through the `kube-stardog-stack` umbrella chart (`1.2.0` or later).
+
+```bash
+export NAMESPACE=stardog
+export RELEASE=my-stardog
+
+kubectl -n "$NAMESPACE" delete sts "$RELEASE" --cascade=orphan
+
+helm -n "$NAMESPACE" upgrade "$RELEASE" ./stardog \
+  --reset-then-reuse-values \
+  --wait \
+  --timeout 15m
+```
+
+Orphan-deleting only removes the StatefulSet controller object -- the running pods and PVCs are untouched, and the new StatefulSet adopts the existing pods (matching selector labels) without recreating them. Non-clustered installs (`cluster.enabled=false`) are unaffected and can upgrade normally with `helm upgrade`.
+
 Configuration Parameters
 ------------------------
 
@@ -27,6 +55,10 @@ Configuration Parameters
 | `backup.*`                                   | Enables the built-in backup CronJob and selects the storage target; see [`BACKUP.md`](BACKUP.md) for the complete matrix |
 | `cluster.enabled`                            | Enable Stardog Cluster |
 | `cluster.zookeeperService`                   | ZooKeeper connection string (CSV of `host:port` pairs) when using a shared or external ensemble |
+| `cluster.zookeeperSessionTolerance.enabled`   | Master switch for the ZooKeeper session tolerance settings below (default `true`); see [ZooKeeper session tolerance](#zookeeper-session-tolerance) |
+| `cluster.zookeeperSessionTolerance.rejoinShutdown` | `pack.rejoin.shutdown` override; defaults to `false` on Kubernetes, diverging from the Stardog product default |
+| `cluster.zookeeperSessionTolerance.inactiveOnSuspend` | `pack.zookeeper.inactiveOnSuspend` override; unset by default, deferring to the deployed Stardog version's own default |
+| `cluster.zookeeperSessionTolerance.disableDnsCaching` | Disable JVM DNS caching for the Stardog server process (default `true`); not a Stardog property |
 | `debug.sleepOnFailureSeconds`               | Sleep for N seconds after Stardog exits with a non-zero status (troubleshooting) |
 | `debug.javaSsl`                             | Enable verbose Java SSL debug output (`javax.net.debug`) |
 | `environmentVariables`                       | Extra environment variables injected into the Stardog container |
@@ -41,6 +73,8 @@ Configuration Parameters
 | `gateway.http.*`                             | Configures the HTTP/HTTPS Gateway listeners and HTTPRoute resources |
 | `gateway.http.redirectToLaunchpad.*`         | Optional root-path proxy/redirect (Gateway) to Launchpad (service or external URL) |
 | `gateway.tcpBi.*`                            | Enables TCPRoute exposure for the BI/SQL port via the Gateway |
+| `headlessService.*`                          | Configures the headless Service used for clustered pod DNS and stable `pack.node.address` values |
+| `clusterDomain`                              | Kubernetes DNS cluster domain used when building per-pod Stardog addresses. Defaults to `cluster.local`. |
 | `upgrade.approval.targetVersion`             | One-time version-scoped approval for storage upgrades; when it matches `image.tag`, the chart injects `upgrade.automatic=true` |
 | `javaArgs`                                   | Java args for Stardog server |
 | `log4jConfig.content`                        | New Log4j configuration when overriding the default |
@@ -49,7 +83,7 @@ Configuration Parameters
 | `nodeSelector`                               | Node labels to pin Stardog pods to specific node pools |
 | `persistence.size`                           | The size of the volume for Stardog home |
 | `persistence.storageClass`                   | The storage class to use for Stardog home volumes |
-| `podManagementPolicy`                        | Set the pod startup policy - use `OrderedReady` (default) or `Parallel` |
+| `podManagementPolicy`                        | Set the pod startup policy - use `Parallel` (default) or `OrderedReady` |
 | `ports.server`                               | The port to expose Stardog server |
 | `ports.sql`                                  | The port to expose Stardog BI server |
 | `replicaCount`                               | The number of replicas in Stardog Cluster |
@@ -80,7 +114,38 @@ The default values are specified in `values.yaml`.
 
 Starting in this release the chart fails fast when `stardog.cluster.enabled=true` but neither a ZooKeeper service (`stardog.cluster.zookeeperService`) nor a shared ZooKeeper (`global.zookeeper.enabled`) is configured. This prevents accidental deployment of clustered pods without quorum services.
 
-When `global.zookeeper.enabled=true`, the chart expects the ZooKeeper Service name to be `zookeeper-<release>` (for example `zookeeper-sd-stack`) and automatically connects to `zookeeper-<release>:2181`.
+For bundled ZooKeeper, Stardog renders `pack.zookeeper.address` as the ZooKeeper ensemble pod DNS list through the ZooKeeper headless Service:
+
+```text
+zookeeper-<release>-0.zookeeper-<release>-headless.<namespace>.svc.<clusterDomain>:2181,
+zookeeper-<release>-1.zookeeper-<release>-headless.<namespace>.svc.<clusterDomain>:2181,
+zookeeper-<release>-2.zookeeper-<release>-headless.<namespace>.svc.<clusterDomain>:2181
+```
+
+The generated list uses `global.zookeeper.replicaCount`, defaulting to `3`. If you override `zookeeper.replicaCount` in the umbrella chart, keep `global.zookeeper.replicaCount` in sync. If `stardog.cluster.zookeeperService` is set, the chart uses that explicit value unchanged instead.
+
+When `stardog.cluster.enabled=true`, the StatefulSet uses a headless Service named `<stardog-fullname>-headless` for pod DNS. Each pod appends its own `pack.node.address` at startup using:
+
+```text
+<pod-name>.<stardog-fullname>-headless.<namespace>.svc.<clusterDomain>:<ports.server>
+```
+
+The normal Stardog Service remains available for clients. The headless Service exists for Stardog cluster members to identify and reach specific pods directly.
+
+Changing an existing clustered StatefulSet from the previous client Service to the headless Service changes `spec.serviceName`, which Kubernetes treats as immutable. Existing clustered installs need a StatefulSet migration, such as delete with `--cascade=orphan` and recreate through Helm, before this change can be applied in place.
+
+### ZooKeeper session tolerance
+
+`cluster.zookeeperSessionTolerance` controls how a clustered node reacts to a transient ZooKeeper session disruption (for example, a ZooKeeper ensemble leader restart). It is rendered into `stardog.properties` only while `cluster.enabled=true`.
+
+| Value | Default | Behavior |
+| --- | --- | --- |
+| `enabled` | `true` | Master switch for this block. Set `false` to render none of the settings below, even if they are also set. |
+| `rejoinShutdown` | `false` | Sets `pack.rejoin.shutdown`. The Stardog product default is `true`, which makes a node deliberately exit its JVM whenever it needs to rejoin the cluster -- a reasonable model when a VM/bare-metal process supervisor restarts it promptly, but a poor fit for Kubernetes: CrashLoopBackOff does not distinguish a deliberate graceful exit from a real crash, so repeated rejoins escalate into exponentially growing pod-restart delays. The chart defaults this to `false` instead, so a rejoin happens in-process with no pod restart. Confirmed via rolling-restart testing. |
+| `inactiveOnSuspend` | unset (`""`) | Sets `pack.zookeeper.inactiveOnSuspend`. Left unset by default so the deployed Stardog version's own default (`true` as of this writing) applies without the chart needing to track it. Set explicitly (`true`/`false`) to override. Unlike `rejoinShutdown`, this setting has no Kubernetes-specific downside -- escalating from `SUSPENDED` to `INACTIVE` does not restart the JVM by itself. |
+| `disableDnsCaching` | `true` | Not a Stardog property -- injects `-Dsun.net.inetaddr.ttl=0 -Dsun.net.inetaddr.negative.ttl=0` into the Stardog server's JVM args. Without this, the JVM's default DNS-cache TTL can make a ZooKeeper client keep retrying a ZooKeeper ensemble member's stale, pre-restart address instead of noticing that it changed (e.g. after a pod restart). |
+
+None of `rejoinShutdown` or `inactiveOnSuspend` can be set directly in `stardogProperties`/`additionalStardogProperties` -- the chart fails fast with a message pointing at the corresponding `cluster.zookeeperSessionTolerance.*` value instead, so there is a single source of truth.
 
 ### Service accounts and custom environment variables
 
@@ -227,7 +292,7 @@ This adds a Gateway listener plus a `TCPRoute` that forwards directly to the BI 
 Upgrades
 --------
 
-Stardog Cluster supports rolling upgrades for **minor and patch releases** (e.g. `9.0.0` → `9.0.1`). Pin the desired `image.tag`, run `helm upgrade`, and Kubernetes will restart the pods sequentially thanks to the StatefulSet’s default `OrderedReady` policy.
+Stardog Cluster supports rolling upgrades for **minor and patch releases** (e.g. `9.0.0` → `9.0.1`). Pin the desired `image.tag`, run `helm upgrade`, and Kubernetes will restart the pods according to the configured StatefulSet `podManagementPolicy`.
 
 Major version upgrades still require a full shutdown. Before jumping from (for example) `8.x` to `9.x`, make sure there are no running transactions and then delete the Stardog pods before redeploying them with the new Stardog version. If there are manual
 steps required as part of the upgrade process k8s jobs will need to be used

@@ -99,6 +99,60 @@ tests:
         path: spec.template.metadata.annotations["checksum/secret"]
         pattern: "^[a-f0-9]{64}$"
 
+- it: uses stable per-pod addresses in cluster mode
+  set:
+    cluster:
+      enabled: true
+      replicaCount: 3
+      zookeeperService: zookeeper:2181
+  asserts:
+    - equal:
+        path: spec.serviceName
+        value: stardog-RELEASE-NAME-headless
+    - contains:
+        path: spec.template.spec.containers[0].env
+        content:
+          name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+    - matchRegex:
+        path: spec.template.spec.containers[0].command[2]
+        pattern: 'pack\.node\.address=\$\{NODE_NAME\}\.stardog-RELEASE-NAME-headless\.\$\{POD_NAMESPACE\}\.svc\.cluster\.local:\$\{PORT\}'
+
+- it: disables JVM DNS caching by default in cluster mode
+  set:
+    cluster:
+      enabled: true
+      replicaCount: 3
+      zookeeperService: zookeeper:2181
+  asserts:
+    - matchRegex:
+        path: spec.template.spec.containers[0].env[4].value
+        pattern: '-Dsun\.net\.inetaddr\.ttl=0'
+    - matchRegex:
+        path: spec.template.spec.containers[0].env[4].value
+        pattern: '-Dsun\.net\.inetaddr\.negative\.ttl=0'
+
+- it: omits JVM DNS caching flags when disableDnsCaching is false
+  set:
+    cluster:
+      enabled: true
+      replicaCount: 3
+      zookeeperService: zookeeper:2181
+      zookeeperSessionTolerance:
+        disableDnsCaching: false
+  asserts:
+    - notMatchRegex:
+        path: spec.template.spec.containers[0].env[4].value
+        pattern: 'sun\.net\.inetaddr'
+
+- it: omits JVM DNS caching flags when cluster mode is disabled
+  asserts:
+    - notMatchRegex:
+        path: spec.template.spec.containers[0].env[4].value
+        pattern: 'sun\.net\.inetaddr'
+
 - it: enables SPARQL TLS when configured
   set:
     tls:

@@ -21,9 +21,9 @@ stardog:
     enabled: false
     replicaCount: 1
 
-  # How to start the pods - use OrderedReady to use the default behavior of
-  # starting each pod one at a time or use Parallel to start them all at once
-  podManagementPolicy: OrderedReady
+  # How to start the pods - use OrderedReady to start each pod one at a time
+  # or use Parallel to start them all at once
+  podManagementPolicy: Parallel
 
   # The number of seconds to wait for pods to shutdown before
   # killing them forcefully

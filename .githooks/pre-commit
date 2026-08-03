@@ -50,9 +50,22 @@ if ! command -v helm >/dev/null 2>&1; then
   exit 0
 fi
 
+# -------- Isolated Helm sandbox --------
+global_helm_plugins="$(helm env HELM_PLUGINS 2>/dev/null | tr -d '"' || true)"
+helm_sandbox="${repo_root}/.helm-hook"
+mkdir -p "${helm_sandbox}/config" "${helm_sandbox}/cache" "${helm_sandbox}/data" "${helm_sandbox}/plugins"
+export HELM_CONFIG_HOME="${helm_sandbox}/config"
+export HELM_CACHE_HOME="${helm_sandbox}/cache"
+export HELM_DATA_HOME="${helm_sandbox}/data"
+if [[ -d "${helm_sandbox}/plugins/helm-unittest" ]]; then
+  export HELM_PLUGINS="${helm_sandbox}/plugins"
+elif [[ -n "${global_helm_plugins}" ]]; then
+  export HELM_PLUGINS="${global_helm_plugins}"
+fi
+
 if ! helm plugin list 2>/dev/null | awk '{print $1}' | grep -qx 'unittest'; then
   say "❌" "ERR" "helm-unittest plugin missing."
-  echo "   Install once:  helm plugin install https://github.com/helm-unittest/helm-unittest"
+  echo "   Install once:  HELM_PLUGINS=${helm_sandbox}/plugins helm plugin install https://github.com/helm-unittest/helm-unittest"
   exit 1
 fi
 
@@ -117,17 +130,6 @@ add_unique() {
     eval "${arr_name}+=(\"${value}\")"
   fi
 }
-
-# -------- Isolated Helm sandbox --------
-global_helm_plugins="$(helm env HELM_PLUGINS 2>/dev/null | tr -d '"')"
-helm_sandbox="${repo_root}/.helm-hook"
-mkdir -p "${helm_sandbox}/config" "${helm_sandbox}/cache" "${helm_sandbox}/data"
-export HELM_CONFIG_HOME="${helm_sandbox}/config"
-export HELM_CACHE_HOME="${helm_sandbox}/cache"
-export HELM_DATA_HOME="${helm_sandbox}/data"
-if [[ -n "${global_helm_plugins}" ]]; then
-  export HELM_PLUGINS="${global_helm_plugins}"
-fi
 
 external_repo_urls=()
 while IFS= read -r repo; do

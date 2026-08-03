@@ -10,7 +10,9 @@ Key behaviors match the official image contract:
 - Replicated mode uses `ZOO_MY_ID` and `ZOO_SERVERS`
 - Config lives in `/conf`, can be overridden by mounting `zoo.cfg`, or extended via `ZOO_CFG_EXTRA`
 - Data dirs: `/data` (snapshots) and `/datalog` (txn logs)
-- Default ports: 2181 (client), 2888/3888 (quorum), AdminServer 8080
+- Default ports: 2181 (client), 2888/3888 (quorum)
+- AdminServer is disabled by default
+- The image includes `bash` for chart-generated startup and probe commands
 
 ## Quickstart
 
@@ -56,6 +58,13 @@ The chart auto-generates:
 - `ZOO_SERVERS` using stable FQDNs:
   `<pod>.<headless>.<ns>.svc.<clusterDomain>`
 
+New installs use `podManagementPolicy: Parallel`.
+
+The chart defaults `minReadySeconds` to `0` because the readiness probe already
+waits for ZooKeeper to report a serving mode. Increase it when you want rolling
+updates to wait after each ZooKeeper pod becomes Ready before replacing the next
+ordinal.
+
 ## Persistence
 
 Default: PVC for `/data` enabled.
@@ -87,6 +96,51 @@ When enabled, injects (via `ZOO_CFG_EXTRA`) the official metrics provider lines:
 helm install my-zk ./zookeeper \
   --set metrics.enabled=true \
   --set metrics.serviceMonitor.enabled=true
+```
+
+## AdminServer
+
+The ZooKeeper AdminServer is disabled by default. The chart probes use the
+ZooKeeper client port and do not require AdminServer.
+
+Enable AdminServer inside the pod:
+
+```bash
+helm install my-zk ./zookeeper \
+  --set adminServerEnabled=true
+```
+
+Expose the AdminServer port through the Service only when you need in-cluster
+Service access to it:
+
+```bash
+helm install my-zk ./zookeeper \
+  --set adminServerEnabled=true \
+  --set service.exposeAdmin=true
+```
+
+## Four-letter commands
+
+The chart default probes use only `ruok` and `srvr`. Liveness uses `ruok`;
+readiness uses `srvr` and requires ZooKeeper to report a serving role such as
+`leader`, `follower`, `observer`, or `standalone`. The default
+`config.fourLetterWordsWhitelist` is therefore `ruok,srvr`. Add additional
+commands only when custom probes or operational debugging require them. See the
+Apache ZooKeeper documentation for the complete list of supported four-letter commands:
+https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_zkCommands
+
+## Session timeout ceiling
+
+`config.maxSessionTimeout` defaults to `90000` (90s). ZooKeeper's own default
+when this is unset is `20 * tickTime` (`40000`ms with the default `tickTime`),
+which sits below Stardog's `pack.session.timeout` product default of `60000`ms
+-- a client requesting 60s would otherwise be silently clamped down to 40s by
+the server. `90000` keeps a deliberate margin above that 60s default so raising
+`pack.session.timeout` further doesn't immediately hit the ceiling again.
+
+```bash
+helm install my-zk ./zookeeper \
+  --set config.maxSessionTimeout=120000
 ```
 
 ## Override zoo.cfg (ConfigMap mount)
