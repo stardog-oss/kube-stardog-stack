@@ -57,7 +57,7 @@ tests:
             valueFrom:
               secretKeyRef:
                 name: RELEASE-NAME-backup-s3-secret
-                key: accesskey
+                key: accessKey
       - contains:
           path: spec.jobTemplate.spec.template.spec.containers[0].env
           content:
