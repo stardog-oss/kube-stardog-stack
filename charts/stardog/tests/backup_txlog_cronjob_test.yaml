@@ -1,0 +1,579 @@
+suite: Stardog Backup TX Log Shipping CronJob
+templates:
+  - backup/txlog-job.yaml
+
+tests:
+  - it: does not render when feature is disabled
+    values:
+      - values/values-stardog.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not render when txlog cronjob is disabled
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+          cronjob:
+            enabled: false
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: fails when backup.txlog is enabled without backup.enabled
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: false
+        txlog:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.txlog.enabled=true requires backup.enabled=true. Enable the backup feature to use transaction log shipping."
+
+  - it: fails when backup.txlog is enabled with backup.location.s3 (S3-only) as the destination
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+        location:
+          s3:
+            enabled: true
+            bucketName: my-bucket
+            region: us-east-1
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.txlog is not supported with backup.location.s3. stardog-admin tx log --output writes to a local filesystem path and has no s3:// output form (unlike stardog-admin server backup), so the shipping CronJob has nowhere to land files when S3 is the only backend. Use backup.location.persistentVolume or backup.location.azure (the chart's Azure backend is a CSI-mounted PVC). Adding S3 destination support is a Stardog product change planned for the future."
+
+  - it: fails when backup.txlog is enabled but no PVC-backed destination is configured
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.txlog requires a writable PVC-backed destination: set either backup.location.persistentVolume.enabled=true or backup.location.azure.enabled=true."
+
+  - it: renders a CronJob with the configured schedule and TTL
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+          cronjob:
+            schedule: "*/30 * * * *"
+            ttlSecondsAfterFinished: 7200
+            backoffLimit: 5
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: metadata.name
+          value: stardog-RELEASE-NAME-txlog-shipping
+      - equal:
+          path: spec.schedule
+          value: "*/30 * * * *"
+      - equal:
+          path: spec.jobTemplate.spec.ttlSecondsAfterFinished
+          value: 7200
+      - equal:
+          path: spec.jobTemplate.spec.backoffLimit
+          value: 5
+
+  - it: defaults schedule to every five minutes
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - equal:
+          path: spec.schedule
+          value: "*/5 * * * *"
+
+  - it: defaults concurrencyPolicy to Allow (parity with backup CronJob, surfaces stuck runs)
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Allow
+
+  - it: propagates concurrencyPolicy from values
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+          cronjob:
+            concurrencyPolicy: Forbid
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Forbid
+
+  - it: applies timeZone annotation when set
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+          cronjob:
+            timeZone: "America/New_York"
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - equal:
+          path: metadata.annotations["cronjob.kubernetes.io/timezone"]
+          value: "America/New_York"
+
+  - it: runs as a single container named tx-log-shipper with no init containers
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - lengthEqual:
+          path: spec.jobTemplate.spec.template.spec.containers
+          count: 1
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].name
+          value: tx-log-shipper
+      - notExists:
+          path: spec.jobTemplate.spec.template.spec.initContainers
+
+  - it: wires shipper credentials from the chart-generated backup secret (no dedicated txlog secret)
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: STARDOG_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: stardog-RELEASE-NAME-backup-credentials
+                key: username
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: STARDOG_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: stardog-RELEASE-NAME-backup-credentials
+                key: password
+
+  - it: uses an external backup credentialsSecret when provided
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        credentialsSecret: my-backup-secret
+        txlog:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+      global:
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+          - metadata:
+              name: my-backup-secret
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: STARDOG_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: my-backup-secret
+                key: username
+
+  - it: fails when provided backup credentialsSecret does not exist
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        credentialsSecret: missing-secret
+        txlog:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - failedTemplate:
+          errorMessage: "Secret NAMESPACE/missing-secret not found. Please create it or choose an existing secret."
+
+  - it: propagates include/exclude filter values into the shipper env
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+          databases:
+            include: ["primary", "secondary"]
+            exclude: ["scratch-db"]
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: TXLOG_INCLUDE
+            value: "primary secondary"
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: TXLOG_EXCLUDE
+            value: "scratch-db"
+
+  - it: mounts the persistentVolume backup PVC at /var/opt/stardog/backups
+    # Load-bearing: the shipper writes the dumped .txlog files directly onto
+    # the same PVC the Stardog StatefulSet writes its backups to. The PVC
+    # claimName must come from backup.location.persistentVolume.customPersitentVolumeClaim.
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pv-claim
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.volumes
+          content:
+            name: stardog-RELEASE-NAME-backup
+            persistentVolumeClaim:
+              claimName: my-pv-claim
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].volumeMounts
+          content:
+            name: stardog-RELEASE-NAME-backup
+            mountPath: /var/opt/stardog/backups
+            readOnly: false
+
+  - it: mounts the chart-provisioned Azure backup PVC at /var/opt/stardog/backups
+    # When the Azure backend is enabled the chart provisions a CSI-mounted PVC
+    # named backup-azure-stardog-data-<release>. The shipper mounts that PVC
+    # the same way it mounts a user-supplied PV, just with a different claimName.
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+        location:
+          azure:
+            enabled: true
+            accountName: acct
+            accountKey: key
+            containerName: blobs
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.volumes
+          content:
+            name: stardog-RELEASE-NAME-backup
+            persistentVolumeClaim:
+              claimName: backup-azure-stardog-data-RELEASE-NAME
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].volumeMounts
+          content:
+            name: stardog-RELEASE-NAME-backup
+            mountPath: /var/opt/stardog/backups
+            readOnly: false
+
+  - it: propagates BACKUP_LOCATION and RELEASE_NAME so the path matches the server's backup convention
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+            backupDir: alt-backups
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: BACKUP_LOCATION
+            value: "alt-backups"
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: RELEASE_NAME
+            value: "RELEASE-NAME"
+
+  - it: propagates the txlog pathPrefix into the shipper env
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+          pathPrefix: custom-txlogs
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: TXLOG_PATH_PREFIX
+            value: "custom-txlogs"
+
+  - it: applies readOnlyRootFilesystem to the shipper container
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+
+  - it: mounts a writable /tmp emptyDir on the shipper container
+    # stardog-admin's HTTP client spools the tx log response to java.io.tmpdir,
+    # and the container runs with readOnlyRootFilesystem: true.
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.volumes
+          content:
+            name: dump-tmp
+            emptyDir: {}
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dump-tmp
+            mountPath: /tmp
+
+  - it: includes the shell logic for include/exclude filtering and the tx log invocation
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: "TXLOG_INCLUDE"
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: "TXLOG_EXCLUDE"
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: "stardog-admin --server"
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: "--format raw --output"
+
+  - it: writes to <backupDir>/<release>/<pathPrefix>/<db>/<timestamp>.txlog (per-DB subdir, then timestamp)
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      # The shell composes DEST_ROOT from BACKUP_LOCATION/RELEASE_NAME/TXLOG_PATH_PREFIX,
+      # then per-DB appends /${db}/${TIMESTAMP}.txlog. We assert both the root and the
+      # per-DB layout. The full path will be:
+      #   /var/opt/stardog/backups/${BACKUP_LOCATION}/${RELEASE_NAME}/${TXLOG_PATH_PREFIX}/${db}/${TIMESTAMP}.txlog
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'DEST_ROOT="/var/opt/stardog/backups/\$\{BACKUP_LOCATION\}/\$\{RELEASE_NAME\}/\$\{TXLOG_PATH_PREFIX\}"'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'DB_DIR="\$\{DEST_ROOT\}/\$\{db\}"'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'OUT_FILE="\$\{DB_DIR\}/\$\{TIMESTAMP\}\.txlog"'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'mkdir -p "\$\{DB_DIR\}"'
+
+  - it: validates parsed database names against a safe character set
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: '\^\[A-Za-z0-9_-\]\+\$'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: "Refusing to proceed"
+
+  - it: treats empty-log databases as skip-and-continue rather than fail
+    # System DBs like catalog/querylog legitimately have no user transactions,
+    # and a user DB that hasn't been written to yet may be in the same state.
+    # The dump must distinguish "empty" from "real failure".
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'Failed to find any data in the txn log'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'no transactions recorded for'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'Skipped \(no transactions\)'
+
+  - it: shipper container inherits the same securityContext as the Stardog StatefulSet (fsGroup parity)
+    # The shipper writes onto the backup PVC. It must run with the same
+    # runAsUser / runAsGroup / fsGroup as the Stardog server that also writes
+    # to that volume, so file ownership stays consistent.
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        txlog:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: my-pvc
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext.fsGroup
+          value: 100000
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext.runAsUser
+          value: 100000
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext.runAsGroup
+          value: 100000
