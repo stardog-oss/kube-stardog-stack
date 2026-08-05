@@ -276,9 +276,6 @@ jobs:
               cp -f "$DIST_DIR/$pkg" "$pages_dir/"
             done < "$NEW_PACKAGES_FILE"
           fi
-          if [[ -f "$GITHUB_WORKSPACE/docs/assets/stardog_open_source_light.svg" ]]; then
-            cp -f "$GITHUB_WORKSPACE/docs/assets/stardog_open_source_light.svg" "$pages_dir/"
-          fi
 
           if [[ -s "$NEW_PACKAGES_FILE" || ! -f "$pages_dir/index.yaml" ]]; then
             if [[ -f "$pages_dir/index.yaml" ]]; then

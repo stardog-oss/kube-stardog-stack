@@ -1,9 +1,9 @@
 # Kube Stardog Stack
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/stardog_open_source_dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="docs/assets/stardog_open_source_light.svg">
-  <img alt="Stardog Open Source" src="docs/assets/stardog_open_source_light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/stardog-oss/.github/main/assets/stardog_open_source_dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/stardog-oss/.github/main/assets/stardog_open_source_light.svg">
+  <img alt="Stardog Open Source" src="https://raw.githubusercontent.com/stardog-oss/.github/main/assets/stardog_open_source_light.svg">
 </picture>
 
 An umbrella Helm chart that manages the complete Stardog ecosystem including Stardog, Launchpad, and Voicebox components.

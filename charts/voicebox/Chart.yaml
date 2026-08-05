@@ -2,7 +2,7 @@ apiVersion: v2
 appVersion: latest
 description: Helm chart to deploy Stardog Voicebox service
 home: https://stardog-union.github.io/kube-stardog-stack/
-icon: https://stardog-oss.github.io/kube-stardog-stack/stardog_open_source_light.svg
+icon: https://raw.githubusercontent.com/stardog-oss/.github/main/assets/stardog_open_source_light.svg
 maintainers:
 - email: oss@stardog.com
   name: Stardog Open-Source Community
