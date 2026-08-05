@@ -1,4 +1,7 @@
 # Changelog
+## 1.1.3
+- Add `customCaBundle` support to mount a private CA bundle into Voicebox and set `REQUESTS_CA_BUNDLE`/`SSL_CERT_FILE` for HTTPS trust.
+- Validate `configFile` as JSON during rendering so malformed `vbx_config.json` content fails before install or upgrade.
 
 ## 1.2.0
 - Upgrade note: when upgrading from any `kube-stardog-stack` version earlier than `1.2.0` to `1.2.0` or later, follow `docs/upgrades/statefulset-migration.md` -- the Stardog StatefulSet's service name and pod management policy both changed, requiring the existing StatefulSet controller object to be orphaned and recreated.
