@@ -4,7 +4,7 @@ description: Helm chart to deploy Stardog Cache Targets
 version: 1.0.3
 appVersion: latest
 home: https://stardog-union.github.io/kube-stardog-stack/
-icon: https://s3.amazonaws.com/stardog-logos.public/stardog-logo.png
+icon: https://stardog-oss.github.io/kube-stardog-stack/stardog_open_source_light.svg
 maintainers:
 - email: oss@stardog.com
   name: Stardog Open-Source Community
