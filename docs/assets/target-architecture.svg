@@ -1,0 +1,253 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 310" fill="none">
+<rect x="0" y="0" width="960" height="310" fill="#ffffff"/>
+<defs>
+  <path id="dp" d="M169.38,89.42c-.55-1.74-.35-3.62.56-5.2,14.9-25.93,14.18-35.71,11.79-39.69-1.99-3.32-9.88-10.34-12.86-12.93-.75-.65-1.31-1.5-1.62-2.45l-1.54-4.68c-.37-1.13-1.07-2.14-2.02-2.85-16.71-12.58-47.63-4.14-61.56-1.12-4.51.98-7.54,5.23-6.97,9.81.32,2.56.86,4.97,1.48,7.11,2.16,7.53,1.46,15.61-2.1,22.59-17.35,34-40.32,39.35-51.68,41.29-3.22.55-4.89,4.14-3.25,6.96l.2.34c.68,1.17.61,2.62-.18,3.71-11.69,16.21-20.13,41.95-24.31,56.7-1.62,5.7,2.66,11.36,8.59,11.36h6.48c1.35,0,2.51-.92,2.86-2.23,3.65-13.78,14.96-26.02,20.64-31.48.84-.81,2.19.04,1.83,1.15-2.4,7.48-3.87,16-4.73,22.45-.71,5.35,3.45,10.11,8.85,10.11h7.16c1.42,0,2.66-1.01,2.9-2.42,1.07-6.12,3.89-12.45,5.75-16.17.49-.98,1.96-.73,2.1.35.41,3.13,1.29,7.97,3.14,13.16,1.26,3.53,4.64,5.85,8.38,5.85h11.32c1.63,0,2.96-1.32,2.95-2.95-.04-8.11.88-13.94,1.78-17.69.75-3.1,3.2-5.49,6.31-6.17,6.57-1.43,13.07-3.1,16.71-4.06,1.55-.41,3.12.6,3.38,2.19,1.26,7.74,4.15,16.46,6.21,22.06,1.29,3.52,4.64,5.85,8.38,5.85h8.22c1.72,0,3.08-1.46,2.94-3.18l-1.27-16.63c-.12-1.61.18-3.23.89-4.68,18.43-37.63,14.52-59.39,12.29-66.45ZM122.04,26.07c.7,7.29,2,25.39-8.1,23.88-9.22-1.38-11.61-13-12.23-19.14-.18-1.78.91-3.43,2.62-3.94,9-3.04,17.4-4.79,17.7-.8ZM99.38,145.52c-1.02,7.06-1.74,15.4-1.72,24.79,0,1.63-1.32,2.96-2.95,2.96h-4.74c-2.25,0-4.19-1.52-4.78-3.69-4.03-14.78-2.29-31.03-1.42-38.78.18-1.59-1.26-2.88-2.83-2.55-9.56,2.03-38.04,6.6-52.13,43.12-.44,1.14-1.52,1.9-2.73,1.9h-.86c-2.91,0-5.03-2.76-4.28-5.57,9.74-36.29,20.14-52.14,33.65-60.34,26.23-15.93,38.23-28.81,49.18-53.25.37-.82,1.37-1.11,2.1-.59,1.67,1.19,6.97,3.31,12.07,2.66,8.15-1.04,11.29-11.97,11.69-18.76.22-3.68-.31-9.05-.6-12.1-.16-1.69,1.19-3.12,2.89-3.08,2.71.05,15.85-1.81,18.4,6.59l.52,2.11c.18.71-.24,1.42-.93,1.65-22.48,7.57-30.3,38.86-25.95,48.82,5.35,12.23,25.09,11.07,30.43,10.52.74-.08,1.4.51,1.37,1.26-.41,10.98-16.76,18.19-30.69,22.36s-23.66,15.85-25.69,29.99ZM152.34,80.17c-7.41,6-22.42,2.57-21.85-9,.43-8.82,4.77-28.89,26.58-35.19.78-.23,1.6.07,2.09.71,2.66,3.43,6.81,3.77,9.74,2.97.65-.18,1.34-.03,1.84.42h0c2.12,1.94,1.75,5.41-.76,6.82-14.96,8.46-10.97,27.87-17.65,33.27Z"/>
+  <marker id="arr"   markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><polygon points="0,0 5,2.5 0,5" fill="#142127" opacity="0.35"/></marker>
+  <marker id="arr-b" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><polygon points="0,0 5,2.5 0,5" fill="#5ca5e4" opacity="0.8"/></marker>
+  <marker id="arr-g" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><polygon points="0,0 5,2.5 0,5" fill="#90e270"/></marker>
+  <marker id="arr-o" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><polygon points="0,0 5,2.5 0,5" fill="#e8723a" opacity="0.7"/></marker>
+  <!-- Stardog full logo (dog + wordmark) inlined from Stardog_Logo_Black.svg viewBox 0 0 662.4 208.97 -->
+  <g id="sd-logo" fill="#142127">
+    <g>
+      <g>
+        <path d="M186.65,132.76l13.03-2.96h.54c1.08,11.96,11.42,20.42,23.78,20.42s20.69-6.18,20.69-15.18c0-8.06-5.51-12.76-13.43-15.05l-17.33-5.1c-12.76-3.63-23.51-10.21-23.51-25.79s13.84-26.2,32.91-26.2,32.64,10.21,34.26,24.72l-12.76,3.09h-.54c-1.75-9.27-9.54-15.58-20.96-15.58s-18.54,5.1-18.54,13.3c0,7.25,5.24,11.02,12.76,13.17l17.73,5.1c13.03,3.76,23.78,10.75,23.78,27.67s-14.11,28.08-35.06,28.08c-19.75,0-35.87-12.63-37.35-29.69Z"/>
+        <path d="M275.86,140.96v-38.56h-12.49v-11.02c12.22,0,13.03-1.21,13.03-16.25h12.36v16.25h18.27v11.02h-18.27v37.75c0,7.79,4.57,10.88,9.67,10.88,2.55,0,4.97-.27,7.66-2.02v11.15c-1.75,1.34-6.04,2.28-9.81,2.28-11.82,0-20.42-6.99-20.42-21.49Z"/>
+        <path d="M312.66,142.3c0-12.09,9-19.34,23.91-21.49l22.03-3.22v-2.55c0-9.67-6.58-14.51-15.18-14.51-10.08,0-15.58,5.37-17.46,13.17l-12.22-3.49c3.22-10.61,12.76-20.15,29.69-20.15s28.08,9.27,28.08,25.39v45.67h-13.03v-10.48c-4.97,8.19-13.43,11.82-21.76,11.82-13.97,0-24.05-8.2-24.05-20.15ZM358.47,127.25l-19.88,3.22c-7.93,1.34-12.49,4.84-12.49,11.42,0,6.04,5.1,10.34,12.49,10.34,10.75,0,17.46-7.52,19.88-15.45v-9.54Z"/>
+        <path d="M385.94,91.39h12.9v11.28c4.03-7.39,11.55-12.63,20.02-12.63,1.75,0,2.96,0,4.17.27v12.63c-14.91-2.69-22.03,8.6-24.18,17.33v40.84h-12.9v-69.72Z"/>
+        <path d="M425.97,126.18c0-20.96,13.84-36.14,32.78-36.14,9.4,0,18.4,4.84,22.3,11.42v-38.55h13.03v98.2h-13.03v-10.21c-3.9,6.58-12.9,11.55-22.3,11.55-18.94,0-32.78-15.32-32.78-36.27ZM481.05,130.61v-9c-.81-11.82-9.14-20.15-20.42-20.15-12.36,0-21.23,9.94-21.23,24.58s8.87,24.99,21.23,24.99c11.28,0,19.48-8.6,20.42-20.42Z"/>
+      </g>
+      <path d="M505.18,125.51c0-20.69,14.51-36.14,34.66-36.14s34.79,15.45,34.79,36.14-14.78,36.27-34.79,36.27-34.66-15.45-34.66-36.27ZM561.2,125.51c0-14.37-9-24.72-21.36-24.72s-21.23,10.34-21.23,24.72,8.73,24.85,21.23,24.85,21.36-10.48,21.36-24.85Z"/>
+      <path d="M622.84,153.74h-20.15c-5.64,0-8.46-1.34-8.46-4.84,0-2.42,1.49-4.54,3.78-6.12,3.83,2.04,8.34,3.2,13.43,3.2,16.76,0,27.38-12.52,27.38-27.97,0-5.78-1.44-11.15-4.13-15.61h9.48v-11.15l-20.2,1.45c-3.61-1.7-7.81-2.66-12.53-2.66-17.13,0-27.38,12.52-27.38,27.97,0,7.36,2.42,14.05,6.75,19.05-4.9,2.83-9.48,7.49-9.48,13.59,0,4.3,1.88,7.52,5.1,9.81-4.16,3.36-7.25,8.73-7.25,14.24,0,14.24,12.76,20.55,32.64,20.55s34.39-7.79,34.39-22.97c0-12.09-9.54-18.54-23.37-18.54ZM611.43,101.46c8.76,0,14.32,6.59,14.32,16.55s-5.56,16.55-14.32,16.55-14.04-6.76-14.04-16.55,5.42-16.55,14.04-16.55ZM611.83,184.51c-11.96,0-19.61-3.36-19.61-10.88,0-3.09,1.21-6.85,5.11-9.4,1.75.13,3.76.27,5.78.27h18.54c7.39,0,11.42,2.28,11.42,8.19,0,7.25-6.72,11.82-21.23,11.82Z"/>
+    </g>
+    <path d="M170.28,87.87c-.55-1.74-.35-3.62.56-5.2,14.9-25.93,14.18-35.71,11.79-39.69-1.99-3.32-9.88-10.34-12.86-12.93-.75-.65-1.31-1.5-1.62-2.45l-1.54-4.68c-.37-1.13-1.07-2.14-2.02-2.85-16.71-12.58-47.63-4.14-61.56-1.12-4.51.98-7.54,5.23-6.97,9.81.32,2.56.86,4.97,1.48,7.11,2.16,7.53,1.46,15.61-2.1,22.59-17.35,34-40.32,39.35-51.68,41.29-3.22.55-4.89,4.14-3.25,6.96l.2.34c.68,1.17.61,2.62-.18,3.71-11.69,16.21-20.13,41.95-24.31,56.7-1.62,5.7,2.66,11.36,8.59,11.36h6.48c1.35,0,2.51-.92,2.86-2.23,3.65-13.78,14.96-26.02,20.64-31.48.84-.81,2.19.04,1.83,1.15-2.4,7.48-3.87,16-4.73,22.45-.71,5.35,3.45,10.11,8.85,10.11h7.16c1.42,0,2.66-1.01,2.9-2.42,1.07-6.12,3.89-12.45,5.75-16.17.49-.98,1.96-.73,2.1.35.41,3.13,1.29,7.97,3.14,13.16,1.26,3.53,4.64,5.85,8.38,5.85h11.32c1.63,0,2.96-1.32,2.95-2.95-.04-8.11.88-13.94,1.78-17.69.75-3.1,3.2-5.49,6.31-6.17,6.57-1.43,13.07-3.1,16.71-4.06,1.55-.41,3.12.6,3.38,2.19,1.26,7.74,4.15,16.46,6.21,22.06,1.29,3.52,4.64,5.85,8.38,5.85h8.22c1.72,0,3.08-1.46,2.94-3.18l-1.27-16.63c-.12-1.61.18-3.23.89-4.68,18.43-37.63,14.52-59.39,12.29-66.45ZM122.94,24.52c.7,7.29,2,25.39-8.1,23.88-9.22-1.38-11.61-13-12.23-19.14-.18-1.78.91-3.43,2.62-3.94,9-3.04,17.4-4.79,17.7-.8ZM100.28,143.97c-1.02,7.06-1.74,15.4-1.72,24.79,0,1.63-1.32,2.96-2.95,2.96h-4.74c-2.25,0-4.19-1.52-4.78-3.69-4.03-14.78-2.29-31.03-1.42-38.78.18-1.59-1.26-2.88-2.83-2.55-9.56,2.03-38.04,6.6-52.13,43.12-.44,1.14-1.52,1.9-2.73,1.9h-.86c-2.91,0-5.03-2.76-4.28-5.57,9.74-36.29,20.14-52.14,33.65-60.34,26.23-15.93,38.23-28.81,49.18-53.25.37-.82,1.37-1.11,2.1-.59,1.67,1.19,6.97,3.31,12.07,2.66,8.15-1.04,11.29-11.97,11.69-18.76.22-3.68-.31-9.05-.6-12.1-.16-1.69,1.19-3.12,2.89-3.08,2.71.05,15.85-1.81,18.4,6.59l.52,2.11c.18.71-.24,1.42-.93,1.65-22.48,7.57-30.3,38.86-25.95,48.82,5.35,12.23,25.09,11.07,30.43,10.52.74-.08,1.4.51,1.37,1.26-.41,10.98-16.76,18.19-30.69,22.36s-23.66,15.85-25.69,29.99ZM153.24,78.62c-7.41,6-22.42,2.57-21.85-9,.43-8.82,4.77-28.89,26.58-35.19.78-.23,1.6.07,2.09.71,2.66,3.43,6.81,3.77,9.74,2.97.65-.18,1.34-.03,1.84.42h0c2.12,1.94,1.75,5.41-.76,6.82-14.96,8.46-10.97,27.87-17.65,33.27Z"/>
+  </g>
+</defs>
+
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- K8S CLUSTER                                 -->
+<!-- ═══════════════════════════════════════════ -->
+
+<!-- Pool body fills -->
+<rect x="148" y="42" width="82"  height="182" fill="#142127" opacity="0.04"/>
+<rect x="230" y="42" width="215" height="182" fill="#5ca5e4" opacity="0.05"/>
+<rect x="445" y="42" width="164" height="182" fill="#90e270" opacity="0.10"/>
+<rect x="609" y="42" width="211" height="182" fill="#e8723a" opacity="0.05"/>
+
+<!-- Column dividers -->
+<line x1="230" y1="4"  x2="230" y2="224" stroke="#142127" stroke-width="0.8" opacity="0.18"/>
+<line x1="445" y1="4"  x2="445" y2="224" stroke="#142127" stroke-width="0.8" opacity="0.18"/>
+<line x1="609" y1="4"  x2="609" y2="224" stroke="#142127" stroke-width="0.8" opacity="0.18"/>
+
+<!-- Pool header bands y=14–42 -->
+<rect x="148" y="14" width="82"  height="28" fill="#142127" opacity="0.10"/>
+<rect x="230" y="14" width="215" height="28" fill="#5ca5e4" opacity="0.22"/>
+<rect x="445" y="14" width="164" height="28" fill="#90e270" opacity="0.28"/>
+<rect x="609" y="14" width="211" height="28" fill="#e8723a" opacity="0.18"/>
+
+<!-- K8S outer frame -->
+<rect x="148" y="4" width="672" height="220" rx="8" fill="none" stroke="#142127" stroke-width="1.5"/>
+<!-- K8S title strip above pool headers -->
+<rect x="148" y="4" width="672" height="28" rx="8" fill="#142127" opacity="0.32"/>
+<!-- K8S label: white, readable -->
+<text x="816" y="19" text-anchor="end" font-family="Inter,Arial,sans-serif" font-size="10" font-weight="700" fill="#fbf9f6">K8S: Primary Cluster</text>
+
+<!-- Pool header labels -->
+<text x="189" y="40" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="7.5" font-weight="700" fill="#142127" opacity="0.6">System Pool</text>
+<text x="337" y="40" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="7.5" font-weight="700" fill="#1a5a8a">Stardog Pool</text>
+<text x="527" y="40" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="7.5" font-weight="700" fill="#2a6614">ZooKeeper Pool</text>
+<text x="714" y="40" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="7.5" font-weight="700" fill="#8b3a10">Application Pool</text>
+
+<!-- Region 1 dashed wrapper: larger label -->
+<rect x="143" y="1" width="803" height="227" rx="10" fill="none" stroke="#142127" stroke-width="0.9" opacity="0.2" stroke-dasharray="7,4"/>
+<text x="151" y="19" font-family="Inter,Arial,sans-serif" font-size="10" font-weight="700" fill="#fbf9f6" opacity="0.85">Region 1</text>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- STARDOG NAMESPACE                           -->
+<!-- ═══════════════════════════════════════════ -->
+<rect x="230" y="47" width="373" height="170" rx="6" fill="rgba(92,165,228,0.03)" stroke="#5ca5e4" stroke-width="2"/>
+<text x="240" y="61" font-family="Inter,Arial,sans-serif" font-size="8.5" font-weight="700" fill="#1a5a8a">Stardog Namespace</text>
+
+<!-- Ingress / Gateway — straddles System / Stardog boundary -->
+<rect x="169" y="66" width="122" height="30" rx="5" fill="#5ca5e4"/>
+<text x="230" y="85" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="8.5" font-weight="700" fill="#fbf9f6">Ingress / Gateway</text>
+
+<!-- LB → Ingress (straight horizontal) -->
+<line x1="102" y1="81" x2="169" y2="81" stroke="#5ca5e4" stroke-width="1.5" opacity="0.6" marker-end="url(#arr-b)"/>
+
+<!-- ─── Routing line: Ingress → branches to Stardog and → Launchpad ─── -->
+<line x1="291" y1="81" x2="613" y2="81" stroke="#3a7a1a" stroke-width="1.2" stroke-dasharray="5,3" opacity="0.7" marker-end="url(#arr)"/>
+
+<!-- Launchpad URL badge on horizontal routing line -->
+<rect x="400" y="70" width="112" height="13" rx="3" fill="#fbf9f6" opacity="0.88"/>
+<text x="456" y="80" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="6" fill="#2a6614">https://launchpad…</text>
+
+<!-- Junction dot where Stardog branch leaves the routing line -->
+<circle cx="338" cy="81" r="3" fill="#3a7a1a" opacity="0.65"/>
+
+<!-- Stardog branch: drop down from routing line to Stardog nodes -->
+<line x1="338" y1="81" x2="338" y2="114" stroke="#5ca5e4" stroke-width="1.2" stroke-dasharray="5,3" opacity="0.7" marker-end="url(#arr-b)"/>
+
+<!-- Stardog URL badge on vertical branch -->
+<rect x="256" y="95" width="165" height="13" rx="3" fill="#fbf9f6" opacity="0.88"/>
+<text x="338" y="105" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="6" fill="#1a5a8a">https://stardog.example.org</text>
+
+<!-- ─── 3 Stardog nodes ─── -->
+<!-- N1 -->
+<rect x="247" y="114" width="54" height="62" rx="5" fill="#142127"/>
+<g transform="translate(251,118) scale(0.24)"><use href="#dp" fill="#fbf9f6"/></g>
+<text x="274" y="171" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="5" font-weight="700" letter-spacing="1.5" fill="#fbf9f6">STARDOG</text>
+<!-- N2 coordinator (branch arrives here) -->
+<rect x="311" y="114" width="54" height="62" rx="5" fill="#142127" stroke="#90e270" stroke-width="2.5"/>
+<g transform="translate(315,118) scale(0.24)"><use href="#dp" fill="#fbf9f6"/></g>
+<text x="338" y="171" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="5" font-weight="700" letter-spacing="1.5" fill="#fbf9f6">STARDOG</text>
+<!-- N3 -->
+<rect x="375" y="114" width="54" height="62" rx="5" fill="#142127"/>
+<g transform="translate(379,118) scale(0.24)"><use href="#dp" fill="#fbf9f6"/></g>
+<text x="402" y="171" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="5" font-weight="700" letter-spacing="1.5" fill="#fbf9f6">STARDOG</text>
+
+<!-- Replication arrows -->
+<line x1="301" y1="143" x2="311" y2="143" stroke="#90e270" stroke-width="1.5" marker-end="url(#arr-g)"/>
+<line x1="311" y1="150" x2="301" y2="150" stroke="#90e270" stroke-width="1.5" marker-end="url(#arr-g)"/>
+<line x1="365" y1="143" x2="375" y2="143" stroke="#90e270" stroke-width="1.5" marker-end="url(#arr-g)"/>
+<line x1="375" y1="150" x2="365" y2="150" stroke="#90e270" stroke-width="1.5" marker-end="url(#arr-g)"/>
+
+<!-- PV bars -->
+<rect x="255" y="185" width="38" height="10" rx="2" fill="#142127" opacity="0.32"/>
+<text x="274" y="193" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="5.5" fill="#fbf9f6">PV</text>
+<rect x="319" y="185" width="38" height="10" rx="2" fill="#142127" opacity="0.32"/>
+<text x="338" y="193" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="5.5" fill="#fbf9f6">PV</text>
+<rect x="383" y="185" width="38" height="10" rx="2" fill="#142127" opacity="0.32"/>
+<text x="402" y="193" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="5.5" fill="#fbf9f6">PV</text>
+
+<!-- ─── ZooKeeper nodes ─── -->
+<text x="457" y="108" font-family="Inter,Arial,sans-serif" font-size="8.5" font-weight="700" fill="#2a6614">ZooKeeper</text>
+<rect x="453" y="114" width="42" height="44" rx="4" fill="#142127"/>
+<text x="474" y="141" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="700" fill="#fbf9f6">ZK</text>
+<rect x="505" y="114" width="42" height="44" rx="4" fill="#142127"/>
+<text x="526" y="141" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="700" fill="#fbf9f6">ZK</text>
+<rect x="557" y="114" width="42" height="44" rx="4" fill="#142127"/>
+<text x="578" y="141" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="700" fill="#fbf9f6">ZK</text>
+<line x1="495" y1="136" x2="505" y2="136" stroke="#fbf9f6" stroke-width="1.5" opacity="0.5"/>
+<line x1="547" y1="136" x2="557" y2="136" stroke="#fbf9f6" stroke-width="1.5" opacity="0.5"/>
+<text x="526" y="172" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="6.5" fill="#2a6614" opacity="0.6">ensemble</text>
+<rect x="471" y="179" width="110" height="11" rx="3" fill="#90e270" opacity="0.12" stroke="#2a6614" stroke-width="0.7"/>
+<text x="526" y="188" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="6" fill="#2a6614">internal only</text>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- APPLICATION POOL                        -->
+<!-- ═══════════════════════════════════════ -->
+
+<!-- Launchpad box -->
+<rect x="613" y="47" width="108" height="162" rx="6" fill="rgba(144,226,112,0.08)" stroke="#3a7a1a" stroke-width="1.5"/>
+<text x="667" y="62" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="8.5" font-weight="700" fill="#2a6614">Launchpad</text>
+<circle cx="667" cy="100" r="22" fill="#5ca5e4"/>
+<text x="667" y="96" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="5.5" font-weight="700" fill="#fbf9f6">LAUNCH</text>
+<text x="667" y="105" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="5.5" fill="#fbf9f6">PAD</text>
+<rect x="651" y="132" width="32" height="10" rx="2" fill="#142127" opacity="0.32"/>
+<text x="667" y="140" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="5.5" fill="#fbf9f6">PV</text>
+
+<!-- Launchpad → Voicebox -->
+<line x1="721" y1="100" x2="727" y2="100" stroke="#e8723a" stroke-width="1.2" stroke-dasharray="3,2" opacity="0.6" marker-end="url(#arr-o)"/>
+
+<!-- Voicebox box -->
+<rect x="727" y="47" width="90" height="162" rx="6" fill="rgba(232,114,58,0.07)" stroke="#e8723a" stroke-width="1.5"/>
+<text x="772" y="62" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="8.5" font-weight="700" fill="#8b3a10">Voicebox</text>
+<circle cx="749" cy="100" r="16" fill="#e8723a"/>
+<text x="749" y="104" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="7" font-weight="700" fill="#fbf9f6">VB</text>
+<circle cx="778" cy="100" r="16" fill="#e8723a"/>
+<text x="778" y="104" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="7" font-weight="700" fill="#fbf9f6">VB</text>
+<circle cx="806" cy="100" r="11" fill="#e8723a" opacity="0.5"/>
+<text x="806" y="104" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="6.5" font-weight="700" fill="#fbf9f6">VB</text>
+<rect x="738" y="148" width="66" height="13" rx="3" fill="#e8723a" opacity="0.12" stroke="#e8723a" stroke-width="0.7"/>
+<text x="771" y="158" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="6" fill="#8b3a10">internal only</text>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- RIGHT SIDE                              -->
+<!-- ═══════════════════════════════════════ -->
+<rect x="828" y="68" width="116" height="76" rx="6" fill="#142127"/>
+<text x="886" y="97"  text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="8.5" font-weight="600" fill="#fbf9f6">GPU Platform</text>
+<text x="886" y="112" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="7.5" fill="#90e270">model</text>
+<line x1="817" y1="100" x2="828" y2="100" stroke="#e8723a" stroke-width="1" stroke-dasharray="4,2" opacity="0.5" marker-end="url(#arr)"/>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- EXTERNAL LEFT                           -->
+<!-- ═══════════════════════════════════════ -->
+
+<!-- DockerHub — inline with bottom row -->
+<circle cx="75" cy="269" r="22" fill="white" stroke="#142127" stroke-width="1.5"/>
+<text x="75" y="265" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="5.5" font-weight="700" fill="#142127">DOCKER</text>
+<text x="75" y="274" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="5.5" fill="#142127">HUB</text>
+<line x1="97" y1="269" x2="148" y2="269" stroke="#142127" stroke-width="1.2" opacity="0.4" marker-end="url(#arr)"/>
+
+<!-- Load Balancer — moved further left -->
+<rect x="12" y="50" width="90" height="62" rx="6" fill="#5ca5e4"/>
+<text x="57" y="68" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="8" font-weight="700" fill="#fbf9f6">Load Balancer</text>
+<text x="57" y="80" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="7" fill="#fbf9f6">https: 443</text>
+<text x="57" y="93" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="6" fill="#fbf9f6" opacity="0.75">Ingress / Gateway</text>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- BOTTOM ROW                              -->
+<!-- ═══════════════════════════════════════ -->
+
+<!-- Container Registry -->
+<rect x="148" y="244" width="80" height="50" rx="5" fill="white" stroke="#142127" stroke-width="1.5"/>
+<rect x="157" y="251" width="5" height="5" rx="1" fill="#5ca5e4"/><rect x="165" y="251" width="5" height="5" rx="1" fill="#5ca5e4"/><rect x="173" y="251" width="5" height="5" rx="1" fill="#5ca5e4"/>
+<rect x="157" y="259" width="5" height="5" rx="1" fill="#5ca5e4"/><rect x="165" y="259" width="5" height="5" rx="1" fill="#5ca5e4"/><rect x="173" y="259" width="5" height="5" rx="1" fill="#5ca5e4"/>
+<text x="188" y="276" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="6.5" fill="#142127">Container</text>
+<text x="188" y="285" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="6.5" fill="#142127">Registry</text>
+
+<!-- Key Vault -->
+<rect x="238" y="244" width="80" height="50" rx="5" fill="white" stroke="#142127" stroke-width="1.5"/>
+<circle cx="260" cy="258" r="7.5" fill="none" stroke="#e8723a" stroke-width="1.8"/>
+<line x1="267" y1="258" x2="281" y2="258" stroke="#e8723a" stroke-width="1.8"/>
+<line x1="279" y1="258" x2="279" y2="264" stroke="#e8723a" stroke-width="1.8"/>
+<line x1="275" y1="258" x2="275" y2="267" stroke="#e8723a" stroke-width="1.8"/>
+<text x="278" y="277" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="6.5" fill="#142127">Key Vault</text>
+<text x="278" y="287" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="5" fill="#142127" opacity="0.45">if DR: use DR backup</text>
+
+<!-- Storage -->
+<rect x="328" y="244" width="76" height="50" rx="5" fill="white" stroke="#142127" stroke-width="1.5"/>
+<ellipse cx="366" cy="256" rx="14" ry="5" fill="none" stroke="#142127" stroke-width="1.5"/>
+<line x1="352" y1="256" x2="352" y2="270" stroke="#142127" stroke-width="1.5"/>
+<line x1="380" y1="256" x2="380" y2="270" stroke="#142127" stroke-width="1.5"/>
+<ellipse cx="366" cy="270" rx="14" ry="5" fill="none" stroke="#142127" stroke-width="1.5"/>
+<text x="366" y="286" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="6.5" fill="#142127">Storage</text>
+
+<!-- Data Source 1 -->
+<rect x="414" y="244" width="80" height="50" rx="5" fill="white" stroke="#5ca5e4" stroke-width="1.5"/>
+<ellipse cx="433" cy="256" rx="10" ry="4" fill="none" stroke="#5ca5e4" stroke-width="1.4"/>
+<line x1="423" y1="256" x2="423" y2="269" stroke="#5ca5e4" stroke-width="1.4"/>
+<line x1="443" y1="256" x2="443" y2="269" stroke="#5ca5e4" stroke-width="1.4"/>
+<ellipse cx="433" cy="269" rx="10" ry="4" fill="none" stroke="#5ca5e4" stroke-width="1.4"/>
+<text x="455" y="264" font-family="Inter,Arial,sans-serif" font-size="6.5" fill="#142127">Data</text>
+<text x="455" y="274" font-family="Inter,Arial,sans-serif" font-size="6.5" fill="#142127">Source 1</text>
+
+<!-- DNS -->
+<rect x="504" y="244" width="86" height="50" rx="5" fill="white" stroke="#142127" stroke-width="1.5"/>
+<circle cx="527" cy="264" r="11" fill="none" stroke="#142127" stroke-width="1.4"/>
+<ellipse cx="527" cy="264" rx="5.5" ry="11" fill="none" stroke="#142127" stroke-width="1"/>
+<line x1="516" y1="264" x2="538" y2="264" stroke="#142127" stroke-width="1"/>
+<text x="550" y="261" font-family="Inter,Arial,sans-serif" font-size="7" font-weight="600" fill="#142127">DNS</text>
+<text x="550" y="271" font-family="Inter,Arial,sans-serif" font-size="5.5" fill="#142127" opacity="0.65">stardog.</text>
+<text x="550" y="279" font-family="Inter,Arial,sans-serif" font-size="5.5" fill="#142127" opacity="0.65">example.org</text>
+
+<!-- IDP -->
+<rect x="600" y="244" width="100" height="50" rx="5" fill="white" stroke="#142127" stroke-width="1.5"/>
+<text x="650" y="269" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700" fill="#142127">IDP</text>
+<text x="650" y="284" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="5.5" fill="#142127" opacity="0.55">Identity Provider</text>
+
+<!-- Upward connectors to cluster bottom (y=224) -->
+<line x1="188" y1="244" x2="188" y2="224" stroke="#142127" stroke-width="1" opacity="0.15" stroke-dasharray="3,2"/>
+<line x1="278" y1="244" x2="278" y2="224" stroke="#142127" stroke-width="1" opacity="0.15" stroke-dasharray="3,2"/>
+<line x1="366" y1="244" x2="366" y2="224" stroke="#142127" stroke-width="1" opacity="0.15" stroke-dasharray="3,2"/>
+<line x1="454" y1="244" x2="454" y2="224" stroke="#5ca5e4" stroke-width="1" opacity="0.22" stroke-dasharray="3,2"/>
+<line x1="650" y1="244" x2="650" y2="224" stroke="#142127" stroke-width="1" opacity="0.15" stroke-dasharray="3,2"/>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- STARDOG BRANDING — bottom right corner  -->
+<!-- ═══════════════════════════════════════ -->
+<!-- logo viewBox 0 0 662.4 208.97, scale=0.302 → 200×63px, placed at x=730 y=244 -->
+<use href="#sd-logo" transform="translate(730,244) scale(0.302)"/>
+
+</svg>
