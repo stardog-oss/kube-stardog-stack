@@ -2,7 +2,7 @@ apiVersion: v2
 appVersion: latest
 description: Shared Gateway resources for the Stardog stack
 home: https://stardog-union.github.io/kube-stardog-stack/
-icon: https://s3.amazonaws.com/stardog-logos.public/stardog-logo.png
+icon: https://raw.githubusercontent.com/stardog-oss/.github/main/assets/stardog_open_source_light.svg
 maintainers:
 - email: oss@stardog.com
   name: Stardog Open-Source Community

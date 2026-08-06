@@ -56,15 +56,15 @@ BI endpoint: {{ $biEndpoint }}
 {{- end }}
 {{- end }}
 
-{{- if and .Values.backup.enabled (not .Values.backup.backupCredentialsSecret) }}
-  {{- $secret := lookup "v1" "Secret" .Release.Namespace ((include "stardog.fullname" .) | printf "%s-backup-credentials") }}
+{{- if and .Values.backup.enabled (not .Values.backup.credentialsSecret) }}
+  {{- $secret := lookup "v1" "Secret" .Release.Namespace ((include "sdcommon.fullname" .) | printf "%s-backup-credentials") }}
   {{- if $secret }}
   Please save these backup user credentials for future use:
   {{- range $key, $val := $secret.data }}
      {{ $key }}: {{ $val | b64dec }}
   {{- end }}
   
-  In the event of a restore, the credentials will need to be updated, and the secret named {{ ((include "stardog.fullname" .) | printf "%s-backup-credentials") }} must be recreated with the new password.
+  In the event of a restore, the credentials will need to be updated, and the secret named {{ ((include "sdcommon.fullname" .) | printf "%s-backup-credentials") }} must be recreated with the new password.
   Save these credentials securely for future use.
   {{- end }}
 {{- end }}
