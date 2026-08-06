@@ -43,7 +43,7 @@ dependencies:
 description: Helm chart to deploy the complete Stardog ecosystem, including Stardog,
   Launchpad, and Voicebox
 home: https://stardog-union.github.io/kube-stardog-stack/
-icon: https://stardog-oss.github.io/kube-stardog-stack/stardog_open_source.png
+icon: https://raw.githubusercontent.com/stardog-oss/.github/main/assets/stardog_open_source_light.svg
 maintainers:
 - email: oss@stardog.com
   name: Stardog Open-Source Community

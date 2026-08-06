@@ -1,6 +1,10 @@
 # Kube Stardog Stack
 
-![Stardog Open Source](docs/assets/stardog_open_source.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/stardog-oss/.github/main/assets/stardog_open_source_dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/stardog-oss/.github/main/assets/stardog_open_source_light.svg">
+  <img alt="Stardog Open Source" src="https://raw.githubusercontent.com/stardog-oss/.github/main/assets/stardog_open_source_light.svg">
+</picture>
 
 An umbrella Helm chart that manages the complete Stardog ecosystem including Stardog, Launchpad, and Voicebox components.
 
@@ -27,7 +31,7 @@ This chart provides a unified way to deploy and manage the entire Stardog stack 
 
 Architecture is not one-size-fits-all, but this target architecture has worked well in practice. It protects your most expensive database resources while preserving deployment flexibility.
 
-![Target Architecture](docs/assets/target-architecture.png)
+![Target Architecture](docs/assets/target-architecture.svg)
 
 Related architecture note:
 
