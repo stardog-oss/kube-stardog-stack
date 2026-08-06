@@ -8,6 +8,7 @@
 - Default `pack.rejoin.shutdown=false` through `cluster.zookeeperSessionTolerance.rejoinShutdown`. The product default (`true`) makes Stardog deliberately exit the JVM on every cluster rejoin; Kubernetes' CrashLoopBackOff does not distinguish that from a real crash, so repeated rejoins escalate into exponentially growing pod-restart delays. Confirmed via rolling-restart testing.
 - Leave `pack.zookeeper.inactiveOnSuspend` unset by default so the deployed Stardog version's own default applies; set `cluster.zookeeperSessionTolerance.inactiveOnSuspend` explicitly to override.
 - Add `cluster.zookeeperSessionTolerance.disableDnsCaching` (default `true`) to disable JVM DNS caching for clustered Stardog, so a ZooKeeper client notices a changed ensemble member address (e.g. after a pod restart) instead of retrying a stale one.
+- Fix the backup CronJob's S3 credentials `secretKeyRef` to use `accessKey`/`secretKey`, matching the casing `secret.yaml` actually creates the `<release>-backup-s3-secret` keys with. Previously the backup Job failed with `couldn't find key accesskey in Secret`.
 
 ## 4.0.4
 - Give clustered Stardog pods stable `pack.node.address` values through StatefulSet pod DNS and a headless service.
