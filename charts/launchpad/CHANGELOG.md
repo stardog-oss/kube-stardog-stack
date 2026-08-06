@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.5
+- Update chart icon to the centralized Stardog open-source asset.
+
 ## 1.0.4
 - Create Launchpad Gateway Certificates in the shared Gateway namespace when `global.gateway.createGateway=false`.
 - Honor `global.gateway.tls.secretName`, `global.gateway.tls.launchpadSecretName`, and `global.certIssuer.secretNameTpl` for Gateway TLS secret naming.

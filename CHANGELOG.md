@@ -1,28 +1,19 @@
 # Changelog
-## 1.1.3
-- Add `customCaBundle` support to mount a private CA bundle into Voicebox and set `REQUESTS_CA_BUNDLE`/`SSL_CERT_FILE` for HTTPS trust.
-- Validate `configFile` as JSON during rendering so malformed `vbx_config.json` content fails before install or upgrade.
 
 ## 1.2.0
 - Upgrade note: when upgrading from any `kube-stardog-stack` version earlier than `1.2.0` to `1.2.0` or later, follow `docs/upgrades/statefulset-migration.md` -- the Stardog StatefulSet's service name and pod management policy both changed, requiring the existing StatefulSet controller object to be orphaned and recreated.
 - Harden bundled ZooKeeper for minimal/Chainguard-style images and add chart-managed Stardog/ZooKeeper session tolerance settings. See the `stardog` and `zookeeper` subchart CHANGELOGs for details.
+- Add `customCaBundle` support to mount a private CA bundle into Voicebox and set `REQUESTS_CA_BUNDLE`/`SSL_CERT_FILE` for HTTPS trust; validate `configFile` as JSON during rendering. See the `voicebox` subchart CHANGELOG for details.
+- Update chart icon to the centralized Stardog open-source asset for Gateway, Launchpad, and CacheTarget.
+- Bug fixes:
+  - Fix the Stardog backup CronJob's S3 credentials `secretKeyRef` casing (`accessKey`/`secretKey`), which previously made the backup Job fail with `couldn't find key accesskey in Secret`.
 - Update bundled subcharts:
   - Stardog: 4.1.0
   - ZooKeeper: 1.1.0
-
-## 1.2.0
-- Upgrade note: when upgrading from any `kube-stardog-stack` version earlier than `1.2.0` to `1.2.0` or later, follow `docs/upgrades/statefulset-migration.md` -- the Stardog StatefulSet's service name and pod management policy both changed, requiring the existing StatefulSet controller object to be orphaned and recreated.
-- Harden bundled ZooKeeper for minimal/Chainguard-style images and add chart-managed Stardog/ZooKeeper session tolerance settings. See the `stardog` and `zookeeper` subchart CHANGELOGs for details.
-- Update bundled subcharts:
-  - Stardog: 4.1.0
-  - ZooKeeper: 1.1.0
-
-## 1.2.0
-- Upgrade note: when upgrading from any `kube-stardog-stack` version earlier than `1.2.0` to `1.2.0` or later, follow `docs/upgrades/statefulset-migration.md` -- the Stardog StatefulSet's service name and pod management policy both changed, requiring the existing StatefulSet controller object to be orphaned and recreated.
-- Harden bundled ZooKeeper for minimal/Chainguard-style images and add chart-managed Stardog/ZooKeeper session tolerance settings. See the `stardog` and `zookeeper` subchart CHANGELOGs for details.
-- Update bundled subcharts:
-  - Stardog: 4.1.0
-  - ZooKeeper: 1.1.0
+  - Voicebox: 1.1.3
+  - Gateway: 1.0.4
+  - Launchpad: 1.0.5
+  - CacheTarget: 1.0.4
 
 ## 1.1.2
 - Use `global.gateway.domain` as the default Launchpad redirect hostname base for managed umbrella Gateway deployments.
