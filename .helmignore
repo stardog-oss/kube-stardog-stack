@@ -4,7 +4,11 @@
 .gitignore
 .githooks
 .githooks/*
+.helm-hook
+.helm-hook/*
 .helmignore
+local
+local/*
 .DS_Store
 .idea
 .vscode

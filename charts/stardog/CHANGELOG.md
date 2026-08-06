@@ -1,6 +1,17 @@
 # Changelog
 
+## 4.1.0
+- Change clustered Stardog StatefulSets to use a headless service for stable pod DNS names. This requires the StatefulSet migration when upgrading to `4.1.0` or later from any earlier Stardog chart version -- whether bundled via the umbrella chart or installed standalone.
+- Add chart-managed ZooKeeper session tolerance properties for clustered Stardog upgrades.
+- Reject direct `pack.rejoin.shutdown` and `pack.zookeeper.inactiveOnSuspend` entries in `stardogProperties`; use `cluster.zookeeperSessionTolerance` values instead.
+- Default Stardog StatefulSet `podManagementPolicy` to `Parallel`.
+- Default `pack.rejoin.shutdown=false` through `cluster.zookeeperSessionTolerance.rejoinShutdown`. The product default (`true`) makes Stardog deliberately exit the JVM on every cluster rejoin; Kubernetes' CrashLoopBackOff does not distinguish that from a real crash, so repeated rejoins escalate into exponentially growing pod-restart delays. Confirmed via rolling-restart testing.
+- Leave `pack.zookeeper.inactiveOnSuspend` unset by default so the deployed Stardog version's own default applies; set `cluster.zookeeperSessionTolerance.inactiveOnSuspend` explicitly to override.
+- Add `cluster.zookeeperSessionTolerance.disableDnsCaching` (default `true`) to disable JVM DNS caching for clustered Stardog, so a ZooKeeper client notices a changed ensemble member address (e.g. after a pod restart) instead of retrying a stale one.
+
 ## 4.0.4
+- Give clustered Stardog pods stable `pack.node.address` values through StatefulSet pod DNS and a headless service.
+- Render bundled ZooKeeper as a comma-separated headless pod DNS ensemble in `pack.zookeeper.address`.
 - Use `global.gateway.domain` as the default domain for the auto-enabled Launchpad redirect hostname when `global.launchpad.enabled=true`.
 - Keep `gateway.redirectToLaunchpad.hostname` as the explicit override for the Stardog root-path Launchpad redirect.
 - Create Stardog Gateway Certificates in the shared Gateway namespace when `global.gateway.createGateway=false`.

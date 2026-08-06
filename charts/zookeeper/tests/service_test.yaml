@@ -42,11 +42,18 @@ tests:
             port: 8080
             targetPort: admin
 
-  - it: should not expose admin port when disabled
+  - it: should not expose admin port by default
+    template: service.yaml
+    asserts:
+      - notContains:
+          path: spec.ports
+          content:
+            name: admin
+
+  - it: should not expose admin port when service exposure is enabled but AdminServer is disabled
     template: service.yaml
     set:
-      adminServerEnabled: false
-      service.exposeAdmin: false
+      service.exposeAdmin: true
     asserts:
       - notContains:
           path: spec.ports

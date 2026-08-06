@@ -19,10 +19,29 @@ cluster:
   # Required when cluster.enabled=true unless global.zookeeper.enabled is set.
   # Example: "zookeeper.example:2181"
   zookeeperService: ""
+  zookeeperSessionTolerance:
+    enabled: true
+    # pack.rejoin.shutdown's product default (true) makes Stardog deliberately exit
+    # the JVM whenever a node needs to rejoin the cluster -- fine with a VM/bare-metal
+    # supervisor, but Kubernetes' CrashLoopBackOff does not distinguish a deliberate
+    # graceful exit from a real crash: repeated rejoins escalate into exponentially
+    # growing pod-restart delays, turning brief ZooKeeper disruptions into much longer
+    # outages. Confirmed via rolling-restart testing (nodes stuck in CrashLoopBackOff
+    # with growing backoff delays after a handful of rejoins). Default to false so a
+    # rejoin happens in-process, with no pod restart.
+    rejoinShutdown: false
+    # Leave unset ("") to omit pack.zookeeper.inactiveOnSuspend from stardogProperties
+    # entirely, so the deployed Stardog version's own default applies and the chart
+    # doesn't need to track it. This one has no Kubernetes-specific downside like
+    # rejoinShutdown above, since escalating to INACTIVE alone doesn't restart the JVM.
+    inactiveOnSuspend: ""
+    # Disable JVM DNS caching so a ZooKeeper client notices a changed ensemble
+    # member address (e.g. after a pod restart) instead of retrying a stale one.
+    disableDnsCaching: true
 
-  # How to start the pods - use OrderedReady to use the default behavior of
-  # starting each pod one at a time or use Parallel to start them all at once
-podManagementPolicy: OrderedReady
+  # How to start the pods - use OrderedReady to start each pod one at a time
+  # or use Parallel to start them all at once
+podManagementPolicy: Parallel
 
   # The number of seconds to wait for pods to shut down before
   # killing them forcefully
@@ -41,6 +60,13 @@ service:
   type: ClusterIP
   annotations: {}
   # loadBalancerIP: ""
+
+headlessService:
+  annotations: {}
+  labels: {}
+  publishNotReadyAddresses: true
+
+clusterDomain: cluster.local
 
 bi:
   enabled: false # Defaults to global.bi.enabled when set.
@@ -203,7 +229,8 @@ stardogProperties: |
   # - logging.audit.enabled=true
   # - logging.audit.type=text
   # - pack.enabled=true
-  # - pack.zookeeper.address=<zookeeper-service>
+  # - pack.node.address=<pod-headless-service-address> when cluster.enabled=true
+  # - pack.zookeeper.address=<zookeeper-connect-string>
   # - sql.server.enabled=true
   # - javax.net.ssl.keyStore*
   # - javax.net.ssl.trustStore*

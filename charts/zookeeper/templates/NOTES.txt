@@ -19,9 +19,14 @@ In-cluster example:
 
 Port-forward client port:
   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "zookeeper.fullname" . }} 2181:{{ .Values.ports.client }}
-
+{{ if .Values.adminServerEnabled }}
 AdminServer (on pods):
   http://127.0.0.1:{{ .Values.ports.admin }}/commands/ruok
+{{- else }}
+AdminServer:
+  Disabled by default. Set adminServerEnabled=true to enable it, and
+  service.exposeAdmin=true to expose it on the Service.
+{{- end }}
 
 Ensemble identity:
   ZOO_SERVERS = {{ include "zookeeper.zooServers" . }}

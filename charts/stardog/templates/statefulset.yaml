@@ -30,7 +30,7 @@ spec:
     matchLabels:
     {{ include "sdcommon.labels.selector" . | nindent 6 }}
       app: {{ include "sdcommon.fullname" . }}
-  serviceName: {{ include "sdcommon.fullname" . }}
+  serviceName: {{ include "stardog.statefulSetServiceName" . }}
   replicas: {{ .Values.cluster.replicaCount }}
   podManagementPolicy: {{ .Values.podManagementPolicy }}
   template:
@@ -223,6 +223,10 @@ spec:
             -Xms{{ .Values.jvm.minHeap }}
             -Xmx{{ .Values.jvm.maxHeap }}
             -XX:MaxDirectMemorySize={{ .Values.jvm.directMem }}
+            {{- if and .Values.cluster.enabled .Values.cluster.zookeeperSessionTolerance.enabled .Values.cluster.zookeeperSessionTolerance.disableDnsCaching }}
+            -Dsun.net.inetaddr.ttl=0
+            -Dsun.net.inetaddr.negative.ttl=0
+            {{- end }}
             {{ .Values.javaArgs }}
         - name: STARDOG_JAVA_ARGS
           value: "-Djava.io.tmpdir={{ $tmpDirPath }}"
@@ -232,6 +236,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         - name: RELEASE_NAME
           value: {{ .Release.Name }}
         - name: BACKUP_LOCATION
@@ -268,6 +276,9 @@ spec:
           ln -sfn /var/opt/djl/pytorch ${DJL_CACHE_DIR}/pytorch
           {{- if .Values.backup.enabled }}
           echo "backup.location=${STARDOG_HOME}/backups/${BACKUP_LOCATION}/${RELEASE_NAME}/${NODE_NAME}" >> ${STARDOG_PROPERTIES}
+          {{- end }}
+          {{- if .Values.cluster.enabled }}
+          echo "pack.node.address=${NODE_NAME}.{{ include "stardog.headlessServiceName" . }}.${POD_NAMESPACE}.svc.{{ .Values.clusterDomain }}:${PORT}" >> ${STARDOG_PROPERTIES}
           {{- end }}
           set +e
           {{- if $sparqlTlsEnabled }}

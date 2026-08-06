@@ -26,6 +26,33 @@ spec:
   selector:
     app: {{ include "sdcommon.fullname" . }}
 
+{{- if .Values.cluster.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "stardog.headlessServiceName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "sdcommon.fullname" . }}
+    {{ include "sdcommon.labels.standard" . | nindent 4 }}
+    {{- with .Values.headlessService.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.headlessService.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: {{ .Values.headlessService.publishNotReadyAddresses }}
+  ports:
+    - port: {{ .Values.ports.server }}
+      targetPort: server
+      name: server
+  selector:
+    app: {{ include "sdcommon.fullname" . }}
+{{- end }}
 
 {{- if and (eq (include "stardog.effectiveBiEnabled" .) "true") .Values.bi.service.enabled }}
 ---

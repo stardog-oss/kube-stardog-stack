@@ -11,6 +11,7 @@ image:
   # simple deployments. Stardog does not own or harden this container image.
   # For production, use a commercially supported or internally hardened
   # ZooKeeper image/deployment.
+  # The image must include bash because the chart uses it for startup and probes.
   registry: docker.io
   repository: zookeeper
   tag: 3.9.4
@@ -21,6 +22,16 @@ image:
   pullSecrets: []
 
 replicaCount: 3
+
+# Minimum seconds an updated ZooKeeper pod must stay Ready before StatefulSet
+# rolling updates continue to the next ordinal. The readiness probe already
+# waits for ZooKeeper to report a serving mode.
+minReadySeconds: 0
+
+# Pod management policy for the ZooKeeper StatefulSet. Already Parallel before
+# this value existed, so upgrades from earlier chart versions don't hit
+# Kubernetes' immutable spec.podManagementPolicy field.
+podManagementPolicy: Parallel
 
 # minServerId added to pod ordinal (default 1).
 # Example: pod "-0" => myid=1, "-1" => myid=2, ...
@@ -34,8 +45,8 @@ minServerId: 3
 standaloneEnabled: null
 
 # Enable ZooKeeper AdminServer (official image env: ZOO_ADMINSERVER_ENABLED).
-# Default probes use AdminServer endpoints on localhost to avoid log-noise.
-adminServerEnabled: true
+# Disabled by default because the chart probes use the ZooKeeper client port.
+adminServerEnabled: false
 
 ports:
   client: 2181
@@ -48,6 +59,7 @@ service:
   type: ClusterIP
   annotations: {}
   labels: {}
+  # Expose the AdminServer port through the Service only when adminServerEnabled is true.
   exposeAdmin: false
   exposeMetrics: true
 
@@ -97,9 +109,17 @@ config:
   # Optional additional tunables injected via ZOO_CFG_EXTRA when set
   preAllocSize: ""
   snapCount: ""
-  maxSessionTimeout: ""
+  # ZooKeeper's own default when unset is 20 * tickTime (40000ms with the
+  # default tickTime), below Stardog's pack.session.timeout product default
+  # of 60000ms -- a client requesting 60s would be silently clamped to 40s.
+  # 90000ms keeps a deliberate margin above that 60s default.
+  maxSessionTimeout: "90000"
 
-  fourLetterWordsWhitelist: "ruok,stat,srvr,mntr,conf,isro"
+  # Chart default probes require `ruok` for liveness and `srvr` for readiness.
+  # Add more commands only when you need them for custom probes or operational
+  # debugging. Refer to the Apache ZooKeeper documentation for allowed commands:
+  # https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_zkCommands
+  fourLetterWordsWhitelist: "ruok,srvr"
 
   autopurge:
     purgeInterval: 0
