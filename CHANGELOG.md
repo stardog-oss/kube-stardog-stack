@@ -7,6 +7,7 @@
 - Update chart icon to the centralized Stardog open-source asset for Gateway, Launchpad, and CacheTarget.
 - Bug fixes:
   - Fix the Stardog backup CronJob's S3 credentials `secretKeyRef` casing (`accessKey`/`secretKey`), which previously made the backup Job fail with `couldn't find key accesskey in Secret`.
+  - Fix a Stardog values key typo (`backup.backupCredentialsSecret` instead of `backup.credentialsSecret`) that made the chart always render its own auto-generated backup-credentials Secret, even when an install specified an externally managed `credentialsSecret`.
 - Update bundled subcharts:
   - Stardog: 4.1.0
   - ZooKeeper: 1.1.0

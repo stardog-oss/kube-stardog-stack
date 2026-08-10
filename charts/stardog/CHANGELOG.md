@@ -11,6 +11,7 @@
   - Add `cluster.zookeeperSessionTolerance.disableDnsCaching` (default `true`) to disable JVM DNS caching for clustered Stardog, so a ZooKeeper client notices a changed ensemble member address (e.g. after a pod restart) instead of retrying a stale one.
 - Bug fixes:
   - Fix the backup CronJob's S3 credentials `secretKeyRef` to use `accessKey`/`secretKey`, matching the casing `secret.yaml` actually creates the `<release>-backup-s3-secret` keys with. Previously the backup Job failed with `couldn't find key accesskey in Secret`.
+  - Fix a values key typo (`backup.backupCredentialsSecret` instead of `backup.credentialsSecret`) that always evaluated as unset, so the chart kept rendering its own auto-generated backup-credentials Secret even when an install specified an externally managed `credentialsSecret`, leaving an orphaned unused Secret behind.
 
 ## 4.0.4
 - Give clustered Stardog pods stable `pack.node.address` values through StatefulSet pod DNS and a headless service.
