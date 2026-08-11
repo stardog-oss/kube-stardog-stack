@@ -65,22 +65,28 @@ function backup_credentials {
     PASSWORD=${3}
 
     /opt/stardog/bin/stardog-admin --server ${HOST} user permission -- ${USERNAME}
-    if [[ $? -eq 0 ]];
-    then
-      echo "Backup role and user already exist"
-	    return 0
-    else
+    if [[ $? -ne 0 ]]; then
       echo "Creating Backup Role: /opt/stardog/bin/stardog-admin  --server ${HOST} role add backup"
       /opt/stardog/bin/stardog-admin  --server ${HOST} role add backup
-      echo "Adding Backup Role permissions:/opt/stardog/bin/stardog-admin  --server ${HOST} role grant backup execute -o 'dbms-admin:backup-all'"  
-      /opt/stardog/bin/stardog-admin  --server ${HOST} role grant backup -a execute -o "dbms-admin:backup-all" 
-      echo "Creating Backup User: /opt/stardog/bin/stardog-admin  --server ${HOST} user add ${USERNAME} -N ${PASSWORD}" 
+      echo "Creating Backup User: /opt/stardog/bin/stardog-admin  --server ${HOST} user add ${USERNAME} -N ${PASSWORD}"
       /opt/stardog/bin/stardog-admin  --server ${HOST} user add ${USERNAME} -N ${PASSWORD}
-      echo "Adding Backup Role to Backup User:/opt/stardog/bin/stardog-admin  --server ${HOST} user addrole -R backup ${USERNAME}"
-      /opt/stardog/bin/stardog-admin  --server ${HOST} user addrole -R backup ${USERNAME}  
-      echo "Backup role and user successfully created"
-      return 0
+      echo "Adding Backup Role to Backup User: /opt/stardog/bin/stardog-admin  --server ${HOST} user addrole -R backup ${USERNAME}"
+      /opt/stardog/bin/stardog-admin  --server ${HOST} user addrole -R backup ${USERNAME}
+    else
+      echo "Backup role and user already exist"
     fi
+    # Re-apply grants on every run so existing installs pick up additions on
+    # the next helm upgrade. role grant is idempotent server-side.
+    #   execute on dbms-admin:backup-all  -> stardog-admin server backup
+    #   execute on admin:*                -> stardog-admin tx log (txlog shipping)
+    #   read on db:*                      -> /admin/databases enumeration (txlog shipping)
+    echo "Granting backup role: execute on dbms-admin:backup-all"
+    /opt/stardog/bin/stardog-admin  --server ${HOST} role grant backup -a execute -o "dbms-admin:backup-all"
+    echo "Granting backup role: execute on admin:*"
+    /opt/stardog/bin/stardog-admin  --server ${HOST} role grant backup -a execute -o "admin:*"
+    echo "Granting backup role: read on db:*"
+    /opt/stardog/bin/stardog-admin  --server ${HOST} role grant backup -a read -o "db:*"
+    return 0
     )
 }
 
