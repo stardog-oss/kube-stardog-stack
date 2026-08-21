@@ -1,3 +1,26 @@
+{{- include "voicebox.validate" . -}}
+{{- $frameStore := .Values.frameStore | default (dict) -}}
+{{- $frameStoreBackend := include "voicebox.frameStoreBackend" . -}}
+{{- $frameStoreLocal := $frameStore.local | default (dict) -}}
+{{- if and $frameStore.enabled (eq $frameStoreBackend "local") (eq (include "voicebox.workloadType" .) "Deployment") (not $frameStoreLocal.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "voicebox.frameStorePvcName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdcommon.labels.standard" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml ($frameStoreLocal.accessModes | default (list "ReadWriteOnce")) | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ $frameStoreLocal.size | default "20Gi" }}
+  {{- if $frameStoreLocal.storageClassName }}
+  storageClassName: {{ $frameStoreLocal.storageClassName | quote }}
+  {{- end }}
+---
+{{- end }}
 {{- if .Values.bitesService.enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim

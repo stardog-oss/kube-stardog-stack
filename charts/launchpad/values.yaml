@@ -2,6 +2,7 @@
 # Launchpad Configuration
 # ------------------------------------------------------------------------------
 replicaCount: 1
+podLabels: {}
 podAnnotations: {}
 service:
   type: ClusterIP
@@ -234,6 +235,10 @@ image:
   username: ""
   password: ""
   pullSecrets: []
+envFrom: []
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []
 environmentVariables:
   # basic configurations
   BASE_URL: ""

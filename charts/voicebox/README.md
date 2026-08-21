@@ -34,17 +34,41 @@ The following table lists the configurable parameters of the Voicebox chart and 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `replicaCount` | Number of Voicebox replicas | `1` |
+| `workload.type` | Kubernetes workload type, `Deployment` or `StatefulSet` | `Deployment` |
 | `image.registry` | Container registry | `stardog.azurecr.io` |
 | `image.repository` | Container image repository | `sa-lab-stardog/voicebox` |
 | `image.tag` | Container image tag | `latest` |
 | `image.pullPolicy` | Container image pull policy | `IfNotPresent` |
 | `image.username` | Registry username | `""` |
 | `image.password` | Registry password | `""` |
+| `command` | Optional container command override. Leave empty to use the image default command. | `[]` |
 | `service.type` | Kubernetes service type | `ClusterIP` |
 | `service.port` | Service port | `8080` |
+| `serviceAccount.create` | Create the Voicebox ServiceAccount | `true` |
+| `serviceAccount.name` | ServiceAccount name override. Falls back to `serviceAccountName` | `""` |
+| `serviceAccount.annotations` | ServiceAccount annotations, for example AKS Workload Identity | `{}` |
+| `podLabels` | Extra labels on the Voicebox pod template, for example AKS Workload Identity labels | `{}` |
+| `podAnnotations` | Extra annotations on the Voicebox pod template | `{}` |
 | `configFile` | Voicebox configuration JSON. Must be valid JSON. | `{}` |
+| `configFiles.enabled` | Mount an additional directory of JSON config files and set `VBX_CONFIG_DIR` | `false` |
+| `configFiles.mountPath` | Mount path for additional config files | `/voicebox-config-dir` |
+| `configFiles.files` | Map of filename to JSON content. Each value must be valid JSON. | `{}` |
 | `environmentVariables.AZURE_API_KEY` | Azure API key | `"azure-api-key"` |
 | `environmentVariables.PRODUCTION` | Production mode flag | `1` |
+| `envFrom` | Additional container `envFrom` entries, such as synced Key Vault Secrets | `[]` |
+| `extraEnv` | Additional container env entries with support for `valueFrom` | `[]` |
+| `extraVolumes` | Additional pod volumes, such as Secrets Store CSI volumes | `[]` |
+| `extraVolumeMounts` | Additional container volume mounts | `[]` |
+| `frameStore.enabled` | Enable Voicebox frame store configuration | `false` |
+| `frameStore.backend` | Frame store backend, `local` or `s3` | `local` |
+| `frameStore.cacheSize` | Voicebox frame store cache size | `100` |
+| `frameStore.local.path` | Local frame store mount path | `/var/lib/voicebox/frames` |
+| `frameStore.local.size` | PVC size for local frame store | `20Gi` |
+| `frameStore.local.storageClassName` | PVC storage class for local frame store | `""` |
+| `frameStore.local.accessModes` | PVC access modes for local frame store | `[ReadWriteOnce]` |
+| `frameStore.local.existingClaim` | Existing PVC to use for local frame store | `""` |
+| `frameStore.s3.bucket` | S3 bucket for frame store when backend is `s3` | `""` |
+| `frameStore.s3.prefix` | S3 prefix for frame files | `voicebox/frames` |
 | `customCaBundle.enabled` | Mount a custom CA bundle and set `REQUESTS_CA_BUNDLE`/`SSL_CERT_FILE` | `false` |
 | `customCaBundle.bundle` | Inline PEM-encoded CA bundle; creates a ConfigMap when set | `""` |
 | `customCaBundle.existingConfigMap` | Existing ConfigMap containing the CA bundle; mutually exclusive with `bundle` and `existingSecret` | `""` |
@@ -108,6 +132,31 @@ The `configFile` parameter allows you to configure Voicebox behavior. Example co
 
 The chart validates `configFile` as JSON during rendering, so malformed JSON fails before Kubernetes creates the ConfigMap.
 
+### Multiple Configuration Files
+
+Voicebox can load multiple JSON configuration files by setting `VBX_CONFIG_DIR`. The chart can create and mount that directory:
+
+```yaml
+configFiles:
+  enabled: true
+  mountPath: /voicebox-config-dir
+  files:
+    default.json: |
+      {
+        "endpoint": "*",
+        "database": "*",
+        "llm_config": {}
+      }
+    cmc.json: |
+      {
+        "endpoint": "https://sparql.example.com",
+        "database": "c365",
+        "llm_config": {}
+      }
+```
+
+Each file is validated as JSON during Helm rendering. `configFile` remains supported and is still mounted at `VBX_CONFIG_FILE`.
+
 **Supported Llama Models:**
 - `Meta-Llama-3.1-70B-Instruct`
 - `Meta-Llama-3.3-70B-Instruct`
@@ -118,6 +167,84 @@ The chart supports various environment variables:
 
 - `AZURE_API_KEY`: Azure OpenAI API key
 - `PRODUCTION`: Set to 1 for production, 0 for development
+
+For secrets and dynamic provider settings, prefer `envFrom`, `extraEnv`, `extraVolumes`, and `extraVolumeMounts` instead of adding chart-specific values for each provider.
+
+Synced Kubernetes Secret example:
+
+```yaml
+envFrom:
+  - secretRef:
+      name: voicebox-runtime-env
+```
+
+Individual Secret key example:
+
+```yaml
+extraEnv:
+  - name: OPENAI_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: voicebox-runtime-env
+        key: OPENAI_API_KEY
+```
+
+Azure Key Vault CSI mount example:
+
+```yaml
+extraVolumes:
+  - name: keyvault-secrets
+    csi:
+      driver: secrets-store.csi.k8s.io
+      readOnly: true
+      volumeAttributes:
+        secretProviderClass: voicebox-keyvault
+
+extraVolumeMounts:
+  - name: keyvault-secrets
+    mountPath: /mnt/secrets-store
+    readOnly: true
+```
+
+Environment variables from Kubernetes Secrets require a pod restart to pick up changed values. Secrets mounted as files by the CSI driver can rotate without changing the chart values.
+
+### Frame Store
+
+Voicebox Service can persist frames, which are stored query results used during conversation follow-up and charting workflows.
+
+Local frame store example:
+
+```yaml
+workload:
+  type: StatefulSet
+
+replicaCount: 1
+
+frameStore:
+  enabled: true
+  backend: local
+  local:
+    path: /var/lib/voicebox/frames
+    size: 20Gi
+    storageClassName: managed-csi
+```
+
+When `frameStore.backend=local`, `replicaCount` must be `1`. With `workload.type=StatefulSet`, the chart uses `volumeClaimTemplates`. With `workload.type=Deployment`, the chart creates a standalone PVC and uses `strategy.type=Recreate`.
+
+S3 frame store example:
+
+```yaml
+replicaCount: 2
+
+frameStore:
+  enabled: true
+  backend: s3
+  s3:
+    bucket: voicebox-frames
+    prefix: voicebox/frames
+```
+
+For `s3`, provide AWS credentials through the standard AWS mechanisms, such as service account identity, `envFrom`, or `extraEnv`.
 
 ### Custom CA Bundle
 

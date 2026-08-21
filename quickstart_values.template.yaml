@@ -1,15 +1,17 @@
 # Template values for kube-stardog-stack on AKS with Envoy Gateway.
 #
-# Copy this file to cluster_values.yaml and replace every <PLACEHOLDER>.
+# Copy this file to cluster_values.yaml and replace the example values for your cluster.
 # The domains below assume the chart creates:
-#   - https://sparql.<BASE_DOMAIN>
-#   - https://launchpad.<BASE_DOMAIN>
+#   - https://sparql.example.com
+#   - https://launchpad.example.com
 #
 # Install flow:
 #   1. Install cert-manager, Gateway API CRDs, and Envoy Gateway.
 #   2. Install Stardog once with these values to create the Gateway.
 #   3. Get the Gateway public IP and create DNS A records for both hostnames.
 #   4. Re-run the Stardog Helm install so cert-manager can issue certificates.
+#   5. If Voicebox connects to HTTPS endpoints signed by a private CA, create
+#      the CA bundle Secret and enable voicebox.customCaBundle below.
 
 global:
   stardog:
@@ -24,13 +26,13 @@ global:
     createGateway: true
 
     # Name of the Gateway object created in the Envoy Gateway namespace.
-    name: <GATEWAY_NAME> # example: stardog-envoy-gateway
+    name: stardog-gateway # example: stardog-envoy-gateway
 
     # Must be the namespace where the Envoy Gateway controller runs.
     namespace: envoy-gateway
 
     # Base DNS domain. The chart uses launchpad.<domain> and sparql.<domain>.
-    domain: <BASE_DOMAIN> # example: example.com
+    domain: example.com # example: example.com
 
     # Listener section names. These must match the Gateway listeners created by
     # this chart. The ACME solvers below must use the HTTP listener names.
@@ -41,8 +43,8 @@ global:
 
     tls:
       enabled: true
-      sparqlSecretName: <SPARQL_TLS_SECRET_NAME> # example: sparql-example-com-tls
-      launchpadSecretName: <LAUNCHPAD_TLS_SECRET_NAME> # example: launchpad-example-com-tls
+      sparqlSecretName: sparql-example-com-tls # example: sparql-example-com-tls
+      launchpadSecretName: launchpad-example-com-tls # example: launchpad-example-com-tls
 
   certIssuer:
     enabled: true
@@ -52,7 +54,7 @@ global:
     clusterScoped: true
     type: acme
     acme:
-      email: <ACME_ACCOUNT_EMAIL> # example: platform@example.com
+      email: platform@example.com # example: platform@example.com
 
       # Use Let's Encrypt staging for tests to avoid production rate limits:
       # https://acme-staging-v02.api.letsencrypt.org/directory
@@ -64,21 +66,21 @@ global:
       solvers:
         - selector:
             dnsNames:
-              - sparql.<BASE_DOMAIN>
+              - sparql.example.com
           http01:
             gatewayHTTPRoute:
               parentRefs:
-                - name: <GATEWAY_NAME>
+                - name: stardog-gateway
                   namespace: envoy-gateway
                   kind: Gateway
                   sectionName: sparql-http
         - selector:
             dnsNames:
-              - launchpad.<BASE_DOMAIN>
+              - launchpad.example.com
           http01:
             gatewayHTTPRoute:
               parentRefs:
-                - name: <GATEWAY_NAME>
+                - name: stardog-gateway
                   namespace: envoy-gateway
                   kind: Gateway
                   sectionName: launchpad-http
@@ -90,26 +92,27 @@ stardog:
     replicaCount: 1
 
   image:
-    registry: <CONTAINER_REGISTRY> # example: myregistry.azurecr.io or docker.io
+    registry: docker.io # example: myregistry.azurecr.io or docker.io
     repository: stardog/stardog
-    tag: "12.1.0"
+    tag: "12.1.2" # example: "12.1.2"
 
   upgrade:
     approval:
-      targetVersion: "12.1.0"
+      # Must exactly match stardog.image.tag when approving automatic upgrade.
+      targetVersion: "12.1.2"
 
   resources:
     requests:
-      cpu: "<STARDOG_CPU_REQUEST>" # example: "2"
-      memory: "<STARDOG_MEMORY_REQUEST>" # example: "4Gi"
+      cpu: "2" # example: "2"
+      memory: "4Gi" # example: "4Gi"
     limits:
-      cpu: "<STARDOG_CPU_LIMIT>" # example: "4"
-      memory: "<STARDOG_MEMORY_LIMIT>" # example: "8Gi"
+      cpu: "4" # example: "4"
+      memory: "8Gi" # example: "8Gi"
 
   jvm:
-    minHeap: "<STARDOG_MIN_HEAP>" # example: "2g"
-    maxHeap: "<STARDOG_MAX_HEAP>" # example: "4g"
-    directMem: "<STARDOG_DIRECT_MEMORY>" # example: "1g"
+    minHeap: "2g" # example: "2g"
+    maxHeap: "4g" # example: "4g"
+    directMem: "1g" # example: "1g"
 
   # Optional: uncomment if Stardog should run only on labeled nodes.
   # nodeSelector:
@@ -136,12 +139,24 @@ stardog:
 
 launchpad:
   image:
-    registry: <CONTAINER_REGISTRY>
+    registry: docker.io
     repository: stardog/launchpad
-    tag: "v3.10.0"
+    tag: "v4.0.0" # example: "v4.0.0"
+
+  # For Azure Key Vault CSI or synced Kubernetes Secrets, prefer envFrom/extraEnv
+  # instead of placing sensitive values directly in this file.
+  # envFrom:
+  #   - secretRef:
+  #       name: launchpad-runtime-env
+  #
+  # serviceAccount:
+  #   annotations:
+  #     azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  # podLabels:
+  #   azure.workload.identity/use: "true"
 
   environmentVariables:
-    FRIENDLY_NAME: <LAUNCHPAD_FRIENDLY_NAME> # example: Stardog Applications
+    FRIENDLY_NAME: Stardog Applications # example: Stardog Applications
 
     # Optional shared local login for test environments only.
     SHARED_USER_AUTH_ENABLED: "false"
@@ -153,16 +168,56 @@ launchpad:
 
 voicebox:
   image:
-    registry: <CONTAINER_REGISTRY>
+    registry: docker.io
     repository: stardog/voicebox-service
-    tag: "v0.30.0"
+    tag: "v1.0.0" # must be a Voicebox Service v1.0.0+ image
+
+  # Leave command empty so the chart uses the image default ENTRYPOINT/CMD.
+  command: []
+
+  # Voicebox Service v1.0.0+ uses frame storage. The readiness probe checks
+  # /system/storage-ready, so local storage must be writable.
+  replicaCount: 1
+  frameStore:
+    enabled: true
+    backend: local
+    local:
+      path: /var/lib/voicebox/frames
+      size: 20Gi
+      storageClassName: "" # example for AKS: managed-csi
+
+  # If Stardog or another HTTPS endpoint uses a private CA, create a Secret:
+  #
+  # kubectl -n <NAMESPACE> create secret generic voicebox-ca-bundle \
+  #   --from-file=ca-bundle.crt=/path/to/complete-ca-bundle.pem
+  #
+  # Then enable this block. Do not set REQUESTS_CA_BUNDLE/SSL_CERT_FILE manually
+  # without mounting the file.
+  # customCaBundle:
+  #   enabled: true
+  #   existingSecret: voicebox-ca-bundle
+  #   key: ca-bundle.crt
+  #   mountPath: /etc/ssl/custom/ca-bundle.crt
+
+  # For Azure Key Vault CSI or synced Kubernetes Secrets, prefer envFrom/extraEnv
+  # instead of placing API keys directly in this file.
+  # envFrom:
+  #   - secretRef:
+  #       name: voicebox-runtime-env
+  #
+  # serviceAccount:
+  #   annotations:
+  #     azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  # podLabels:
+  #   azure.workload.identity/use: "true"
 
   environmentVariables:
-    # Store real API keys in a secret-management workflow for production.
-    AZURE_API_KEY: <AZURE_OPENAI_API_KEY>
     VBX_CONFIG_FILE: /voicebox-config/vbx_config.json
     TMPDIR: /tmp
     PRODUCTION: "1"
+    # For quick tests only. For production, provide this from a Secret using
+    # voicebox.envFrom or voicebox.extraEnv.
+    # AZURE_API_KEY: <AZURE_OPENAI_API_KEY>
 
   configFile: |
     {
@@ -174,8 +229,8 @@ voicebox:
       "use_agents_automatically": false,
       "default_llm_config": {
         "llm_provider": "azure",
-        "llm_name": "<AZURE_OPENAI_MODEL_NAME>",
-        "server_url": "<AZURE_OPENAI_SERVER_URL>"
+        "llm_name": "gpt-4o",
+        "server_url": "https://example-ai.services.ai.azure.com/models"
       },
       "query_kg_config": {
         "generate_query_config": {

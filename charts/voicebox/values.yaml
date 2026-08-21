@@ -2,6 +2,10 @@
 # Voicebox Configuration
 # ------------------------------------------------------------------------------
 replicaCount: 1
+workload:
+  type: Deployment # Deployment or StatefulSet
+podLabels: {}
+podAnnotations: {}
 securityContext:
   seccompProfile:
     type: RuntimeDefault
@@ -13,6 +17,10 @@ containerSecurityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
 serviceAccountName: voicebox-sa
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
 ports:
   - name: http
     port: 8000
@@ -32,12 +40,42 @@ image:
   username: ""
   password: ""
   pullSecrets: []
+# Optional command override. Leave empty to use the image default command.
+command: []
 configFile: "{}"
 environmentVariables:
   VBX_CONFIG_FILE: /voicebox-config/vbx_config.json
   TMPDIR: /tmp
   PRODUCTION: 1 # 0 for development, 1 for production
   # VBX_BITES_CONFIG_FILE: /bites-voicebox-config/vbx_bites_config.yaml
+envFrom: []
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []
+
+configFiles:
+  enabled: false
+  mountPath: /voicebox-config-dir
+  files: {}
+
+frameStore:
+  enabled: true # keep as true as default
+  backend: local # local or s3
+  cacheSize: 100
+  local:
+    path: /var/lib/voicebox/frames
+    size: 20Gi
+    storageClassName: ""
+    accessModes:
+      - ReadWriteOnce
+    existingClaim: ""
+    ttlDays: 7
+    sweeperEnabled: true
+    sweepIntervalSeconds: ""
+    largeFrameWarnMb: 10
+  s3:
+    bucket: ""
+    prefix: voicebox/frames
 
 # Mount a custom CA certificate bundle and configure Python/requests to use it
 # when Voicebox connects to services with certificates signed by a private CA.
@@ -152,7 +190,7 @@ livenessProbe:
   timeoutSeconds: 15
 
 readinessProbe:
-  path: /system/health
+  path: /system/storage-ready
   initialDelaySeconds: 5
   periodSeconds: 10
   timeoutSeconds: 3

@@ -19,4 +19,23 @@ spec:
   type: {{ .Values.service.type }}
   selector:
     app: {{ include "sdcommon.fullname" . }}
-
+{{- if eq (include "voicebox.workloadType" .) "StatefulSet" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "voicebox.headlessServiceName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "sdcommon.fullname" . }}
+    {{- include "sdcommon.labels.standard" . | nindent 4 }}
+spec:
+  clusterIP: None
+  ports:
+    - name: {{ (index .Values.ports 0).name }}
+      port: {{ include "voicebox.servicePort" . | int }}
+      targetPort: {{ (index .Values.ports 0).port }}
+      protocol: TCP
+  selector:
+    app: {{ include "sdcommon.fullname" . }}
+{{- end }}

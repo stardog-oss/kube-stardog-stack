@@ -1,0 +1,90 @@
+suite: Test Voicebox StatefulSet
+values:
+  - values/values-voicebox.yaml
+templates:
+  - statefulset.yaml
+
+tests:
+  - it: should not render StatefulSet by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render StatefulSet with local frame store volumeClaimTemplates
+    set:
+      workload:
+        type: StatefulSet
+      replicaCount: 1
+      frameStore:
+        enabled: true
+        backend: local
+        local:
+          path: /var/lib/voicebox/frames
+          size: 30Gi
+          storageClassName: managed-csi
+          accessModes:
+            - ReadWriteOnce
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.serviceName
+          value: voicebox-RELEASE-NAME-headless
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: voicebox-frames
+            mountPath: /var/lib/voicebox/frames
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: voicebox-frames
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 30Gi
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: managed-csi
+
+  - it: should use existing claim instead of volumeClaimTemplates
+    set:
+      workload:
+        type: StatefulSet
+      replicaCount: 1
+      frameStore:
+        enabled: true
+        backend: local
+        local:
+          existingClaim: voicebox-existing-frames
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: voicebox-frames
+            persistentVolumeClaim:
+              claimName: voicebox-existing-frames
+
+  - it: should render StatefulSet with s3 frame store and no frame volume
+    set:
+      workload:
+        type: StatefulSet
+      replicaCount: 2
+      frameStore:
+        enabled: true
+        backend: s3
+        s3:
+          bucket: voicebox-frames
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.replicas
+          value: 2
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: VOICEBOX_FRAME_STORE_BACKEND
+            value: s3
+      - notExists:
+          path: spec.volumeClaimTemplates

@@ -59,6 +59,12 @@ The following table lists the configurable parameters of the Launchpad chart and
 | `serviceAccount.create` | Whether to create a Launchpad-specific service account | `true` |
 | `serviceAccount.name` | Use an existing service account instead of creating one | `""` |
 | `serviceAccount.annotations` | Extra annotations on the managed service account | `{}` |
+| `podLabels` | Extra labels on the Launchpad pod template, for example AKS Workload Identity labels | `{}` |
+| `podAnnotations` | Extra annotations on the Launchpad pod template | `{}` |
+| `envFrom` | Additional container `envFrom` entries, such as synced Key Vault Secrets | `[]` |
+| `extraEnv` | Additional container env entries with support for `valueFrom` | `[]` |
+| `extraVolumes` | Additional pod volumes, such as Secrets Store CSI volumes | `[]` |
+| `extraVolumeMounts` | Additional container volume mounts | `[]` |
 | `nodeSelector` | Node labels to pin Launchpad pods | `{}` |
 | `tolerations` | Taints Launchpad pods tolerate; coordinate with `nodeSelector` | `[]` |
 | `affinity` | Custom pod affinity/anti-affinity rules | `{}` |
@@ -68,6 +74,56 @@ The following table lists the configurable parameters of the Launchpad chart and
 ### Environment Variables
 
 The chart supports various environment variables for configuration. These can be set in the `env` section of your values file:
+
+For secrets and external secret managers, use `envFrom`, `extraEnv`, `extraVolumes`, and `extraVolumeMounts` so new values can be added without changing the chart.
+
+Synced Kubernetes Secret example:
+
+```yaml
+launchpad:
+  envFrom:
+    - secretRef:
+        name: launchpad-runtime-env
+```
+
+Individual Secret key example:
+
+```yaml
+launchpad:
+  extraEnv:
+    - name: AZURE_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: launchpad-runtime-env
+          key: AZURE_CLIENT_SECRET
+```
+
+Azure Key Vault CSI mount with AKS Workload Identity example:
+
+```yaml
+launchpad:
+  serviceAccount:
+    annotations:
+      azure.workload.identity/client-id: "<managed-identity-client-id>"
+
+  podLabels:
+    azure.workload.identity/use: "true"
+
+  extraVolumes:
+    - name: keyvault-secrets
+      csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: launchpad-keyvault
+
+  extraVolumeMounts:
+    - name: keyvault-secrets
+      mountPath: /mnt/secrets-store
+      readOnly: true
+```
+
+Environment variables sourced from Kubernetes Secrets require a pod restart to pick up changed values. Files mounted by the Secrets Store CSI driver can rotate without changing Launchpad chart values.
 
 #### Basic Configuration
 | Environment Variable | Description | Default | Required |

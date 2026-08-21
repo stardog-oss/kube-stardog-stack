@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.1
+- Add Azure Key Vault-friendly extension points to Launchpad and Voicebox, including `envFrom`, `extraEnv`, `extraVolumes`, and `extraVolumeMounts`.
+- Add Launchpad ServiceAccount rendering/assignment with annotations and pod label support for workload identity.
+- Add Voicebox frame store support, optional StatefulSet workload rendering, multi-file config directory support, and storage readiness defaults.
+- Fix Voicebox startup with newer Voicebox service images by letting the image use its default ENTRYPOINT/CMD.
+- Add a Voicebox `command` value for explicit command customization.
+- Update the bundled Stardog Log4j2 defaults for rolling file logging and broader Stardog namespace coverage.
+- Update bundled subcharts:
+  - Stardog: 4.1.1
+  - Launchpad: 1.0.6
+  - Voicebox: 1.2.0
+
 ## 1.2.0
 - Upgrade note: when upgrading from any `kube-stardog-stack` version earlier than `1.2.0` to `1.2.0` or later, follow `docs/upgrades/statefulset-migration.md` -- the Stardog StatefulSet's service name and pod management policy both changed, requiring the existing StatefulSet controller object to be orphaned and recreated.
 - Harden bundled ZooKeeper for minimal/Chainguard-style images and add chart-managed Stardog/ZooKeeper session tolerance settings. See the `stardog` and `zookeeper` subchart CHANGELOGs for details.

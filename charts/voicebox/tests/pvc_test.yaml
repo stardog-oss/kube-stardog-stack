@@ -36,3 +36,52 @@ tests:
       - equal:
           path: spec.storageClassName
           value: fast-ssd
+
+  - it: should create frame store PVC for local Deployment
+    set:
+      replicaCount: 1
+      frameStore:
+        enabled: true
+        backend: local
+        local:
+          size: 30Gi
+          storageClassName: managed-csi
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: metadata.name
+          value: voicebox-RELEASE-NAME-frames
+      - equal:
+          path: spec.accessModes[0]
+          value: ReadWriteOnce
+      - equal:
+          path: spec.resources.requests.storage
+          value: 30Gi
+      - equal:
+          path: spec.storageClassName
+          value: managed-csi
+
+  - it: should not create frame store PVC when using StatefulSet volumeClaimTemplates
+    set:
+      workload:
+        type: StatefulSet
+      replicaCount: 1
+      frameStore:
+        enabled: true
+        backend: local
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not create frame store PVC when existingClaim is provided
+    set:
+      replicaCount: 1
+      frameStore:
+        enabled: true
+        backend: local
+        local:
+          existingClaim: voicebox-existing-frames
+    asserts:
+      - hasDocuments:
+          count: 0

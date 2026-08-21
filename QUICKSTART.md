@@ -208,16 +208,16 @@ All images are publicly available on [Docker Hub](https://hub.docker.com/u/stard
 
 | Image | Tag | Description |
 |---|---|---|
-| `stardog/stardog` | `12.1.0` | Core Stardog graph database |
-| `stardog/launchpad` | `v3.10.0` | Web UI (Designer, Explorer, Studio) |
-| `stardog/voicebox-service` | `v0.30.0` | Natural language interface |
+| `stardog/stardog` | `12.1.2` | Core Stardog graph database |
+| `stardog/launchpad` | `v4.0.0` | Web UI (Designer, Explorer, Studio) |
+| `stardog/voicebox-service` | `v1.0.0` | Natural language interface. Use a Voicebox Service `v1.0.0+` image with this chart. |
 
 ### Pull from Docker Hub
 
 ```bash
-docker pull stardog/stardog:12.1.0
-docker pull stardog/launchpad:v3.10.0
-docker pull stardog/voicebox-service:v0.30.0
+docker pull stardog/stardog:12.1.2
+docker pull stardog/launchpad:v4.0.0
+docker pull stardog/voicebox-service:v1.0.0
 ```
 
 ### Tag and Push to Internal Registry
@@ -225,23 +225,23 @@ docker pull stardog/voicebox-service:v0.30.0
 ```bash
 export INTERNAL_REGISTRY="<your-internal-registry>"  # e.g. myregistry.azurecr.io
 
-docker tag stardog/stardog:12.1.0           ${INTERNAL_REGISTRY}/stardog:12.1.0
-docker tag stardog/launchpad:v3.10.0        ${INTERNAL_REGISTRY}/launchpad:v3.10.0
-docker tag stardog/voicebox-service:v0.30.0 ${INTERNAL_REGISTRY}/voicebox-service:v0.30.0
+docker tag stardog/stardog:12.1.2                     ${INTERNAL_REGISTRY}/stardog:12.1.2
+docker tag stardog/launchpad:v4.0.0                  ${INTERNAL_REGISTRY}/launchpad:v4.0.0
+docker tag stardog/voicebox-service:v1.0.0    ${INTERNAL_REGISTRY}/voicebox-service:v1.0.0
 
 docker login ${INTERNAL_REGISTRY}
 
-docker push ${INTERNAL_REGISTRY}/stardog:12.1.0
-docker push ${INTERNAL_REGISTRY}/launchpad:v3.10.0
-docker push ${INTERNAL_REGISTRY}/voicebox-service:v0.30.0
+docker push ${INTERNAL_REGISTRY}/stardog:12.1.2
+docker push ${INTERNAL_REGISTRY}/launchpad:v4.0.0
+docker push ${INTERNAL_REGISTRY}/voicebox-service:v1.0.0
 ```
 
 Verify:
 
 ```bash
-docker pull ${INTERNAL_REGISTRY}/stardog:12.1.0
-docker pull ${INTERNAL_REGISTRY}/launchpad:v3.10.0
-docker pull ${INTERNAL_REGISTRY}/voicebox-service:v0.30.0
+docker pull ${INTERNAL_REGISTRY}/stardog:12.1.2
+docker pull ${INTERNAL_REGISTRY}/launchpad:v4.0.0
+docker pull ${INTERNAL_REGISTRY}/voicebox-service:v1.0.0
 ```
 
 > **Production:** Mirror images into your own internal registry. Stardog does not offer an SLA for retrieving images directly from public repositories.
@@ -254,7 +254,7 @@ The official open-source umbrella chart managing the complete Stardog ecosystem:
 
 - **GitHub:** https://github.com/stardog-oss/kube-stardog-stack
 - **Public Helm repo:** https://stardog-oss.github.io/kube-stardog-stack
-- **Version:** `1.1.2`
+- **Version:** `1.2.1`
 
 **1. Add the repository:**
 
@@ -266,7 +266,7 @@ helm repo update
 **2. Pull the chart for internal mirroring (recommended for production):**
 
 ```bash
-export VERSION=1.1.2
+export VERSION=1.2.1
 helm pull stardog/kube-stardog-stack --version ${VERSION}
 # Push kube-stardog-stack-${VERSION}.tgz to your internal Helm registry
 ```
@@ -389,7 +389,10 @@ stardog:
   image:
     registry: <your-internal-registry>   # e.g. myregistry.azurecr.io
     repository: stardog/stardog
-    tag: "12.1.0"
+    tag: "12.1.2"
+  upgrade:
+    approval:
+      targetVersion: "12.1.2"
   resources:
     requests:
       memory: "4Gi"
@@ -402,8 +405,8 @@ launchpad:
   image:
     registry: <your-internal-registry>
     repository: stardog/launchpad
-    tag: "v3.10.0"
-  env:
+    tag: "v4.0.0"
+  environmentVariables:
     STARDOG_INTERNAL_ENDPOINT: "http://stardog-stardog:5820"
     FRIENDLY_NAME: "My Stardog Applications"
 
@@ -411,7 +414,34 @@ voicebox:
   image:
     registry: <your-internal-registry>
     repository: stardog/voicebox-service
-    tag: "v0.30.0"
+    tag: "v1.0.0" # must be a Voicebox Service v1.0.0+ image
+  command: []
+  replicaCount: 1
+  frameStore:
+    enabled: true
+    backend: local
+    local:
+      path: /var/lib/voicebox/frames
+      size: 20Gi
+      storageClassName: "" # example for AKS: managed-csi
+  environmentVariables:
+    VBX_CONFIG_FILE: /voicebox-config/vbx_config.json
+    TMPDIR: /tmp
+    PRODUCTION: "1"
+  configFile: |
+    {
+      "agent_selection_type": "llm",
+      "enable_lineage": true,
+      "enable_external_llm": true,
+      "enable_analytics": true,
+      "enable_charts": true,
+      "use_agents_automatically": false,
+      "default_llm_config": {
+        "llm_provider": "azure",
+        "llm_name": "gpt-4o",
+        "server_url": "https://example-ai.services.ai.azure.com/models"
+      }
+    }
 ```
 
 > **`global.gateway.namespace: envoy-gateway` is required.** The Gateway resource must live in the same namespace as the Envoy Gateway controller. Setting it to `stardog-ns` will result in a Gateway that is never programmed.
@@ -421,6 +451,60 @@ voicebox:
 > **`solvers.http01.gatewayHTTPRoute` is required.** Without it, cert-manager creates `Ingress` resources that Envoy Gateway cannot process. Let's Encrypt will never complete the HTTP-01 challenge and all TLS certificates will stay `Ready: False` indefinitely.
 >
 > **Use the HTTP listener section names for ACME.** For the shared Gateway created by this chart, the HTTP-01 solver parent refs must use `sectionName: sparql-http` and `sectionName: launchpad-http`. Do not point ACME solvers at the HTTPS listeners (`sparql` or `launchpad`), because those listeners are not ready until their TLS secrets exist.
+
+> **Voicebox uses the image default command.** Leave `voicebox.command: []` unless you have a custom image that requires an explicit command override.
+
+> **Voicebox frame storage is required for Voicebox Service v1.0.0+.** The readiness probe checks `/system/storage-ready`. If `frameStore` is disabled or the local frame path is not writable, the pod may stay `0/1 Running`.
+
+### Optional: Voicebox Private CA Bundle
+
+If Voicebox connects to Stardog or another HTTPS service signed by a private CA, create a Secret with a complete CA bundle:
+
+```bash
+kubectl create secret generic voicebox-ca-bundle \
+  --from-file=ca-bundle.crt=/path/to/complete-ca-bundle.pem \
+  --namespace stardog-ns
+```
+
+Then add this to your values:
+
+```yaml
+voicebox:
+  customCaBundle:
+    enabled: true
+    existingSecret: voicebox-ca-bundle
+    key: ca-bundle.crt
+    mountPath: /etc/ssl/custom/ca-bundle.crt
+```
+
+Do not set `REQUESTS_CA_BUNDLE` or `SSL_CERT_FILE` manually unless the file is mounted at that exact path. When `customCaBundle.enabled=true`, the chart sets both variables automatically.
+
+### Optional: Secret Management / Azure Key Vault
+
+For production, avoid storing API keys and client secrets directly in `values.yaml`. Sync Azure Key Vault secrets into Kubernetes Secrets, then inject them with `envFrom`:
+
+```yaml
+launchpad:
+  envFrom:
+    - secretRef:
+        name: launchpad-runtime-env
+
+voicebox:
+  envFrom:
+    - secretRef:
+        name: voicebox-runtime-env
+```
+
+If you use AKS Workload Identity with the Secrets Store CSI driver, annotate the service account and label the pod template:
+
+```yaml
+voicebox:
+  serviceAccount:
+    annotations:
+      azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  podLabels:
+    azure.workload.identity/use: "true"
+```
 
 ### Configure IDP
 
@@ -436,7 +520,7 @@ Configure PingIdentity or EntraID following the provider documentation.
 
 ```bash
 helm upgrade --install stardog \
-  stardog/kube-stardog-stack --version 1.1.2 \
+  stardog/kube-stardog-stack --version 1.2.1 \
   --namespace stardog-ns \
   --values ./quickstart_values.yaml \
   --timeout 10m0s
@@ -446,7 +530,7 @@ Or from a local chart artifact:
 
 ```bash
 helm upgrade --install stardog \
-  kube-stardog-stack-1.1.2.tgz \
+  kube-stardog-stack-1.2.1.tgz \
   --namespace stardog-ns \
   --values ./quickstart_values.yaml \
   --timeout 10m0s
@@ -514,7 +598,7 @@ The first Helm install creates the Gateway and assigns the public IP. After the 
 
 ```bash
 helm upgrade --install stardog \
-  stardog/kube-stardog-stack --version 1.1.2 \
+  stardog/kube-stardog-stack --version 1.2.1 \
   --namespace stardog-ns \
   --values ./quickstart_values.yaml \
   --timeout 10m0s
@@ -524,7 +608,7 @@ Or from a local chart artifact:
 
 ```bash
 helm upgrade --install stardog \
-  kube-stardog-stack-1.1.2.tgz \
+  kube-stardog-stack-1.2.1.tgz \
   --namespace stardog-ns \
   --values ./quickstart_values.yaml \
   --timeout 10m0s
@@ -719,4 +803,67 @@ kubectl get events -n stardog-ns --sort-by=.metadata.creationTimestamp
 
 ---
 
-*Generated from real deployment experience on AKS with kube-stardog-stack v1.1.2 and Envoy Gateway v1.8.1.*
+### Voicebox Pod Running but Not Ready
+
+**Symptom:** Voicebox shows `0/1 Running`, and logs show:
+
+```text
+GET /system/health -> 204
+GET /system/storage-ready -> 503
+```
+
+**Cause:** The Voicebox process is alive, but its frame store is not ready or not writable.
+
+**Fix:** Enable frame storage:
+
+```yaml
+voicebox:
+  replicaCount: 1
+  frameStore:
+    enabled: true
+    backend: local
+    local:
+      path: /var/lib/voicebox/frames
+      size: 20Gi
+      storageClassName: "" # example for AKS: managed-csi
+```
+
+Check the rendered Deployment:
+
+```bash
+kubectl get deploy voicebox-stardog -n stardog-ns -o yaml | grep -A20 -B5 voicebox-frames
+```
+
+---
+
+### Voicebox TLS CA Bundle Path Is Invalid
+
+**Symptom:**
+
+```text
+Could not find a suitable TLS CA certificate bundle, invalid path: /etc/ssl/custom/ca-bundle.crt
+```
+
+**Cause:** `REQUESTS_CA_BUNDLE` or `SSL_CERT_FILE` points to a file that is not mounted inside the Voicebox container.
+
+**Fix:** Use `voicebox.customCaBundle` instead of setting those env vars manually:
+
+```yaml
+voicebox:
+  customCaBundle:
+    enabled: true
+    existingSecret: voicebox-ca-bundle
+    key: ca-bundle.crt
+    mountPath: /etc/ssl/custom/ca-bundle.crt
+```
+
+Verify the file exists in the pod:
+
+```bash
+kubectl exec -n stardog-ns deploy/voicebox-stardog -- \
+  ls -l /etc/ssl/custom/ca-bundle.crt
+```
+
+---
+
+*Generated from real deployment experience on AKS with kube-stardog-stack v1.2.1 and Envoy Gateway v1.8.1.*

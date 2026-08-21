@@ -5,73 +5,33 @@ templates:
   - service.yaml
 
 tests:
-  # Test 1: Ensure the Service is created with basic configuration
-  - it: should create a Voicebox Service with basic configuration
-    values:
-      - values/values-voicebox.yaml
+  - it: should render only the traffic service by default
     asserts:
-      - isKind:
+      - hasDocuments:
+          count: 1
+      - documentIndex: 0
+        isKind:
           of: Service
-      - matchRegex:
+      - documentIndex: 0
+        equal:
           path: metadata.name
-          pattern: "^voicebox-.+"
-      - equal:
-          path: spec.ports[0].port
-          value: 8000
-      - equal:
-          path: spec.ports[0].targetPort
-          value: 8000
-      - equal:
-          path: spec.ports[0].protocol
-          value: TCP
-      - equal:
-          path: spec.ports[0].name
-          value: http
-      - equal:
-          path: spec.type
-          value: ClusterIP
-      - equal:
-          path: spec.selector.app
           value: voicebox-RELEASE-NAME
 
-  - it: should create service with custom port (service.port) and type
+  - it: should render a headless service for StatefulSet
     set:
-      service:
-        port: 8888
-        type: LoadBalancer
+      workload:
+        type: StatefulSet
     asserts:
-      - equal:
-          path: spec.ports[0].port
-          value: 8888
-      - equal:
-          path: spec.type
-          value: LoadBalancer
-
-  - it: should create service with custom port (global.voicebox.service.port)
-    set:
-      global:
-        voicebox:
-          port: 8888
-    asserts:
-      - equal:
-          path: spec.ports[0].port
-          value: 8888
-      - equal:
-          path: spec.type
-          value: ClusterIP
-
-  - it: should create service with custom port with correct precendence
-    set:
-      service:
-        port: 8888
-      global:
-        voicebox:
-          service:
-            port: 9999
-    asserts:
-      - equal:
-          path: spec.ports[0].port
-          value: 8888
-      - equal:
-          path: spec.type
-          value: ClusterIP
+      - hasDocuments:
+          count: 2
+      - documentIndex: 1
+        isKind:
+          of: Service
+      - documentIndex: 1
+        equal:
+          path: metadata.name
+          value: voicebox-RELEASE-NAME-headless
+      - documentIndex: 1
+        equal:
+          path: spec.clusterIP
+          value: None

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0
+- Add optional `Deployment`/`StatefulSet` workload selection for Voicebox.
+- Add first-class frame store configuration for local PVC-backed storage and S3-backed storage.
+- Add `envFrom`, `extraEnv`, `extraVolumes`, and `extraVolumeMounts` hooks for external secret systems such as Azure Key Vault CSI.
+- Add structured `serviceAccount` values with annotations while preserving `serviceAccountName` compatibility.
+- Add optional multi-file Voicebox JSON config directory support through `configFiles` and `VBX_CONFIG_DIR`.
+- Stop rendering a chart-managed default container command so Voicebox uses the image's default ENTRYPOINT/CMD.
+- Add a `command` value for deployments that need an explicit container command override.
+- Change the default readiness probe path to `/system/storage-ready`.
+
 ## 1.1.3
 - Add `customCaBundle` support to mount a private CA bundle into Voicebox and set `REQUESTS_CA_BUNDLE`/`SSL_CERT_FILE` for HTTPS trust.
 - Validate `configFile` as JSON during rendering so malformed `vbx_config.json` content fails before install or upgrade.

@@ -93,9 +93,15 @@ spec:
         {{- include "sdcommon.labels.standard" . | nindent 8 }}
         stardog.com/deployname: {{ .Release.Name }}-launchpad
         stardog.com/resource-type: stardog-apps
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       annotations:
         checksum/config: {{ include "launchpad.configmapChecksum" . }}
         checksum/secret: {{ include "launchpad.secretChecksum" . }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       {{- /* single imagePullSecrets block (avoid duplicates) */ -}}
       {{- if and (hasKey .Values "image") .Values.image.pullSecrets }}
@@ -107,6 +113,7 @@ spec:
       {{- end }}
       securityContext:
         {{- toYaml .Values.securityContext | nindent 8 }}
+      serviceAccountName: {{ include "launchpad.serviceAccountName" . }}
       containers:
         - name: {{ include "sdcommon.fullname" . }}
           image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -121,8 +128,18 @@ spec:
             - name: {{ include "sdcommon.pvcName" (dict "context" . "chart" "launchpad" "withRelease" false) }}
               mountPath: /data
               subPath: data
+            {{- with .Values.extraVolumeMounts }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
           env:
             {{- include "launchpad.envVars" . | nindent 12 }}
+            {{- with .Values.extraEnv }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
 
@@ -147,6 +164,10 @@ spec:
                 matchLabels:
                   app: {{ include "sdcommon.fullname" . }}
               topologyKey: topology.kubernetes.io/zone
+      {{- end }}
+      {{- with .Values.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
       {{- end }}
   volumeClaimTemplates:
     - metadata:
