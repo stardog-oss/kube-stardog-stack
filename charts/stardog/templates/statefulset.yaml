@@ -40,9 +40,15 @@ spec:
         app: {{ include "sdcommon.fullname" . }}
         stardog.com/deployname: {{ .Release.Name }}
         stardog.com/resource-type: cluster-node
+        {{- with .Values.podLabels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
       annotations:
         checksum/config: {{ include "stardog.configmapChecksum" . }}
         checksum/secret: {{ include "stardog.secretChecksum" . }}
+        {{- with .Values.podAnnotations }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "stardog.serviceAccountName" . }}
       {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" "stardog-license" "namespace" .Release.Namespace) }}
@@ -188,6 +194,9 @@ spec:
           readOnly: true
         {{- end }}
         {{- end }}
+        {{- with .Values.extraVolumeMounts }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
         workingDir: {{ .Values.stardogHome }}
         env:
         - name: PORT
@@ -256,6 +265,13 @@ spec:
         {{- range $key, $value := .Values.environmentVariables }}
         - name: {{ $key }}
           value: {{ $value | quote }}
+        {{- end }}
+        {{- with .Values.extraEnv }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.envFrom }}
+        envFrom:
+          {{- toYaml . | nindent 8 }}
         {{- end }}
         command:
         - /bin/bash
@@ -358,6 +374,9 @@ spec:
         persistentVolumeClaim:
           claimName: {{ include "sdcommon.pvcName" (dict "context" . "chart" "stardog" "id" "backup-azure") }}
       {{- end }}
+      {{- end }}
+      {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 6 }}
       {{- end }}
       {{ with include "sdcommon.podScheduling" . }}
 {{ . | nindent 6 }}

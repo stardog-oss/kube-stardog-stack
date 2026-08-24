@@ -62,6 +62,11 @@ Configuration Parameters
 | `debug.sleepOnFailureSeconds`               | Sleep for N seconds after Stardog exits with a non-zero status (troubleshooting) |
 | `debug.javaSsl`                             | Enable verbose Java SSL debug output (`javax.net.debug`) |
 | `environmentVariables`                       | Extra environment variables injected into the Stardog container |
+| `envFrom`                                    | Additional container `envFrom` entries, such as synced Key Vault Secrets |
+| `extraEnv`                                   | Additional container env entries with support for `valueFrom` |
+| `extraVolumes`                               | Additional pod volumes, such as Secrets Store CSI volumes |
+| `extraVolumeMounts`                          | Additional container volume mounts |
+| `secretProviderClass`                        | Optional Secrets Store CSI `SecretProviderClass` rendered by the chart |
 | `fullnameOverride`                           | The k8s name for the Stardog deployment |
 | `image.password`                             | Docker registry password used to pull the Stardog image |
 | `image.pullPolicy`                           | The Docker image `pullPolicy` for Stardog |
@@ -83,6 +88,8 @@ Configuration Parameters
 | `nodeSelector`                               | Node labels to pin Stardog pods to specific node pools |
 | `persistence.size`                           | The size of the volume for Stardog home |
 | `persistence.storageClass`                   | The storage class to use for Stardog home volumes |
+| `podAnnotations`                             | Additional annotations added to the Stardog pod template |
+| `podLabels`                                  | Additional labels added to the Stardog pod template |
 | `podManagementPolicy`                        | Set the pod startup policy - use `Parallel` (default) or `OrderedReady` |
 | `ports.server`                               | The port to expose Stardog server |
 | `ports.sql`                                  | The port to expose Stardog BI server |
@@ -109,6 +116,56 @@ The default values are specified in `values.yaml`.
 ### Node placement controls
 
 `nodeSelector` and `tolerations` are wired through the shared helper so the StatefulSet and its init containers schedule consistently. Use them in tandem to constrain Stardog pods to tainted node pools or dedicated hardware.
+
+### Secret managers and extra runtime injection
+
+Use `secretProviderClass`, `envFrom`, `extraEnv`, `extraVolumes`, and `extraVolumeMounts` to inject secrets or files from external secret systems such as Azure Key Vault CSI without adding chart-specific values for each new variable.
+
+```yaml
+stardog:
+  secretProviderClass:
+    enabled: true
+    name: stardog-keyvault
+    secretObjects:
+      - secretName: stardog-runtime-env
+        type: Opaque
+        data:
+          - objectName: AZURE-CLIENT-ID
+            key: AZURE_CLIENT_ID
+    parameters:
+      keyvaultName: stardog-vault
+      tenantId: 00000000-0000-0000-0000-000000000000
+      objects: |
+        array:
+          - |
+            objectName: AZURE-CLIENT-ID
+            objectType: secret
+  envFrom:
+    - secretRef:
+        name: stardog-runtime-env
+  extraEnv:
+    - name: AZURE_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: stardog-runtime-env
+          key: AZURE_CLIENT_ID
+  extraVolumes:
+    - name: keyvault-secrets
+      csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: stardog-keyvault
+  extraVolumeMounts:
+    - name: keyvault-secrets
+      mountPath: /mnt/secrets-store
+      readOnly: true
+  serviceAccount:
+    annotations:
+      azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  podLabels:
+    azure.workload.identity/use: "true"
+```
 
 ### Cluster and ZooKeeper validation
 

@@ -239,6 +239,13 @@ envFrom: []
 extraEnv: []
 extraVolumes: []
 extraVolumeMounts: []
+secretProviderClass:
+  enabled: false
+  name: ""
+  provider: azure
+  annotations: {}
+  secretObjects: []
+  parameters: {}
 environmentVariables:
   # basic configurations
   BASE_URL: ""

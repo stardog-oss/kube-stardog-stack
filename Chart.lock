@@ -1,7 +1,7 @@
 dependencies:
 - name: common
   repository: file://charts/common
-  version: 0.1.7
+  version: 0.1.8
 - name: gateway
   repository: file://charts/gateway
   version: 1.0.4
@@ -20,5 +20,5 @@ dependencies:
 - name: cachetarget
   repository: file://charts/cachetarget
   version: 1.0.4
-digest: sha256:98dc42c56ecab291549fc97c74a91d67627c79aeb0c2c95bf968ba815854e054
-generated: "2026-08-21T16:18:52.463273-04:00"
+digest: sha256:56cad00b33188f8b9129c53b965bc1137b1778c4f3f438f257b633778dde1a5e
+generated: "2026-08-24T09:28:24.766038-04:00"

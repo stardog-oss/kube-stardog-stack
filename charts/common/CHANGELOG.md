@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.8
+- Add shared `SecretProviderClass` helper for charts that use the Secrets Store CSI driver.
+
 ## 0.1.7
 - Add shared Gateway certificate helper behavior for external Gateway deployments.
 - Resolve shared, per-service, and template-derived TLS secret names from global Gateway and certIssuer values.

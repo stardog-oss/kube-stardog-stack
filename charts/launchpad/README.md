@@ -65,6 +65,7 @@ The following table lists the configurable parameters of the Launchpad chart and
 | `extraEnv` | Additional container env entries with support for `valueFrom` | `[]` |
 | `extraVolumes` | Additional pod volumes, such as Secrets Store CSI volumes | `[]` |
 | `extraVolumeMounts` | Additional container volume mounts | `[]` |
+| `secretProviderClass` | Optional Secrets Store CSI `SecretProviderClass` rendered by the chart | disabled |
 | `nodeSelector` | Node labels to pin Launchpad pods | `{}` |
 | `tolerations` | Taints Launchpad pods tolerate; coordinate with `nodeSelector` | `[]` |
 | `affinity` | Custom pod affinity/anti-affinity rules | `{}` |
@@ -102,6 +103,24 @@ Azure Key Vault CSI mount with AKS Workload Identity example:
 
 ```yaml
 launchpad:
+  secretProviderClass:
+    enabled: true
+    name: launchpad-keyvault
+    secretObjects:
+      - secretName: launchpad-runtime-env
+        type: Opaque
+        data:
+          - objectName: AZURE-CLIENT-ID
+            key: AZURE_CLIENT_ID
+    parameters:
+      keyvaultName: launchpad-vault
+      tenantId: "<tenant-id>"
+      objects: |
+        array:
+          - |
+            objectName: AZURE-CLIENT-ID
+            objectType: secret
+
   serviceAccount:
     annotations:
       azure.workload.identity/client-id: "<managed-identity-client-id>"

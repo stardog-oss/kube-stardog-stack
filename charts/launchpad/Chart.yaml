@@ -11,5 +11,5 @@ name: launchpad
 version: 1.0.6
 dependencies:
 - name: common
-  version: 0.1.7
+  version: 0.1.8
   repository: file://../common

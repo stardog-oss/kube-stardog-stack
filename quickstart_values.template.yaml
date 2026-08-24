@@ -114,6 +114,38 @@ stardog:
     maxHeap: "4g" # example: "4g"
     directMem: "1g" # example: "1g"
 
+  # For Azure Key Vault CSI or synced Kubernetes Secrets, prefer envFrom/extraEnv
+  # instead of placing sensitive values directly in this file.
+  # envFrom:
+  #   - secretRef:
+  #       name: stardog-runtime-env
+  #
+  # extraEnv:
+  #   - name: AZURE_CLIENT_SECRET
+  #     valueFrom:
+  #       secretKeyRef:
+  #         name: stardog-runtime-env
+  #         key: AZURE_CLIENT_SECRET
+  #
+  # extraVolumes:
+  #   - name: keyvault-secrets
+  #     csi:
+  #       driver: secrets-store.csi.k8s.io
+  #       readOnly: true
+  #       volumeAttributes:
+  #         secretProviderClass: stardog-keyvault
+  #
+  # extraVolumeMounts:
+  #   - name: keyvault-secrets
+  #     mountPath: /mnt/secrets-store
+  #     readOnly: true
+  #
+  # serviceAccount:
+  #   annotations:
+  #     azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  # podLabels:
+  #   azure.workload.identity/use: "true"
+
   # Optional: uncomment if Stardog should run only on labeled nodes.
   # nodeSelector:
   #   <NODE_LABEL_KEY>: <NODE_LABEL_VALUE>

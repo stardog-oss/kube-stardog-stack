@@ -123,6 +123,9 @@ tolerations: []
 #    value: value1
 #    effect: NoSchedule
 
+podLabels: {}
+podAnnotations: {}
+
 serviceAccount:
   create: true
   name: ""
@@ -147,6 +150,18 @@ resources:
 # Stardog server environment variables
 environmentVariables:
   DJL_CACHE_DIR: "/var/opt/stardog/djl-123456789"
+envFrom: []
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []
+
+secretProviderClass:
+  enabled: false
+  name: ""
+  provider: azure
+  annotations: {}
+  secretObjects: []
+  parameters: {}
 
 # These allow you to configure the UID and group ID used by the container when it's running,
 # and the fsGroup sets the group id for the volume-mounts

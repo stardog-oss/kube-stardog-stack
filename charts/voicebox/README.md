@@ -59,6 +59,7 @@ The following table lists the configurable parameters of the Voicebox chart and 
 | `extraEnv` | Additional container env entries with support for `valueFrom` | `[]` |
 | `extraVolumes` | Additional pod volumes, such as Secrets Store CSI volumes | `[]` |
 | `extraVolumeMounts` | Additional container volume mounts | `[]` |
+| `secretProviderClass` | Optional Secrets Store CSI `SecretProviderClass` rendered by the chart | disabled |
 | `frameStore.enabled` | Enable Voicebox frame store configuration | `false` |
 | `frameStore.backend` | Frame store backend, `local` or `s3` | `local` |
 | `frameStore.cacheSize` | Voicebox frame store cache size | `100` |
@@ -192,6 +193,24 @@ extraEnv:
 Azure Key Vault CSI mount example:
 
 ```yaml
+secretProviderClass:
+  enabled: true
+  name: voicebox-keyvault
+  secretObjects:
+    - secretName: voicebox-runtime-env
+      type: Opaque
+      data:
+        - objectName: OPENAI-API-KEY
+          key: OPENAI_API_KEY
+  parameters:
+    keyvaultName: voicebox-vault
+    tenantId: "<tenant-id>"
+    objects: |
+      array:
+        - |
+          objectName: OPENAI-API-KEY
+          objectType: secret
+
 extraVolumes:
   - name: keyvault-secrets
     csi:

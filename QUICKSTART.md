@@ -400,6 +400,10 @@ stardog:
     limits:
       memory: "8Gi"
       cpu: "4"
+  # Optional: inject synced Key Vault secrets without adding new chart values.
+  # envFrom:
+  #   - secretRef:
+  #       name: stardog-runtime-env
 
 launchpad:
   image:
@@ -483,7 +487,14 @@ Do not set `REQUESTS_CA_BUNDLE` or `SSL_CERT_FILE` manually unless the file is m
 
 For production, avoid storing API keys and client secrets directly in `values.yaml`. Sync Azure Key Vault secrets into Kubernetes Secrets, then inject them with `envFrom`:
 
+For a complete step-by-step Key Vault and Secrets Store CSI flow, see [Secret Management With Azure Key Vault](docs/secret-management-keyvault.md).
+
 ```yaml
+stardog:
+  envFrom:
+    - secretRef:
+        name: stardog-runtime-env
+
 launchpad:
   envFrom:
     - secretRef:
@@ -495,9 +506,33 @@ voicebox:
         name: voicebox-runtime-env
 ```
 
+For file-based secrets mounted by the Secrets Store CSI driver, use `extraVolumes` and `extraVolumeMounts`:
+
+```yaml
+stardog:
+  extraVolumes:
+    - name: keyvault-secrets
+      csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: stardog-keyvault
+  extraVolumeMounts:
+    - name: keyvault-secrets
+      mountPath: /mnt/secrets-store
+      readOnly: true
+```
+
 If you use AKS Workload Identity with the Secrets Store CSI driver, annotate the service account and label the pod template:
 
 ```yaml
+stardog:
+  serviceAccount:
+    annotations:
+      azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  podLabels:
+    azure.workload.identity/use: "true"
+
 voicebox:
   serviceAccount:
     annotations:
