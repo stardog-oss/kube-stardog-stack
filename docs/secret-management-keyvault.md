@@ -7,12 +7,14 @@ The same pattern works for `stardog`, `launchpad`, and `voicebox`.
 ## Flow
 
 1. Store secrets in Azure Key Vault.
-2. Configure `secretProviderClass` in Helm values.
-3. Map Key Vault secret names to Kubernetes Secret keys.
-4. Sync the values into a Kubernetes Secret.
-5. Mount the SecretProviderClass with the CSI driver.
-6. Load the synced Kubernetes Secret into the container with `envFrom`.
-7. Verify the rendered resources and running pod.
+2. Create or identify the Azure identity that can read Key Vault.
+3. Connect that Azure identity to the Kubernetes ServiceAccount with AKS Workload Identity.
+4. Configure `secretProviderClass` in Helm values.
+5. Map Key Vault secret names to Kubernetes Secret keys.
+6. Sync the values into a Kubernetes Secret.
+7. Mount the SecretProviderClass with the CSI driver.
+8. Load the synced Kubernetes Secret into the container with `envFrom`.
+9. Verify the rendered resources and running pod.
 
 ## Naming Rule
 
@@ -39,7 +41,193 @@ az keyvault secret set --vault-name <key-vault-name> --name SSOCONNECTION-DEVELO
 
 Do not commit real secret values into Helm values files.
 
-## Step 2: Configure Workload Identity
+## Step 2: Create Or Find The Azure Identity
+
+AKS Workload Identity uses a user-assigned managed identity. If one already exists, get its `clientId` and `principalId`:
+
+```bash
+IDENTITY_RESOURCE_GROUP="<identity-resource-group>"
+IDENTITY_NAME="<managed-identity-name>"
+
+CLIENT_ID="$(az identity show \
+  --resource-group "$IDENTITY_RESOURCE_GROUP" \
+  --name "$IDENTITY_NAME" \
+  --query clientId \
+  --output tsv)"
+
+PRINCIPAL_ID="$(az identity show \
+  --resource-group "$IDENTITY_RESOURCE_GROUP" \
+  --name "$IDENTITY_NAME" \
+  --query principalId \
+  --output tsv)"
+```
+
+If the identity does not exist, create it first:
+
+```bash
+IDENTITY_RESOURCE_GROUP="<identity-resource-group>"
+LOCATION="<azure-region>"
+IDENTITY_NAME="stardog-keyvault-identity"
+
+az identity create \
+  --resource-group "$IDENTITY_RESOURCE_GROUP" \
+  --name "$IDENTITY_NAME" \
+  --location "$LOCATION"
+```
+
+Then get the IDs:
+
+```bash
+CLIENT_ID="$(az identity show \
+  --resource-group "$IDENTITY_RESOURCE_GROUP" \
+  --name "$IDENTITY_NAME" \
+  --query clientId \
+  --output tsv)"
+
+PRINCIPAL_ID="$(az identity show \
+  --resource-group "$IDENTITY_RESOURCE_GROUP" \
+  --name "$IDENTITY_NAME" \
+  --query principalId \
+  --output tsv)"
+```
+
+Use `CLIENT_ID` in Helm values. Use `PRINCIPAL_ID` for Azure role assignment.
+
+## Step 3: Grant Key Vault Access
+
+Give the managed identity permission to read secrets from the Key Vault:
+
+```bash
+KEYVAULT_NAME="<key-vault-name>"
+
+KEYVAULT_ID="$(az keyvault show \
+  --name "$KEYVAULT_NAME" \
+  --query id \
+  --output tsv)"
+
+az role assignment create \
+  --assignee "$PRINCIPAL_ID" \
+  --role "Key Vault Secrets User" \
+  --scope "$KEYVAULT_ID"
+```
+
+For this environment, the Key Vault name is:
+
+```bash
+KEYVAULT_NAME="akv-sdtraining-cmc-32cb"
+```
+
+## Step 4: Get The AKS OIDC Issuer
+
+AKS Workload Identity requires the cluster OIDC issuer URL:
+
+```bash
+AKS_RESOURCE_GROUP="<aks-resource-group>"
+AKS_NAME="<aks-cluster-name>"
+
+OIDC_ISSUER="$(az aks show \
+  --resource-group "$AKS_RESOURCE_GROUP" \
+  --name "$AKS_NAME" \
+  --query oidcIssuerProfile.issuerUrl \
+  --output tsv)"
+```
+
+If this returns empty, enable OIDC issuer and Workload Identity on the AKS cluster before continuing:
+
+```bash
+az aks update \
+  --resource-group "$AKS_RESOURCE_GROUP" \
+  --name "$AKS_NAME" \
+  --enable-oidc-issuer \
+  --enable-workload-identity
+```
+
+## Step 5: Confirm Helm ServiceAccount Names
+
+Federated credentials must match the exact Kubernetes ServiceAccount subject:
+
+```text
+system:serviceaccount:<namespace>:<service-account-name>
+```
+
+Render the chart and inspect ServiceAccount names:
+
+```bash
+helm template sd-stack . \
+  --namespace stardog \
+  --values ./values.yaml \
+  --set global.skipSecretValidation=true | grep -A6 "kind: ServiceAccount"
+```
+
+For a release named `sd-stack`, the default component ServiceAccount names commonly render as:
+
+```text
+launchpad-sd-stack
+voicebox-sa
+stardog-sd-stack
+```
+
+Always verify with `helm template`; overrides such as `fullnameOverride` or `serviceAccount.name` can change these names.
+
+If pods already exist, confirm the actual ServiceAccount used by the pod:
+
+```bash
+kubectl get pod -n stardog <pod-name> \
+  -o jsonpath='{.spec.serviceAccountName}{"\n"}'
+```
+
+If Azure returns `AADSTS700213`, use the `presented assertion subject` from the error message as the source of truth. The federated credential subject must match it exactly.
+
+## Step 6: Create Federated Credentials
+
+Create one federated credential per Kubernetes ServiceAccount that needs to read Key Vault.
+
+Launchpad:
+
+```bash
+NAMESPACE="stardog"
+LAUNCHPAD_SERVICE_ACCOUNT="launchpad-sd-stack"
+
+az identity federated-credential create \
+  --name launchpad-keyvault-federation \
+  --identity-name "$IDENTITY_NAME" \
+  --resource-group "$IDENTITY_RESOURCE_GROUP" \
+  --issuer "$OIDC_ISSUER" \
+  --subject "system:serviceaccount:$NAMESPACE:$LAUNCHPAD_SERVICE_ACCOUNT" \
+  --audience api://AzureADTokenExchange
+```
+
+Voicebox:
+
+```bash
+NAMESPACE="stardog"
+VOICEBOX_SERVICE_ACCOUNT="voicebox-sa"
+
+az identity federated-credential create \
+  --name voicebox-keyvault-federation \
+  --identity-name "$IDENTITY_NAME" \
+  --resource-group "$IDENTITY_RESOURCE_GROUP" \
+  --issuer "$OIDC_ISSUER" \
+  --subject "system:serviceaccount:$NAMESPACE:$VOICEBOX_SERVICE_ACCOUNT" \
+  --audience api://AzureADTokenExchange
+```
+
+Stardog, if needed:
+
+```bash
+NAMESPACE="stardog"
+STARDOG_SERVICE_ACCOUNT="stardog-sd-stack"
+
+az identity federated-credential create \
+  --name stardog-keyvault-federation \
+  --identity-name "$IDENTITY_NAME" \
+  --resource-group "$IDENTITY_RESOURCE_GROUP" \
+  --issuer "$OIDC_ISSUER" \
+  --subject "system:serviceaccount:$NAMESPACE:$STARDOG_SERVICE_ACCOUNT" \
+  --audience api://AzureADTokenExchange
+```
+
+## Step 7: Configure Workload Identity In Helm Values
 
 If AKS Workload Identity is used, annotate the chart service account and label the pod template.
 
@@ -55,7 +243,9 @@ launchpad:
 
 Use the same pattern for `stardog` or `voicebox` by replacing the top-level key.
 
-## Step 3: Configure The SecretProviderClass
+Use the same `CLIENT_ID` in `secretProviderClass.parameters.clientID`.
+
+## Step 8: Configure The SecretProviderClass
 
 The chart can render a `SecretProviderClass` when `secretProviderClass.enabled=true`.
 
@@ -120,7 +310,7 @@ parameters.objects: |
       objectType: secret
 ```
 
-## Step 4: Mount The SecretProviderClass
+## Step 9: Mount The SecretProviderClass
 
 The CSI driver syncs `secretObjects` into a Kubernetes Secret when a pod mounts the `SecretProviderClass`.
 
@@ -140,7 +330,7 @@ launchpad:
       readOnly: true
 ```
 
-## Step 5: Load The Synced Secret Into The Container
+## Step 10: Load The Synced Secret Into The Container
 
 Use `envFrom` to expose every key from the synced Kubernetes Secret as an environment variable.
 
@@ -318,7 +508,7 @@ voicebox:
         name: voicebox-runtime-env
 ```
 
-## Step 6: Render And Install
+## Step 11: Render And Install
 
 Render first:
 
@@ -338,7 +528,7 @@ helm upgrade --install stardog . \
   --timeout 10m
 ```
 
-## Step 7: Verify
+## Step 12: Verify
 
 Check the `SecretProviderClass`:
 

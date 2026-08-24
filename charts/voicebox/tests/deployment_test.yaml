@@ -1,6 +1,8 @@
 suite: Test Voicebox Deployment
 values:
   - values/values-voicebox.yaml
+set:
+  frameStore.enabled: false
 templates:
   - deployment.yaml
 

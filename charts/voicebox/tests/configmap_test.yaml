@@ -1,6 +1,8 @@
 suite: Test Voicebox ConfigMap
 values:
   - values/values-voicebox.yaml
+set:
+  frameStore.enabled: false
 templates:
   - configmap.yaml
 

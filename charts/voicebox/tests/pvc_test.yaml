@@ -1,6 +1,8 @@
 suite: Test Voicebox Bites PVC
 values:
   - values/values-voicebox.yaml
+set:
+  frameStore.enabled: false
 templates:
   - pvc.yaml
 

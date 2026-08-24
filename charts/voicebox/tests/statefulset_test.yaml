@@ -1,6 +1,8 @@
 suite: Test Voicebox StatefulSet
 values:
   - values/values-voicebox.yaml
+set:
+  frameStore.enabled: false
 templates:
   - statefulset.yaml
 
