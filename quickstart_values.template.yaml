@@ -1,9 +1,13 @@
 # Template values for kube-stardog-stack on AKS with Envoy Gateway.
 #
 # Copy this file to cluster_values.yaml and replace the example values for your cluster.
-# The domains below assume the chart creates:
+# The defaults below assume the chart creates:
 #   - https://sparql.example.com
 #   - https://launchpad.example.com
+# If you already have a shared Envoy Gateway, set global.gateway.createGateway=false
+# and use the existing Gateway name/namespace/listener section names. See the
+# commented example in global.gateway below; this matches the VBX_1 deployment
+# pattern in doc/private-notes/values/VBX_1_values.yaml.
 #
 # Install flow:
 #   1. Install cert-manager, Gateway API CRDs, and Envoy Gateway.
@@ -40,6 +44,16 @@ global:
     sparqlHttpSectionName: sparql-http
     launchpadSectionName: launchpad
     launchpadHttpSectionName: launchpad-http
+
+    # Existing shared Gateway example:
+    # createGateway: false
+    # name: cmc-envoy-gateway
+    # namespace: envoy-gateway
+    # domain: cmc.training.sd-testlab.com
+    # sparqlSectionName: https
+    # sparqlHttpSectionName: http
+    # launchpadSectionName: https
+    # launchpadHttpSectionName: http
 
     tls:
       enabled: true
@@ -181,11 +195,65 @@ launchpad:
   #   - secretRef:
   #       name: launchpad-runtime-env
   #
+  # secretProviderClass:
+  #   enabled: true
+  #   name: launchpad-keyvault
+  #   provider: azure
+  #   secretObjects:
+  #     - secretName: launchpad-runtime-env
+  #       type: Opaque
+  #       data:
+  #         - objectName: AZURE-CLIENT-ID
+  #           key: AZURE_CLIENT_ID
+  #         - objectName: AZURE-CLIENT-SECRET
+  #           key: AZURE_CLIENT_SECRET
+  #         - objectName: AZURE-TENANT
+  #           key: AZURE_TENANT
+  #         - objectName: SSOCONNECTION-DEVELOPMENT-AZURE-CLIENT-ID
+  #           key: SSOCONNECTION_DEVELOPMENT_AZURE_CLIENT_ID
+  #         - objectName: SSOCONNECTION-DEVELOPMENT-AZURE-TENANT
+  #           key: SSOCONNECTION_DEVELOPMENT_AZURE_TENANT
+  #   parameters:
+  #     usePodIdentity: "false"
+  #     useVMManagedIdentity: "false"
+  #     clientID: 00000000-0000-0000-0000-000000000000
+  #     keyvaultName: example-keyvault
+  #     tenantId: 00000000-0000-0000-0000-000000000000
+  #     objects: |
+  #       array:
+  #         - |
+  #           objectName: AZURE-CLIENT-ID
+  #           objectType: secret
+  #         - |
+  #           objectName: AZURE-CLIENT-SECRET
+  #           objectType: secret
+  #         - |
+  #           objectName: AZURE-TENANT
+  #           objectType: secret
+  #         - |
+  #           objectName: SSOCONNECTION-DEVELOPMENT-AZURE-CLIENT-ID
+  #           objectType: secret
+  #         - |
+  #           objectName: SSOCONNECTION-DEVELOPMENT-AZURE-TENANT
+  #           objectType: secret
+  #
+  # extraVolumes:
+  #   - name: keyvault-secrets
+  #     csi:
+  #       driver: secrets-store.csi.k8s.io
+  #       readOnly: true
+  #       volumeAttributes:
+  #         secretProviderClass: launchpad-keyvault
+  #
+  # extraVolumeMounts:
+  #   - name: keyvault-secrets
+  #     mountPath: /mnt/secrets-store
+  #     readOnly: true
+  #
   # serviceAccount:
   #   annotations:
   #     azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
-  # podLabels:
-  #   azure.workload.identity/use: "true"
+
 
   environmentVariables:
     FRIENDLY_NAME: Stardog Applications # example: Stardog Applications
@@ -195,8 +263,12 @@ launchpad:
     # SHARED_USER_USERNAME: <SHARED_USER_USERNAME>
     # SHARED_USER_PASSWORD: <SHARED_USER_PASSWORD>
 
-    # Optional identity-provider flags.
+    # Optional Microsoft Entra login and SSO connection flags.
     # AZURE_AUTH_ENABLED: "true"
+    # AZURE_ON_BEHALF_OF_USER_FLOW_ENABLED: "true"
+    # SSOCONNECTION_DEVELOPMENT_AZURE_DISPLAY_NAME: OBO_CONNECTION
+    # SSOCONNECTION_DEVELOPMENT_AZURE_OBO_SCOPE: api://<STARDOG_CLIENT_ID>/user_login
+    # SSOCONNECTION_DEVELOPMENT_AZURE_STARDOG_ENDPOINT: https://sparql.example.com
 
 voicebox:
   image:
@@ -237,11 +309,44 @@ voicebox:
   #   - secretRef:
   #       name: voicebox-runtime-env
   #
+  # secretProviderClass:
+  #   enabled: true
+  #   name: voicebox-keyvault
+  #   provider: azure
+  #   secretObjects:
+  #     - secretName: voicebox-runtime-env
+  #       type: Opaque
+  #       data:
+  #         - objectName: AZURE-API-KEY
+  #           key: AZURE_API_KEY
+  #   parameters:
+  #     usePodIdentity: "false"
+  #     useVMManagedIdentity: "false"
+  #     clientID: 00000000-0000-0000-0000-000000000000
+  #     keyvaultName: example-keyvault
+  #     tenantId: 00000000-0000-0000-0000-000000000000
+  #     objects: |
+  #       array:
+  #         - |
+  #           objectName: AZURE-API-KEY
+  #           objectType: secret
+  #
+  # extraVolumes:
+  #   - name: keyvault-secrets
+  #     csi:
+  #       driver: secrets-store.csi.k8s.io
+  #       readOnly: true
+  #       volumeAttributes:
+  #         secretProviderClass: voicebox-keyvault
+  #
+  # extraVolumeMounts:
+  #   - name: keyvault-secrets
+  #     mountPath: /mnt/secrets-store
+  #     readOnly: true
+  #
   # serviceAccount:
   #   annotations:
   #     azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
-  # podLabels:
-  #   azure.workload.identity/use: "true"
 
   environmentVariables:
     VBX_CONFIG_FILE: /voicebox-config/vbx_config.json

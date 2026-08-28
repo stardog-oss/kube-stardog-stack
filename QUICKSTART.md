@@ -337,7 +337,7 @@ kubectl get secret stardog-license --namespace stardog-ns
 
 ## Prepare the values.yaml File
 
-Create a `quickstart_values.yaml` file with the following configuration. Pay special attention to the `certIssuer` and `gateway` sections — incorrect values here are the most common source of deployment failures.
+Create a `quickstart_values.yaml` file with the following configuration. Pay special attention to the `certIssuer` and `gateway` sections — incorrect values here are the most common source of deployment failures. The example below lets the chart create the shared Gateway. If your cluster already has a shared Envoy Gateway, use the commented `createGateway: false` pattern shown below; this is the same pattern used by `doc/private-notes/values/VBX_1_values.yaml`.
 
 ```yaml
 global:
@@ -354,6 +354,20 @@ global:
     name: stardog-gateway
     namespace: envoy-gateway      # MUST be the Envoy Gateway controller namespace, not stardog-ns
     domain: your-domain.com       # required — must match your DNS record
+    sparqlSectionName: sparql
+    sparqlHttpSectionName: sparql-http
+    launchpadSectionName: launchpad
+    launchpadHttpSectionName: launchpad-http
+
+    # Existing shared Gateway example:
+    # createGateway: false
+    # name: cmc-envoy-gateway
+    # namespace: envoy-gateway
+    # domain: cmc.training.sd-testlab.com
+    # sparqlSectionName: https
+    # sparqlHttpSectionName: http
+    # launchpadSectionName: https
+    # launchpadHttpSectionName: http
   certIssuer:
     enabled: true
     clusterScoped: true           # REQUIRED — gateway is in a different namespace than the release
@@ -411,8 +425,13 @@ launchpad:
     repository: stardog/launchpad
     tag: "v4.0.0"
   environmentVariables:
-    STARDOG_INTERNAL_ENDPOINT: "http://stardog-stardog:5820"
     FRIENDLY_NAME: "My Stardog Applications"
+    # Microsoft Entra login and SSO connection example:
+    # AZURE_AUTH_ENABLED: "true"
+    # AZURE_ON_BEHALF_OF_USER_FLOW_ENABLED: "true"
+    # SSOCONNECTION_DEVELOPMENT_AZURE_DISPLAY_NAME: OBO_CONNECTION
+    # SSOCONNECTION_DEVELOPMENT_AZURE_OBO_SCOPE: api://<STARDOG_CLIENT_ID>/user_login
+    # SSOCONNECTION_DEVELOPMENT_AZURE_STARDOG_ENDPOINT: https://sparql.your-domain.com
 
 voicebox:
   image:
@@ -444,6 +463,13 @@ voicebox:
         "llm_provider": "azure",
         "llm_name": "gpt-4o",
         "server_url": "https://example-ai.services.ai.azure.com/models"
+      },
+      "query_kg_config": {
+        "generate_query_config": {
+          "llm_config": {
+            "max_tokens": 7000
+          }
+        }
       }
     }
 ```
@@ -454,7 +480,7 @@ voicebox:
 
 > **`solvers.http01.gatewayHTTPRoute` is required.** Without it, cert-manager creates `Ingress` resources that Envoy Gateway cannot process. Let's Encrypt will never complete the HTTP-01 challenge and all TLS certificates will stay `Ready: False` indefinitely.
 >
-> **Use the HTTP listener section names for ACME.** For the shared Gateway created by this chart, the HTTP-01 solver parent refs must use `sectionName: sparql-http` and `sectionName: launchpad-http`. Do not point ACME solvers at the HTTPS listeners (`sparql` or `launchpad`), because those listeners are not ready until their TLS secrets exist.
+> **Use the HTTP listener section names for ACME.** For a Gateway created by this chart, the HTTP-01 solver parent refs normally use `sectionName: sparql-http` and `sectionName: launchpad-http`. For an existing shared Gateway, use that Gateway's real HTTP listener names. In the `VBX_1` style deployment those are `http`, while the HTTPS route listener names are `https`.
 
 > **Voicebox uses the image default command.** Leave `voicebox.command: []` unless you have a custom image that requires an explicit command override.
 
@@ -506,17 +532,98 @@ voicebox:
         name: voicebox-runtime-env
 ```
 
-For file-based secrets mounted by the Secrets Store CSI driver, use `extraVolumes` and `extraVolumeMounts`:
+For file-based secrets mounted by the Secrets Store CSI driver, use `secretProviderClass`, `extraVolumes`, and `extraVolumeMounts`. The working `VBX_1` values file uses this pattern for Launchpad and Voicebox:
 
 ```yaml
-stardog:
+launchpad:
+  secretProviderClass:
+    enabled: true
+    name: launchpad-keyvault
+    provider: azure
+    secretObjects:
+      - secretName: launchpad-runtime-env
+        type: Opaque
+        data:
+          - objectName: AZURE-CLIENT-ID
+            key: AZURE_CLIENT_ID
+          - objectName: AZURE-CLIENT-SECRET
+            key: AZURE_CLIENT_SECRET
+          - objectName: AZURE-TENANT
+            key: AZURE_TENANT
+          - objectName: SSOCONNECTION-DEVELOPMENT-AZURE-CLIENT-ID
+            key: SSOCONNECTION_DEVELOPMENT_AZURE_CLIENT_ID
+          - objectName: SSOCONNECTION-DEVELOPMENT-AZURE-TENANT
+            key: SSOCONNECTION_DEVELOPMENT_AZURE_TENANT
+    parameters:
+      usePodIdentity: "false"
+      useVMManagedIdentity: "false"
+      clientID: 00000000-0000-0000-0000-000000000000
+      keyvaultName: example-keyvault
+      tenantId: 00000000-0000-0000-0000-000000000000
+      objects: |
+        array:
+          - |
+            objectName: AZURE-CLIENT-ID
+            objectType: secret
+          - |
+            objectName: AZURE-CLIENT-SECRET
+            objectType: secret
+          - |
+            objectName: AZURE-TENANT
+            objectType: secret
+          - |
+            objectName: SSOCONNECTION-DEVELOPMENT-AZURE-CLIENT-ID
+            objectType: secret
+          - |
+            objectName: SSOCONNECTION-DEVELOPMENT-AZURE-TENANT
+            objectType: secret
+  envFrom:
+    - secretRef:
+        name: launchpad-runtime-env
   extraVolumes:
     - name: keyvault-secrets
       csi:
         driver: secrets-store.csi.k8s.io
         readOnly: true
         volumeAttributes:
-          secretProviderClass: stardog-keyvault
+          secretProviderClass: launchpad-keyvault
+  extraVolumeMounts:
+    - name: keyvault-secrets
+      mountPath: /mnt/secrets-store
+      readOnly: true
+
+voicebox:
+  secretProviderClass:
+    enabled: true
+    name: voicebox-keyvault
+    provider: azure
+    secretObjects:
+      - secretName: voicebox-runtime-env
+        type: Opaque
+        data:
+          - objectName: AZURE-API-KEY
+            key: AZURE_API_KEY
+    parameters:
+      usePodIdentity: "false"
+      useVMManagedIdentity: "false"
+      clientID: 00000000-0000-0000-0000-000000000000
+      keyvaultName: example-keyvault
+      tenantId: 00000000-0000-0000-0000-000000000000
+      objects: |
+        array:
+          - |
+            objectName: AZURE-API-KEY
+            objectType: secret
+  envFrom:
+    - secretRef:
+        name: voicebox-runtime-env
+  extraVolumes:
+    - name: keyvault-secrets
+      csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: voicebox-keyvault
   extraVolumeMounts:
     - name: keyvault-secrets
       mountPath: /mnt/secrets-store
@@ -527,6 +634,13 @@ If you use AKS Workload Identity with the Secrets Store CSI driver, annotate the
 
 ```yaml
 stardog:
+  serviceAccount:
+    annotations:
+      azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+  podLabels:
+    azure.workload.identity/use: "true"
+
+launchpad:
   serviceAccount:
     annotations:
       azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000

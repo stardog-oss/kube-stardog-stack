@@ -1,16 +1,19 @@
 # Changelog
 
 ## 1.2.1
-- Add Azure Key Vault-friendly extension points to Launchpad and Voicebox, including `envFrom`, `extraEnv`, `extraVolumes`, and `extraVolumeMounts`.
-- Add Launchpad ServiceAccount rendering/assignment with annotations and pod label support for workload identity.
-- Add Voicebox frame store support, optional StatefulSet workload rendering, multi-file config directory support, and storage readiness defaults.
-- Fix Voicebox startup with newer Voicebox service images by letting the image use its default ENTRYPOINT/CMD.
-- Add a Voicebox `command` value for explicit command customization.
-- Update the bundled Stardog Log4j2 defaults for rolling file logging and broader Stardog namespace coverage.
-- Update bundled subcharts:
-  - Stardog: 4.1.1
-  - Launchpad: 1.0.6
-  - Voicebox: 1.2.0
+kube-stardog-stack 1.2.1 adds support for Voicebox 1.0 and Launchpad 4.0, with the chart updates needed to run the newer application images cleanly in Kubernetes.
+  - Added support for Launchpad 4.0 deployment patterns, including ServiceAccount rendering, pod labels, annotations, and workload identity support.
+  - Added Azure Key Vault-friendly extension points for Launchpad and Voicebox: `envFrom`, `extraEnv`, `extraVolumes`, and `extraVolumeMounts`.
+  - Added Voicebox 1.0 support, including frame store configuration, storage readiness checks, and compatibility with newer Voicebox service images.
+  - Added optional Voicebox `Deployment` or `StatefulSet` workload selection.
+  - Added multi-file Voicebox config support through `configFiles` and `VBX_CONFIG_DIR`, enabling different LLM configurations per Stardog endpoint/database pair.
+  - Fixed Voicebox startup with newer service images by letting the image use its default `ENTRYPOINT`/`CMD`.
+  - Added optional `command` override for deployments that need an explicit Voicebox container command.
+  - Updated Stardog Log4j2 defaults for rolling file logging and broader Stardog namespace coverage.
+  - Updated bundled subcharts:
+    - Stardog: 4.1.1
+    - Launchpad: 1.0.6
+    - Voicebox: 1.2.0
 
 ## 1.2.0
 - Upgrade note: when upgrading from any `kube-stardog-stack` version earlier than `1.2.0` to `1.2.0` or later, follow `docs/upgrades/statefulset-migration.md` -- the Stardog StatefulSet's service name and pod management policy both changed, requiring the existing StatefulSet controller object to be orphaned and recreated.
