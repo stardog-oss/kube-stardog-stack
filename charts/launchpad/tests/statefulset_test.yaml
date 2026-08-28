@@ -46,6 +46,9 @@ tests:
   - equal:
       path: spec.template.spec.containers[0].ports[0].protocol
       value: "TCP"
+  - equal:
+      path: spec.template.spec.serviceAccountName
+      value: launchpad-RELEASE-NAME
 
 - it: matches PVC name with data mount
   asserts:
@@ -265,3 +268,73 @@ tests:
     - matchRegex:
         path: spec.template.metadata.annotations["checksum/secret"]
         pattern: "^[a-f0-9]{64}$"
+
+- it: should render vault-friendly envFrom and extraEnv entries
+  set:
+    envFrom:
+      - secretRef:
+          name: launchpad-runtime-env
+    extraEnv:
+      - name: AZURE_CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: launchpad-runtime-env
+            key: AZURE_CLIENT_SECRET
+  asserts:
+    - contains:
+        path: spec.template.spec.containers[0].envFrom
+        content:
+          secretRef:
+            name: launchpad-runtime-env
+    - contains:
+        path: spec.template.spec.containers[0].env
+        content:
+          name: AZURE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: launchpad-runtime-env
+              key: AZURE_CLIENT_SECRET
+
+- it: should render extra volume and mount entries for CSI secrets
+  set:
+    extraVolumes:
+      - name: keyvault-secrets
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: launchpad-keyvault
+    extraVolumeMounts:
+      - name: keyvault-secrets
+        mountPath: /mnt/secrets-store
+        readOnly: true
+  asserts:
+    - contains:
+        path: spec.template.spec.volumes
+        content:
+          name: keyvault-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: launchpad-keyvault
+    - contains:
+        path: spec.template.spec.containers[0].volumeMounts
+        content:
+          name: keyvault-secrets
+          mountPath: /mnt/secrets-store
+          readOnly: true
+
+- it: should render pod labels and annotations for workload identity
+  set:
+    podLabels:
+      azure.workload.identity/use: "true"
+    podAnnotations:
+      custom.annotation/example: "enabled"
+  asserts:
+    - equal:
+        path: spec.template.metadata.labels["azure.workload.identity/use"]
+        value: "true"
+    - equal:
+        path: spec.template.metadata.annotations["custom.annotation/example"]
+        value: "enabled"

@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.1.1
+- Update the bundled Log4j2 configuration to write Stardog and ZooKeeper logs through rolling file appenders with size/time rotation and retention cleanup.
+- Route root WARN+ records and additional Stardog namespaces (`com.complexible`, `com.stardog`, and `com.clarkparsia`) into `stardog.log`.
+- Suppress noisy Tomcat JDBC pool messages and keep BI channel-close warnings capped.
+
 ## 4.1.0
 - Harden clustered Stardog/ZooKeeper behavior:
   - Change clustered Stardog StatefulSets to use a headless service for stable pod DNS names. This requires the StatefulSet migration when upgrading to `4.1.0` or later from any earlier Stardog chart version -- whether bundled via the umbrella chart or installed standalone.

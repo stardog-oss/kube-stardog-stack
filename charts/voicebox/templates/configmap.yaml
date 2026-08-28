@@ -1,3 +1,4 @@
+{{- include "voicebox.validate" . -}}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -9,6 +10,21 @@ metadata:
 data:
   vbx_config.json: {{ include "voicebox.configFileJson" . | quote }}
 ---
+{{- $configFiles := .Values.configFiles | default (dict) -}}
+{{- if $configFiles.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sdcommon.fullname" . }}-config-files
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdcommon.labels.standard" . | nindent 4 }}
+data:
+{{- range $name, $content := ($configFiles.files | default (dict)) }}
+  {{ $name }}: {{ $content | quote }}
+{{- end }}
+---
+{{- end }}
 {{- $customCaBundle := .Values.customCaBundle | default (dict) -}}
 {{- if and $customCaBundle.enabled $customCaBundle.bundle }}
 apiVersion: v1
@@ -67,7 +83,7 @@ data:
         cores: {{ .Values.bitesService.sparkApplication.driver.cores }}
         coreLimit: {{ .Values.bitesService.sparkApplication.driver.coreLimit | quote }}
         memory: {{ .Values.bitesService.sparkApplication.driver.memory | quote }}
-        serviceAccount: {{ .Values.serviceAccountName | default "voicebox" }}
+        serviceAccount: {{ include "voicebox.serviceAccountName" . }}
         envVars:
           HOME: "/tmp"
         {{- if .Values.bitesService.sparkApplication.volumes }}

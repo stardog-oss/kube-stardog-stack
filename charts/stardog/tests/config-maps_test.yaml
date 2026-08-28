@@ -21,6 +21,21 @@ tests:
           path: data["log4j2.xml"]
           value: "<Configuration status=\"WARN\"/>\n"
 
+  - it: includes rolling file defaults in bundled log4j config
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-log4j
+    asserts:
+      - matchRegex:
+          path: data["log4j2.xml"]
+          pattern: "<RollingFile\\s+name=\"stardogAppender\""
+      - matchRegex:
+          path: data["log4j2.xml"]
+          pattern: "<SizeBasedTriggeringPolicy size=\"250 MB\"/>"
+      - matchRegex:
+          path: data["log4j2.xml"]
+          pattern: "<Logger name=\"com\\.stardog\" level=\"INFO\" additivity=\"false\">"
+
   - it: injects cluster, jwt, and BI settings into stardog.properties
     values:
       - values/values-stardog.yaml

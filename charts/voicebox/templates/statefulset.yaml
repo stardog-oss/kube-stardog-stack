@@ -1,5 +1,5 @@
 {{- include "voicebox.validate" . -}}
-{{- if eq (include "voicebox.workloadType" .) "Deployment" -}}
+{{- if eq (include "voicebox.workloadType" .) "StatefulSet" -}}
 {{- $envVars := .Values.environmentVariables | default (dict) -}}
 {{- $tmpDir := get $envVars "TMPDIR" | default "/tmp" -}}
 {{- $vbxConfigFile := get $envVars "VBX_CONFIG_FILE" | default "/voicebox-config/vbx_config.json" -}}
@@ -14,18 +14,15 @@
 {{- $frameStoreS3 := $frameStore.s3 | default (dict) -}}
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ include "sdcommon.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "sdcommon.labels.standard" . | nindent 4 }}
 spec:
+  serviceName: {{ include "voicebox.headlessServiceName" . }}
   replicas: {{ .Values.replicaCount }}
-  {{- if and $frameStore.enabled (eq $frameStoreBackend "local") }}
-  strategy:
-    type: Recreate
-  {{- end }}
   selector:
     matchLabels:
       {{ include "sdcommon.labels.selector" . | nindent 6 }}
@@ -219,10 +216,10 @@ spec:
           configMap:
             name: {{ include "sdcommon.fullname" . }}-config-files
       {{- end }}
-      {{- if and $frameStore.enabled (eq $frameStoreBackend "local") }}
+      {{- if and $frameStore.enabled (eq $frameStoreBackend "local") $frameStoreLocal.existingClaim }}
         - name: voicebox-frames
           persistentVolumeClaim:
-            claimName: {{ $frameStoreLocal.existingClaim | default (include "voicebox.frameStorePvcName" .) }}
+            claimName: {{ $frameStoreLocal.existingClaim }}
       {{- end }}
       {{- if $customCaBundle.enabled }}
         - name: voicebox-custom-ca-bundle{{ include "voicebox.customCaBundleVolumeSource" . | trim | nindent 10 }}
@@ -238,4 +235,20 @@ spec:
       {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
+  {{- if and $frameStore.enabled (eq $frameStoreBackend "local") (not $frameStoreLocal.existingClaim) }}
+  volumeClaimTemplates:
+    - metadata:
+        name: voicebox-frames
+        labels:
+          {{- include "sdcommon.labels.standard" . | nindent 10 }}
+      spec:
+        accessModes:
+          {{- toYaml ($frameStoreLocal.accessModes | default (list "ReadWriteOnce")) | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ $frameStoreLocal.size | default "20Gi" }}
+        {{- if $frameStoreLocal.storageClassName }}
+        storageClassName: {{ $frameStoreLocal.storageClassName | quote }}
+        {{- end }}
+  {{- end }}
 {{- end }}

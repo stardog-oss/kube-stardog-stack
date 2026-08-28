@@ -37,6 +37,35 @@ app.kubernetes.io/component: {{ .Chart.Name }}
 {{ toYaml $m }}
 {{- end -}}
 
+{{/* Optional Secrets Store CSI SecretProviderClass */}}
+{{- define "sdcommon.secretProviderClass" -}}
+{{- $spc := default dict .Values.secretProviderClass -}}
+{{- if $spc.enabled }}
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: {{ default (printf "%s-keyvault" (include "sdcommon.fullname" .)) $spc.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdcommon.labels.standard" . | nindent 4 }}
+  {{- with $spc.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  provider: {{ default "azure" $spc.provider }}
+  {{- with $spc.secretObjects }}
+  secretObjects:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $spc.parameters }}
+  parameters:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end -}}
+
 {{- define "sdcommon.imagePullSecret" -}}
 {{- if and (hasKey .Values "image") .Values.image.username .Values.image.password -}}
 {{- printf "{\"auths\": {\"%s\": {\"auth\": \"%s\"}}}" .Values.image.registry (printf "%s:%s" .Values.image.username .Values.image.password | b64enc) | b64enc -}}

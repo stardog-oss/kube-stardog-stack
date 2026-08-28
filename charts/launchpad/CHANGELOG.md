@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.6
+- Add `envFrom`, `extraEnv`, `extraVolumes`, and `extraVolumeMounts` hooks for external secret systems such as Azure Key Vault CSI.
+- Render and assign the configured Launchpad ServiceAccount so `serviceAccount.annotations` can be used for workload identity.
+- Add `podLabels` and render `podAnnotations` on the Launchpad pod template.
+
 ## 1.0.5
 - Update chart icon to the centralized Stardog open-source asset.
 

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- Copyright (c) 2010 - 2019, Stardog Union. <http://www.stardog.com> -->
+<!-- Copyright (c) 2010 - 2026, Stardog Union. <http://www.stardog.com> -->
 <!-- For more information about licensing and copyright of this software, please contact -->
 <!-- sales@stardog.com or visit http://stardog.com -->
 
@@ -9,54 +9,89 @@
 		<Property name="STARDOG_LOG">stardog</Property><!-- do not edit -->
 		<Property name="ZOOKEEPER_LOG">zookeeper</Property>
 		<Property name="LOG_DIR">${sys:stardog.home}</Property>
-		<Property name="ARCHIVE">${LOG_DIR}/.logs_archive</Property><!-- for use with RollingFile -->
-		<Property name="PATTERN">%-5level %d [%t] %c:%M(%L): %m%n</Property>
+		<Property name="PATTERN">%-5level %d{ISO8601_OFFSET_DATE_TIME_HHMM} [%t] %c:%M(%L): %m%n</Property>
 	</Properties>
 	<Appenders>
 		<Console name="STDOUT" target="SYSTEM_OUT">
 			<JsonLayout compact="true" eventEol="true" includeStacktrace="true" stacktraceAsString="true" />
 		</Console>
 
-		<File name="stardogAppender"
-			  fileName="${LOG_DIR}/${STARDOG_LOG}.log">
+		<RollingFile
+			name="stardogAppender"
+			fileName="${LOG_DIR}/${STARDOG_LOG}.log"
+			filePattern="${LOG_DIR}/${STARDOG_LOG}-%d{yyyy-MM-dd}-%i.log.gz">
 			<PatternLayout pattern="${PATTERN}"/>
-		</File>
-		<File name="zookeeperAppender"
-			  fileName="${LOG_DIR}/${ZOOKEEPER_LOG}.log">
+			<Policies>
+				<TimeBasedTriggeringPolicy interval="7" modulate="true"/>
+				<SizeBasedTriggeringPolicy size="250 MB"/>
+			</Policies>
+			<DefaultRolloverStrategy max="20">
+				<Delete basePath="${LOG_DIR}" maxDepth="2">
+					<IfFileName glob="${STARDOG_LOG}-*.log.gz" />
+					<IfLastModified age="180d" />
+				</Delete>
+			</DefaultRolloverStrategy>
+		</RollingFile>
+
+		<RollingFile
+			name="zookeeperAppender"
+			fileName="${LOG_DIR}/${ZOOKEEPER_LOG}.log"
+			filePattern="${LOG_DIR}/${ZOOKEEPER_LOG}-%d{yyyy-MM-dd}-%i.log.gz">
 			<PatternLayout pattern="${PATTERN}"/>
-		</File> 
+			<Policies>
+				<TimeBasedTriggeringPolicy interval="7" modulate="true"/>
+				<SizeBasedTriggeringPolicy size="100 MB"/>
+			</Policies>
+			<DefaultRolloverStrategy max="5">
+				<Delete basePath="${LOG_DIR}" maxDepth="2">
+					<IfFileName glob="${ZOOKEEPER_LOG}-*.log.gz" />
+					<IfLastModified age="180d" />
+				</Delete>
+			</DefaultRolloverStrategy>
+		</RollingFile>
 	</Appenders>
 	<Loggers>
+		<!-- everything else, including third-party (DJL, Calcite, Curator, Netty, Undertow, JDBC
+		     drivers), now lands in stardog.log at WARN+ instead of stdout only -->
 		<Root level="WARN">
 			<AppenderRef ref="STDOUT"/>
+			<AppenderRef ref="stardogAppender"/>
 		</Root>
+
+		<!-- Stardog code lives in four top-level namespaces, not just com.complexible.stardog.
+		     Without these three, ~21% of our own logger declarations (transactions, MVCC, memory,
+		     utils, the native storage engine, stark, the reasoner) never reach stardog.log and are
+		     capped at WARN. log4j2 resolves the longest matching name, so the more specific
+		     loggers below still win. -->
+		<Logger name="com.complexible" level="INFO" additivity="false">
+			<AppenderRef ref="STDOUT"/>
+			<AppenderRef ref="stardogAppender"/>
+		</Logger>
+		<Logger name="com.stardog" level="INFO" additivity="false">
+			<AppenderRef ref="STDOUT"/>
+			<AppenderRef ref="stardogAppender"/>
+		</Logger>
+		<Logger name="com.clarkparsia" level="INFO" additivity="false">
+			<AppenderRef ref="STDOUT"/>
+			<AppenderRef ref="stardogAppender"/>
+		</Logger>
+
 		<Logger name="com.complexible.stardog" level="INFO" additivity="false">
 			<AppenderRef ref="STDOUT"/>
 			<AppenderRef ref="stardogAppender"/>
 		</Logger>
-		<!-- ignore minor warnings from PDFBox about mis-named Unicode symbols -->
-		<Logger name="org.apache.pdfbox.encoding.Encoding" level="ERROR" additivity="false">
-			<AppenderRef ref="STDOUT"/>
-			<AppenderRef ref="stardogAppender"/>
-		</Logger>
-		<!-- ignore warning from RIO about our replacing their TurtleWriter -->
-		<Logger name="org.com.complexible.common.openrdf.rio.RDFWriterRegistry" level="ERROR" additivity="false">
-			<AppenderRef ref="STDOUT"/>
-			<AppenderRef ref="stardogAppender"/>
-		</Logger>
-		<!-- Ignore minor warnings from BI disconnection -->
+		<!-- ignore warning from Channel closed from BI server https://stardog.atlassian.net/browse/PLAT-3168 -->
 		<Logger name="com.complexible.stardog.serf.mysql.SerfServer" level="ERROR" additivity="false">
-            <AppenderRef ref="STDOUT"/>
-            <AppenderRef ref="stardogAppender"/>
-        </Logger>
+			<AppenderRef ref="STDOUT"/>
+			<AppenderRef ref="stardogAppender"/>
+		</Logger>
 		<!-- redirect all zookeeper records to its own log file -->
 		<Logger name="org.apache.zookeeper" level="INFO" additivity="false">
 			<AppenderRef ref="STDOUT"/>
-			<AppenderRef ref="zookeeperAppender"/> 
+			<AppenderRef ref="zookeeperAppender"/>
 		</Logger>
-
-		<!-- do not edit -->
-		<Logger name="com.complexible.stardog.Kernels" level="INFO" additivity="false">
+		<!-- ignore messages from the Tomcat ConnectionPool https://stardog.atlassian.net/browse/CLOUD-901 -->
+		<Logger name="org.apache.tomcat.jdbc.pool.ConnectionPool" level="OFF" additivity="false">
 			<AppenderRef ref="STDOUT"/>
 		</Logger>
 	</Loggers>

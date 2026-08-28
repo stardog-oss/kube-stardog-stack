@@ -22,14 +22,89 @@
 {{- printf "%v" $svcPort -}}
 {{- end -}}
 
+{{- define "voicebox.serviceAccountName" -}}
+{{- $serviceAccount := .Values.serviceAccount | default (dict) -}}
+{{- coalesce $serviceAccount.name .Values.serviceAccountName "voicebox-sa" -}}
+{{- end -}}
+
+{{- define "voicebox.workloadType" -}}
+{{- $workload := .Values.workload | default (dict) -}}
+{{- $workload.type | default "Deployment" -}}
+{{- end -}}
+
+{{- define "voicebox.frameStoreEnabled" -}}
+{{- $frameStore := .Values.frameStore | default (dict) -}}
+{{- if $frameStore.enabled -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
+{{- define "voicebox.frameStoreBackend" -}}
+{{- $frameStore := .Values.frameStore | default (dict) -}}
+{{- $frameStore.backend | default "local" -}}
+{{- end -}}
+
+{{- define "voicebox.frameStorePvcName" -}}
+{{- printf "%s-frames" (include "sdcommon.fullname" .) -}}
+{{- end -}}
+
+{{- define "voicebox.frameStoreSweeperEnabled" -}}
+{{- $frameStore := .Values.frameStore | default (dict) -}}
+{{- $local := $frameStore.local | default (dict) -}}
+{{- if hasKey $local "sweeperEnabled" -}}
+{{- printf "%v" $local.sweeperEnabled -}}
+{{- else -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{- define "voicebox.headlessServiceName" -}}
+{{- printf "%s-headless" (include "sdcommon.fullname" .) -}}
+{{- end -}}
+
+{{- define "voicebox.validate" -}}
+{{- $workloadType := include "voicebox.workloadType" . -}}
+{{- if not (has $workloadType (list "Deployment" "StatefulSet")) -}}
+{{- fail "voicebox.workload.type must be either Deployment or StatefulSet" -}}
+{{- end -}}
+{{- $frameStore := .Values.frameStore | default (dict) -}}
+{{- if $frameStore.enabled -}}
+  {{- $backend := include "voicebox.frameStoreBackend" . -}}
+  {{- if not (has $backend (list "local" "s3")) -}}
+    {{- fail "voicebox.frameStore.backend must be either local or s3" -}}
+  {{- end -}}
+  {{- if and (eq $backend "local") (gt (int .Values.replicaCount) 1) -}}
+    {{- fail "voicebox.frameStore.backend=local requires voicebox.replicaCount to be 1" -}}
+  {{- end -}}
+  {{- if and (eq $backend "s3") (not $frameStore.s3.bucket) -}}
+    {{- fail "voicebox.frameStore.backend=s3 requires voicebox.frameStore.s3.bucket" -}}
+  {{- end -}}
+{{- end -}}
+{{- $configFiles := .Values.configFiles | default (dict) -}}
+{{- if $configFiles.enabled -}}
+  {{- if not ($configFiles.files | default (dict)) -}}
+    {{- fail "voicebox.configFiles.enabled=true requires at least one entry in voicebox.configFiles.files" -}}
+  {{- end -}}
+  {{- range $name, $content := ($configFiles.files | default (dict)) -}}
+    {{- if not (kindIs "string" $content) -}}
+      {{- fail (printf "voicebox.configFiles.files.%s must be a valid JSON string" $name) -}}
+    {{- end -}}
+    {{- if not $content -}}
+      {{- fail (printf "voicebox.configFiles.files.%s must be valid JSON and cannot be empty" $name) -}}
+    {{- end -}}
+    {{- $_ := mustFromJson $content -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "voicebox.configmapChecksum" -}}
 {{- $payload := dict
   "configFile" .Values.configFile
+  "configFiles" .Values.configFiles
   "customCaBundle" .Values.customCaBundle
+  "frameStore" .Values.frameStore
   "bitesEnabled" .Values.bitesService.enabled
   "bitesImage" .Values.bitesService.image
   "bitesSparkApplication" .Values.bitesService.sparkApplication
-  "serviceAccountName" (.Values.serviceAccountName | default "voicebox")
+  "serviceAccountName" (include "voicebox.serviceAccountName" .)
 -}}
 {{- $payload | toJson | sha256sum -}}
 {{- end }}
