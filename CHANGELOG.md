@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.2
+- Update quickstart documentation and template examples for Launchpad 4.0 and Voicebox 1.0 deployments, including external shared Gateway settings, Entra OBO SSO connection variables, Voicebox query configuration, and Azure Key Vault CSI patterns.
+- Exclude local/private documentation notes and generated Python virtual environments from Helm chart packaging.
+
 ## 1.2.1
 kube-stardog-stack 1.2.1 adds support for Voicebox 1.0 and Launchpad 4.0, with the chart updates needed to run the newer application images cleanly in Kubernetes.
   - Added support for Launchpad 4.0 deployment patterns, including ServiceAccount rendering, pod labels, annotations, and workload identity support.
