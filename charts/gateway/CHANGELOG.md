@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.5
+- Update the common chart dependency to `0.1.8`.
+
 ## 1.0.4
 - Update chart icon to the centralized Stardog open-source asset.
 

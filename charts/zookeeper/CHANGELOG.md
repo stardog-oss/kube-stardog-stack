@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.1
+- Update the common chart dependency to `0.1.8`.
+
 ## 1.1.0
 - Changed `adminServerEnabled` default from `true` to `false` and omit the admin container port unless it's set. Set `adminServerEnabled=true` to keep the previous pod-local AdminServer behavior, and `service.exposeAdmin=true` to expose it through the Service.
 - Expose `podManagementPolicy` as a configurable value; still defaults to `Parallel`, unchanged from the previous hardcoded behavior.
