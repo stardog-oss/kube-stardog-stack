@@ -3,7 +3,7 @@ entries:
   cachetarget:
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.22882867Z"
+    created: "2026-09-01T19:29:02.325531837Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -22,7 +22,7 @@ entries:
     version: 1.0.5
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.227827163Z"
+    created: "2026-09-01T19:29:02.324594628Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -41,7 +41,7 @@ entries:
     version: 1.0.4
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.226997009Z"
+    created: "2026-09-01T19:29:02.323548827Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -60,7 +60,7 @@ entries:
     version: 1.0.3
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.22614895Z"
+    created: "2026-09-01T19:29:02.321553718Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -79,7 +79,7 @@ entries:
     version: 1.0.2
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.224576188Z"
+    created: "2026-09-01T19:29:02.320593206Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -98,7 +98,7 @@ entries:
     version: 1.0.1
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.22300366Z"
+    created: "2026-09-01T19:29:02.31959318Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -118,7 +118,7 @@ entries:
   gateway:
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.231621372Z"
+    created: "2026-09-01T19:29:02.328160691Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -137,7 +137,7 @@ entries:
     version: 1.0.5
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.2306947Z"
+    created: "2026-09-01T19:29:02.327708117Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -156,7 +156,7 @@ entries:
     version: 1.0.4
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.230280635Z"
+    created: "2026-09-01T19:29:02.32728125Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -175,7 +175,7 @@ entries:
     version: 1.0.3
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.229917382Z"
+    created: "2026-09-01T19:29:02.326826943Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -194,7 +194,7 @@ entries:
     version: 1.0.2
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.22955555Z"
+    created: "2026-09-01T19:29:02.326391811Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -213,7 +213,7 @@ entries:
     version: 1.0.1
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.229190055Z"
+    created: "2026-09-01T19:29:02.325963031Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -233,7 +233,63 @@ entries:
   kube-stardog-stack:
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.295545086Z"
+    created: "2026-09-01T19:29:02.4085493Z"
+    dependencies:
+    - name: common
+      repository: file://charts/common
+      version: 0.1.8
+    - condition: global.gateway.enabled
+      name: gateway
+      repository: file://charts/gateway
+      version: 1.0.5
+    - condition: global.stardog.enabled
+      import-values:
+      - child: global
+        parent: global
+      name: stardog
+      repository: file://charts/stardog
+      version: 4.1.1
+    - condition: global.zookeeper.enabled
+      name: zookeeper
+      repository: file://charts/zookeeper
+      version: 1.1.1
+    - condition: global.launchpad.enabled
+      import-values:
+      - child: global
+        parent: global
+      name: launchpad
+      repository: file://charts/launchpad
+      version: 1.0.6
+    - condition: global.voicebox.enabled
+      import-values:
+      - child: global
+        parent: global
+      name: voicebox
+      repository: file://charts/voicebox
+      version: 1.2.0
+    - condition: global.cachetarget.enabled
+      import-values:
+      - child: global
+        parent: global
+      name: cachetarget
+      repository: file://charts/cachetarget
+      version: 1.0.5
+    description: Helm chart to deploy the complete Stardog ecosystem, including Stardog,
+      Launchpad, and Voicebox
+    digest: b2a8389aa4ee3260f637b66ab354eb0bbaba3ac0b96fea01150dbcfe4ddc1302
+    home: https://stardog-union.github.io/kube-stardog-stack/
+    icon: https://raw.githubusercontent.com/stardog-oss/.github/main/assets/stardog_open_source_light.svg
+    maintainers:
+    - email: oss@stardog.com
+      name: Stardog Open-Source Community
+      url: https://www.stardog.com
+    name: kube-stardog-stack
+    urls:
+    - https://stardog-oss.github.io/kube-stardog-stack/kube-stardog-stack-1.3.0.tgz
+    version: 1.3.0
+  - apiVersion: v2
+    appVersion: latest
+    created: "2026-09-01T19:29:02.399989938Z"
     dependencies:
     - name: common
       repository: file://charts/common
@@ -289,7 +345,7 @@ entries:
     version: 1.2.2
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.284940396Z"
+    created: "2026-09-01T19:29:02.392892858Z"
     dependencies:
     - name: common
       repository: file://charts/common
@@ -345,7 +401,7 @@ entries:
     version: 1.2.0
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.278474532Z"
+    created: "2026-09-01T19:29:02.384545394Z"
     dependencies:
     - name: common
       repository: file://charts/common
@@ -401,7 +457,7 @@ entries:
     version: 1.1.2
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.271320677Z"
+    created: "2026-09-01T19:29:02.376441639Z"
     dependencies:
     - name: common
       repository: file://charts/common
@@ -457,7 +513,7 @@ entries:
     version: 1.1.1
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.26462167Z"
+    created: "2026-09-01T19:29:02.368580868Z"
     dependencies:
     - name: common
       repository: file://charts/common
@@ -513,7 +569,7 @@ entries:
     version: 1.1.0
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.258143373Z"
+    created: "2026-09-01T19:29:02.361218483Z"
     dependencies:
     - name: common
       repository: file://charts/common
@@ -569,7 +625,7 @@ entries:
     version: 1.0.4
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.252646104Z"
+    created: "2026-09-01T19:29:02.35477951Z"
     dependencies:
     - name: common
       repository: file://charts/common
@@ -625,7 +681,7 @@ entries:
     version: 1.0.3
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.237142287Z"
+    created: "2026-09-01T19:29:02.334659073Z"
     dependencies:
     - name: common
       repository: file://charts/common
@@ -682,7 +738,7 @@ entries:
   launchpad:
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.305832175Z"
+    created: "2026-09-01T19:29:02.419005878Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -701,7 +757,7 @@ entries:
     version: 1.0.6
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.304627766Z"
+    created: "2026-09-01T19:29:02.417678682Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -720,7 +776,7 @@ entries:
     version: 1.0.5
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.303532659Z"
+    created: "2026-09-01T19:29:02.416431856Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -739,7 +795,7 @@ entries:
     version: 1.0.4
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.302415787Z"
+    created: "2026-09-01T19:29:02.415241846Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -758,7 +814,7 @@ entries:
     version: 1.0.3
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.301294484Z"
+    created: "2026-09-01T19:29:02.413985061Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -777,7 +833,7 @@ entries:
     version: 1.0.2
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.298893405Z"
+    created: "2026-09-01T19:29:02.412753123Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -796,7 +852,7 @@ entries:
     version: 1.0.1
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.297273781Z"
+    created: "2026-09-01T19:29:02.410018481Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -816,7 +872,7 @@ entries:
   stardog:
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.324484316Z"
+    created: "2026-09-01T19:29:02.436842811Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -835,7 +891,7 @@ entries:
     version: 4.1.1
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.321286828Z"
+    created: "2026-09-01T19:29:02.434513775Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -854,7 +910,7 @@ entries:
     version: 4.1.0
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.318004019Z"
+    created: "2026-09-01T19:29:02.432178409Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -873,7 +929,7 @@ entries:
     version: 4.0.4
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.314431892Z"
+    created: "2026-09-01T19:29:02.429765036Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -892,7 +948,7 @@ entries:
     version: 4.0.3
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.31255632Z"
+    created: "2026-09-01T19:29:02.4263629Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -911,7 +967,7 @@ entries:
     version: 4.0.2
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.310624543Z"
+    created: "2026-09-01T19:29:02.424184106Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -930,7 +986,7 @@ entries:
     version: 4.0.1
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.308652211Z"
+    created: "2026-09-01T19:29:02.422084258Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -950,7 +1006,7 @@ entries:
   voicebox:
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.331323219Z"
+    created: "2026-09-01T19:29:02.445522168Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -969,7 +1025,7 @@ entries:
     version: 1.2.0
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.330206343Z"
+    created: "2026-09-01T19:29:02.443135671Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -988,7 +1044,7 @@ entries:
     version: 1.1.3
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.329279701Z"
+    created: "2026-09-01T19:29:02.442060675Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -1007,7 +1063,7 @@ entries:
     version: 1.1.2
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.328276626Z"
+    created: "2026-09-01T19:29:02.441043548Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -1026,7 +1082,7 @@ entries:
     version: 1.1.1
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.326536093Z"
+    created: "2026-09-01T19:29:02.440127318Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -1045,7 +1101,7 @@ entries:
     version: 1.1.0
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.325720459Z"
+    created: "2026-09-01T19:29:02.439176795Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -1064,7 +1120,7 @@ entries:
     version: 1.0.1
   - apiVersion: v2
     appVersion: latest
-    created: "2026-08-31T14:26:18.32520579Z"
+    created: "2026-09-01T19:29:02.438257505Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -1084,7 +1140,7 @@ entries:
   zookeeper:
   - apiVersion: v2
     appVersion: 3.9.4
-    created: "2026-08-31T14:26:18.338920123Z"
+    created: "2026-09-01T19:29:02.455699314Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -1103,7 +1159,7 @@ entries:
     version: 1.1.1
   - apiVersion: v2
     appVersion: 3.9.4
-    created: "2026-08-31T14:26:18.337781755Z"
+    created: "2026-09-01T19:29:02.45339913Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -1122,7 +1178,7 @@ entries:
     version: 1.1.0
   - apiVersion: v2
     appVersion: 3.9.4
-    created: "2026-08-31T14:26:18.336588154Z"
+    created: "2026-09-01T19:29:02.451250815Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -1141,7 +1197,7 @@ entries:
     version: 1.0.3
   - apiVersion: v2
     appVersion: 3.9.4
-    created: "2026-08-31T14:26:18.335525572Z"
+    created: "2026-09-01T19:29:02.449937135Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -1160,7 +1216,7 @@ entries:
     version: 1.0.2
   - apiVersion: v2
     appVersion: 3.9.4
-    created: "2026-08-31T14:26:18.334383887Z"
+    created: "2026-09-01T19:29:02.448700617Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -1179,7 +1235,7 @@ entries:
     version: 1.0.1
   - apiVersion: v2
     appVersion: 3.9.4
-    created: "2026-08-31T14:26:18.332410298Z"
+    created: "2026-09-01T19:29:02.447483928Z"
     dependencies:
     - name: common
       repository: file://../common
@@ -1196,4 +1252,4 @@ entries:
     urls:
     - https://stardog-oss.github.io/kube-stardog-stack/zookeeper-1.0.0.tgz
     version: 1.0.0
-generated: "2026-08-31T14:26:18.221930558Z"
+generated: "2026-09-01T19:29:02.318456259Z"
