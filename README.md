@@ -37,6 +37,10 @@ Related architecture note:
 
 - [Per-pod Prometheus collection for external monitoring](docs/prometheus-option-1.md)
 
+Operational documentation:
+
+- [FAQ and how-to articles](docs/faq/README.md)
+
 ## Components
 
 ### Stardog
