@@ -1,0 +1,254 @@
+{{- include "voicebox.validate" . -}}
+{{- if eq (include "voicebox.workloadType" .) "StatefulSet" -}}
+{{- $envVars := .Values.environmentVariables | default (dict) -}}
+{{- $tmpDir := get $envVars "TMPDIR" | default "/tmp" -}}
+{{- $vbxConfigFile := get $envVars "VBX_CONFIG_FILE" | default "/voicebox-config/vbx_config.json" -}}
+{{- $vbxBitesConfigFile := get $envVars "VBX_BITES_CONFIG_FILE" | default "/bites-voicebox-config/vbx_bites_config.yaml" -}}
+{{- $servicePort := include "voicebox.servicePort" . | int -}}
+{{- $customCaBundle := .Values.customCaBundle | default (dict) -}}
+{{- $customCaMountPath := $customCaBundle.mountPath | default "/etc/ssl/certs/voicebox-custom-ca-bundle.crt" -}}
+{{- $configFiles := .Values.configFiles | default (dict) -}}
+{{- $frameStore := .Values.frameStore | default (dict) -}}
+{{- $frameStoreBackend := include "voicebox.frameStoreBackend" . -}}
+{{- $frameStoreLocal := $frameStore.local | default (dict) -}}
+{{- $frameStoreS3 := $frameStore.s3 | default (dict) -}}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "sdcommon.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdcommon.labels.standard" . | nindent 4 }}
+spec:
+  serviceName: {{ include "voicebox.headlessServiceName" . }}
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{ include "sdcommon.labels.selector" . | nindent 6 }}
+      app: {{ include "sdcommon.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "sdcommon.fullname" . }}
+        {{ include "sdcommon.labels.standard" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include "voicebox.configmapChecksum" . }}
+        checksum/secret: {{ include "voicebox.secretChecksum" . }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      {{- if and (hasKey .Values "image") .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      {{- end }}
+  {{- if and (hasKey .Values "image") .Values.image.username .Values.image.password }}
+      imagePullSecrets:
+        - name: {{ .Release.Name }}-voicebox-image-pull-secret
+      {{- end }}
+      serviceAccountName: {{ include "voicebox.serviceAccountName" . }}
+      containers:
+        - name: {{ include "sdcommon.fullname" . }}
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+          securityContext: 
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- if .Values.command }}
+          command:
+            {{- toYaml .Values.command | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: {{ (index .Values.ports 0).name }}
+              containerPort: {{ $servicePort }}
+              protocol: TCP
+          env:
+            - name: VBX_CONFIG_FILE
+              value: {{ $vbxConfigFile | quote }}
+            - name: TMPDIR
+              value: {{ $tmpDir | quote }}
+          {{- if $configFiles.enabled }}
+            - name: VBX_CONFIG_DIR
+              value: {{ $configFiles.mountPath | default "/voicebox-config-dir" | quote }}
+          {{- end }}
+          {{- if $frameStore.enabled }}
+            - name: VOICEBOX_FRAME_STORE_BACKEND
+              value: {{ $frameStoreBackend | quote }}
+            - name: VOICEBOX_FRAME_STORE_CACHE_SIZE
+              value: {{ $frameStore.cacheSize | default 100 | quote }}
+            {{- if eq $frameStoreBackend "local" }}
+            - name: VOICEBOX_FRAME_STORE_LOCAL_PATH
+              value: {{ $frameStoreLocal.path | default "/var/lib/voicebox/frames" | quote }}
+            - name: VOICEBOX_FRAME_STORE_LOCAL_TTL_DAYS
+              value: {{ $frameStoreLocal.ttlDays | default 7 | quote }}
+            - name: VOICEBOX_FRAME_STORE_SWEEPER_ENABLED
+              value: {{ include "voicebox.frameStoreSweeperEnabled" . | quote }}
+            {{- if $frameStoreLocal.sweepIntervalSeconds }}
+            - name: VOICEBOX_FRAME_STORE_SWEEP_INTERVAL_SECONDS
+              value: {{ $frameStoreLocal.sweepIntervalSeconds | quote }}
+            {{- end }}
+            - name: VOICEBOX_FRAME_STORE_LARGE_FRAME_WARN_MB
+              value: {{ $frameStoreLocal.largeFrameWarnMb | default 10 | quote }}
+            {{- else if eq $frameStoreBackend "s3" }}
+            - name: VOICEBOX_FRAME_STORE_S3_BUCKET
+              value: {{ $frameStoreS3.bucket | quote }}
+            - name: VOICEBOX_FRAME_STORE_S3_PREFIX
+              value: {{ $frameStoreS3.prefix | default "voicebox/frames" | quote }}
+            {{- end }}
+          {{- end }}
+          {{- if $customCaBundle.enabled }}
+            - name: REQUESTS_CA_BUNDLE
+              value: {{ $customCaMountPath | quote }}
+            - name: SSL_CERT_FILE
+              value: {{ $customCaMountPath | quote }}
+          {{- end }}
+          {{- if .Values.bitesService.enabled }}
+            - name: VBX_BITES_CONFIG_FILE
+              value: {{ $vbxBitesConfigFile | quote }}
+          {{- end }}
+          {{- range $key, $value := $envVars }}
+          {{- if and (ne $key "TMPDIR") (ne $key "VBX_CONFIG_FILE") (ne $key "VBX_CONFIG_DIR") (ne $key "VBX_BITES_CONFIG_FILE") (not (and $frameStore.enabled (has $key (list "VOICEBOX_FRAME_STORE_BACKEND" "VOICEBOX_FRAME_STORE_CACHE_SIZE" "VOICEBOX_FRAME_STORE_LOCAL_PATH" "VOICEBOX_FRAME_STORE_LOCAL_TTL_DAYS" "VOICEBOX_FRAME_STORE_SWEEPER_ENABLED" "VOICEBOX_FRAME_STORE_SWEEP_INTERVAL_SECONDS" "VOICEBOX_FRAME_STORE_LARGE_FRAME_WARN_MB" "VOICEBOX_FRAME_STORE_S3_BUCKET" "VOICEBOX_FRAME_STORE_S3_PREFIX")))) (not (and $customCaBundle.enabled (or (eq $key "REQUESTS_CA_BUNDLE") (eq $key "SSL_CERT_FILE")))) }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+          {{- end }}
+          {{- end }}
+          {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.startupProbe.path }}
+              port: {{ (index .Values.ports 0).name }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
+              port: {{ (index .Values.ports 0).name }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: {{ (index .Values.ports 0).name }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}          
+          volumeMounts:
+            - name: tmp
+              mountPath: {{ $tmpDir | quote }}
+            - name: {{ include "sdcommon.fullname" . }}
+              mountPath: {{ $vbxConfigFile | quote }}
+              subPath: vbx_config.json
+              readOnly: true
+            {{- if $configFiles.enabled }}
+            - name: {{ include "sdcommon.fullname" . }}-config-files
+              mountPath: {{ $configFiles.mountPath | default "/voicebox-config-dir" | quote }}
+              readOnly: true
+            {{- end }}
+            {{- if and $frameStore.enabled (eq $frameStoreBackend "local") }}
+            - name: voicebox-frames
+              mountPath: {{ $frameStoreLocal.path | default "/var/lib/voicebox/frames" | quote }}
+            {{- end }}
+            {{- if $customCaBundle.enabled }}
+            - name: voicebox-custom-ca-bundle
+              mountPath: {{ $customCaMountPath | quote }}
+              subPath: ca-bundle.crt
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- if .Values.bitesService.enabled }}
+            - name: {{ include "sdcommon.fullname" . }}-bites-config
+              mountPath: {{ $vbxBitesConfigFile | quote }}
+              subPath: vbx_bites_config.yaml
+              readOnly: true
+            {{- end }}
+          {{- with .Values.resources }}
+          resources:
+          {{- toYaml . | nindent 12}}
+          {{- end }}
+      {{- with include "sdcommon.podScheduling" . }}
+{{ . | nindent 6 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- else }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: {{ include "sdcommon.fullname" . }}
+            topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: {{ include "sdcommon.fullname" . }}
+              topologyKey: topology.kubernetes.io/zone
+      {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: {{ include "sdcommon.fullname" . }}
+          configMap:
+            name: {{ include "sdcommon.fullname" . }}
+            items:
+              - key: vbx_config.json
+                path: vbx_config.json
+      {{- if $configFiles.enabled }}
+        - name: {{ include "sdcommon.fullname" . }}-config-files
+          configMap:
+            name: {{ include "sdcommon.fullname" . }}-config-files
+      {{- end }}
+      {{- if and $frameStore.enabled (eq $frameStoreBackend "local") $frameStoreLocal.existingClaim }}
+        - name: voicebox-frames
+          persistentVolumeClaim:
+            claimName: {{ $frameStoreLocal.existingClaim }}
+      {{- end }}
+      {{- if $customCaBundle.enabled }}
+        - name: voicebox-custom-ca-bundle{{ include "voicebox.customCaBundleVolumeSource" . | trim | nindent 10 }}
+      {{- end }}
+      {{- if .Values.bitesService.enabled }}
+        - name: {{ include "sdcommon.fullname" . }}-bites-config
+          configMap:
+            name: {{ include "sdcommon.fullname" . }}-bites-config
+            items:
+              - key: vbx_bites_config.yaml
+                path: vbx_bites_config.yaml
+      {{- end }}
+      {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if and $frameStore.enabled (eq $frameStoreBackend "local") (not $frameStoreLocal.existingClaim) }}
+  volumeClaimTemplates:
+    - metadata:
+        name: voicebox-frames
+        labels:
+          {{- include "sdcommon.labels.standard" . | nindent 10 }}
+      spec:
+        accessModes:
+          {{- toYaml ($frameStoreLocal.accessModes | default (list "ReadWriteOnce")) | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ $frameStoreLocal.size | default "20Gi" }}
+        {{- if $frameStoreLocal.storageClassName }}
+        storageClassName: {{ $frameStoreLocal.storageClassName | quote }}
+        {{- end }}
+  {{- end }}
+{{- end }}

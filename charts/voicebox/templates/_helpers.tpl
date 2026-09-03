@@ -22,16 +22,138 @@
 {{- printf "%v" $svcPort -}}
 {{- end -}}
 
+{{- define "voicebox.serviceAccountName" -}}
+{{- $serviceAccount := .Values.serviceAccount | default (dict) -}}
+{{- coalesce $serviceAccount.name .Values.serviceAccountName "voicebox-sa" -}}
+{{- end -}}
+
+{{- define "voicebox.workloadType" -}}
+{{- $workload := .Values.workload | default (dict) -}}
+{{- $workload.type | default "Deployment" -}}
+{{- end -}}
+
+{{- define "voicebox.frameStoreEnabled" -}}
+{{- $frameStore := .Values.frameStore | default (dict) -}}
+{{- if $frameStore.enabled -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
+{{- define "voicebox.frameStoreBackend" -}}
+{{- $frameStore := .Values.frameStore | default (dict) -}}
+{{- $frameStore.backend | default "local" -}}
+{{- end -}}
+
+{{- define "voicebox.frameStorePvcName" -}}
+{{- printf "%s-frames" (include "sdcommon.fullname" .) -}}
+{{- end -}}
+
+{{- define "voicebox.frameStoreSweeperEnabled" -}}
+{{- $frameStore := .Values.frameStore | default (dict) -}}
+{{- $local := $frameStore.local | default (dict) -}}
+{{- if hasKey $local "sweeperEnabled" -}}
+{{- printf "%v" $local.sweeperEnabled -}}
+{{- else -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{- define "voicebox.headlessServiceName" -}}
+{{- printf "%s-headless" (include "sdcommon.fullname" .) -}}
+{{- end -}}
+
+{{- define "voicebox.validate" -}}
+{{- $workloadType := include "voicebox.workloadType" . -}}
+{{- if not (has $workloadType (list "Deployment" "StatefulSet")) -}}
+{{- fail "voicebox.workload.type must be either Deployment or StatefulSet" -}}
+{{- end -}}
+{{- $frameStore := .Values.frameStore | default (dict) -}}
+{{- if $frameStore.enabled -}}
+  {{- $backend := include "voicebox.frameStoreBackend" . -}}
+  {{- if not (has $backend (list "local" "s3")) -}}
+    {{- fail "voicebox.frameStore.backend must be either local or s3" -}}
+  {{- end -}}
+  {{- if and (eq $backend "local") (gt (int .Values.replicaCount) 1) -}}
+    {{- fail "voicebox.frameStore.backend=local requires voicebox.replicaCount to be 1" -}}
+  {{- end -}}
+  {{- if and (eq $backend "s3") (not $frameStore.s3.bucket) -}}
+    {{- fail "voicebox.frameStore.backend=s3 requires voicebox.frameStore.s3.bucket" -}}
+  {{- end -}}
+{{- end -}}
+{{- $configFiles := .Values.configFiles | default (dict) -}}
+{{- if $configFiles.enabled -}}
+  {{- if not ($configFiles.files | default (dict)) -}}
+    {{- fail "voicebox.configFiles.enabled=true requires at least one entry in voicebox.configFiles.files" -}}
+  {{- end -}}
+  {{- range $name, $content := ($configFiles.files | default (dict)) -}}
+    {{- if not (kindIs "string" $content) -}}
+      {{- fail (printf "voicebox.configFiles.files.%s must be a valid JSON string" $name) -}}
+    {{- end -}}
+    {{- if not $content -}}
+      {{- fail (printf "voicebox.configFiles.files.%s must be valid JSON and cannot be empty" $name) -}}
+    {{- end -}}
+    {{- $_ := mustFromJson $content -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "voicebox.configmapChecksum" -}}
-{{- $cm := (lookup "v1" "ConfigMap" .Release.Namespace (include "sdcommon.fullname" . ) ) }}
-{{- if $cm }}
-{{- $cm | toYaml | sha256sum }}
-{{- end }}
+{{- $payload := dict
+  "configFile" .Values.configFile
+  "configFiles" .Values.configFiles
+  "customCaBundle" .Values.customCaBundle
+  "frameStore" .Values.frameStore
+  "bitesEnabled" .Values.bitesService.enabled
+  "bitesImage" .Values.bitesService.image
+  "bitesSparkApplication" .Values.bitesService.sparkApplication
+  "serviceAccountName" (include "voicebox.serviceAccountName" .)
+-}}
+{{- $payload | toJson | sha256sum -}}
 {{- end }}
 
-{{- define "voicebox.secretChecksum" -}}
-{{- $secret := (lookup "v1" "Secret" .Release.Namespace (printf "%s-voicebox-image-pull-secret" .Release.Name ) ) }}
-{{- if $secret }}
-{{- $secret | toYaml | sha256sum }}
+{{- define "voicebox.configFileJson" -}}
+{{- $configFile := .Values.configFile -}}
+{{- if kindIs "string" $configFile -}}
+{{- if not $configFile -}}
+{{- fail "voicebox.configFile must be valid JSON and cannot be empty." -}}
+{{- end -}}
+{{- $_ := mustFromJson $configFile -}}
+{{- $configFile -}}
+{{- else -}}
+{{- fail "voicebox.configFile must be a valid JSON string." -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "voicebox.customCaBundleName" -}}
+{{- printf "%s-ca-bundle" (include "sdcommon.fullname" .) -}}
+{{- end -}}
+
+{{- define "voicebox.customCaBundleVolumeSource" -}}
+{{- $ca := .Values.customCaBundle | default (dict) -}}
+{{- $sources := 0 -}}
+{{- if $ca.bundle -}}{{- $sources = add1 $sources -}}{{- end -}}
+{{- if $ca.existingConfigMap -}}{{- $sources = add1 $sources -}}{{- end -}}
+{{- if $ca.existingSecret -}}{{- $sources = add1 $sources -}}{{- end -}}
+{{- if ne $sources 1 -}}
+{{- fail "voicebox.customCaBundle.enabled requires exactly one of customCaBundle.bundle, customCaBundle.existingConfigMap, or customCaBundle.existingSecret" -}}
+{{- end -}}
+{{- if $ca.existingSecret }}
+secret:
+  secretName: {{ $ca.existingSecret }}
+  items:
+    - key: {{ $ca.key | default "ca-bundle.crt" }}
+      path: ca-bundle.crt
+{{- else }}
+configMap:
+  name: {{ $ca.existingConfigMap | default (include "voicebox.customCaBundleName" .) }}
+  items:
+    - key: {{ $ca.key | default "ca-bundle.crt" }}
+      path: ca-bundle.crt
 {{- end }}
+{{- end -}}
+
+{{- define "voicebox.secretChecksum" -}}
+{{- $payload := dict -}}
+{{- if and (hasKey .Values "image") .Values.image.username .Values.image.password -}}
+  {{- $_ := set $payload "imagePullSecret" (include "voiceboximagePullSecret" .) -}}
+{{- end -}}
+{{- $payload | toJson | sha256sum -}}
 {{- end }}

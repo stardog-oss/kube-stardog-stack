@@ -158,22 +158,18 @@ tests:
       config:
         preAllocSize: "65536"
     asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: ZOO_CFG_EXTRA
-            value: preAllocSize=65536
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="ZOO_CFG_EXTRA")].value
+          pattern: "(^|\\n)preAllocSize=65536(\\n|$)"
 
   - it: should set snapCount when configured
     set:
       config:
         snapCount: "100000"
     asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: ZOO_CFG_EXTRA
-            value: snapCount=100000
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="ZOO_CFG_EXTRA")].value
+          pattern: "(^|\\n)snapCount=100000(\\n|$)"
 
   - it: should set maxSessionTimeout when configured
     set:

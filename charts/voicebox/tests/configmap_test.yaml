@@ -1,6 +1,8 @@
 suite: Test Voicebox ConfigMap
 values:
   - values/values-voicebox.yaml
+set:
+  frameStore.enabled: false
 templates:
   - configmap.yaml
 
@@ -8,6 +10,41 @@ tests:
   - it: should not create bites ConfigMap when bites service is disabled
     set:
       bitesService.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: should create custom CA bundle ConfigMap from inline PEM
+    set:
+      customCaBundle:
+        enabled: true
+        bundle: |-
+          -----BEGIN CERTIFICATE-----
+          MIIBtest
+          -----END CERTIFICATE-----
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 1
+        isKind:
+          of: ConfigMap
+      - documentIndex: 1
+        equal:
+          path: metadata.name
+          value: voicebox-RELEASE-NAME-ca-bundle
+      - documentIndex: 1
+        equal:
+          path: data["ca-bundle.crt"]
+          value: |-
+            -----BEGIN CERTIFICATE-----
+            MIIBtest
+            -----END CERTIFICATE-----
+
+  - it: should not create custom CA bundle ConfigMap when an existing ConfigMap is used
+    set:
+      customCaBundle:
+        enabled: true
+        existingConfigMap: internal-ca
     asserts:
       - hasDocuments:
           count: 1
@@ -28,18 +65,98 @@ tests:
           path: data["vbx_config.json"]
           value: '{"agent_selection_type": "llm", "enable_lineage": true}'
 
-  # Test 2: Validate ConfigMap with empty config
-  - it: should create ConfigMap with empty config
+  - it: should create ConfigMap with nested query KG configuration
+    set:
+      configFile: |-
+        {
+          "agent_selection_type": "llm",
+          "enable_lineage": true,
+          "enable_charts": true,
+          "use_agents_automatically": false,
+          "query_kg_config": {
+            "generate_query_config": {
+              "llm_config": {
+                "max_tokens": 7000
+              }
+            }
+          }
+        }
+    asserts:
+      - equal:
+          path: data["vbx_config.json"]
+          value: |-
+            {
+              "agent_selection_type": "llm",
+              "enable_lineage": true,
+              "enable_charts": true,
+              "use_agents_automatically": false,
+              "query_kg_config": {
+                "generate_query_config": {
+                  "llm_config": {
+                    "max_tokens": 7000
+                  }
+                }
+              }
+            }
+
+  - it: should fail when configFile is empty
     set:
       configFile: ""
     asserts:
-      - isKind:
+      - failedTemplate:
+          errorMessage: "voicebox.configFile must be valid JSON and cannot be empty."
+
+  - it: should fail when configFile is malformed JSON
+    set:
+      configFile: '{"agent_selection_type": "llm",}'
+    asserts:
+      - failedTemplate:
+          errorMessage: 'executing "voicebox/templates/configmap.yaml" at <include "voicebox.configFileJson" .>: error calling include: template: voicebox/templates/_helpers.tpl:118:10: executing "voicebox.configFileJson" at <mustFromJson $configFile>: error calling mustFromJson: invalid character ''}'' looking for beginning of object key string'
+
+  - it: should create config directory ConfigMap when configFiles is enabled
+    set:
+      configFiles:
+        enabled: true
+        files:
+          default.json: '{"endpoint":"*","database":"*"}'
+          cmc.json: '{"endpoint":"https://sparql.example.com","database":"c365"}'
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 1
+        isKind:
           of: ConfigMap
-      - exists:
-          path: data
-      - equal:
-          path: data["vbx_config.json"]
-          value: ""
+      - documentIndex: 1
+        equal:
+          path: metadata.name
+          value: voicebox-RELEASE-NAME-config-files
+      - documentIndex: 1
+        equal:
+          path: data["default.json"]
+          value: '{"endpoint":"*","database":"*"}'
+      - documentIndex: 1
+        equal:
+          path: data["cmc.json"]
+          value: '{"endpoint":"https://sparql.example.com","database":"c365"}'
+
+  - it: should fail when configFiles is enabled without files
+    set:
+      configFiles:
+        enabled: true
+        files: {}
+    asserts:
+      - failedTemplate:
+          errorMessage: "voicebox.configFiles.enabled=true requires at least one entry in voicebox.configFiles.files"
+
+  - it: should fail when configFiles contains malformed JSON
+    set:
+      configFiles:
+        enabled: true
+        files:
+          broken.json: '{"endpoint":"*",}'
+    asserts:
+      - failedTemplate:
+          errorMessage: "error calling include: template: voicebox/templates/_helpers.tpl:93:14: executing \"voicebox.validate\" at <mustFromJson $content>: error calling mustFromJson: invalid character '}' looking for beginning of object key string"
 
   - it: should create bites ConfigMap when bites service is enabled
     set:

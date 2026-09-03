@@ -59,12 +59,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-backup-s3-secret
-                  key: accesskey
+                  key: accessKey
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-backup-s3-secret
-                  key: secretkey
+                  key: secretKey
             - name: AWS_REGION
               value: {{ .Values.backup.location.s3.region }}
             - name: AWS_BUCKET
