@@ -2,7 +2,7 @@
 
 This file is the root catalog for the manual and regression-oriented integration tests for the umbrella chart.
 
-The IDs in this file are the test IDs from the agreed test plan. The values files are reusable deployment scenarios under [tests/values/integration](/Users/serge/clone/helm/kube-stardog-stack/tests/values/integration).
+The IDs in this file are the test IDs from the agreed test plan. The values files are reusable deployment scenarios under [tests/values/integration](tests/values/integration).
 
 Notes:
 
@@ -18,16 +18,16 @@ Notes:
 
 | File ID | Values file | Purpose |
 | --- | --- | --- |
-| `IT-001-009` | [it-001-009-managed-shared-gateway.values.yaml](/Users/serge/clone/helm/kube-stardog-stack/tests/values/integration/it-001-009-managed-shared-gateway.values.yaml) | Umbrella install with Helm-managed shared Gateway, TLS, Launchpad, and BI enabled. |
-| `IT-010-017` | [it-010-017-external-shared-gateway.values.yaml](/Users/serge/clone/helm/kube-stardog-stack/tests/values/integration/it-010-017-external-shared-gateway.values.yaml) | Umbrella install attaching Stardog and Launchpad routes to a pre-created external shared Gateway. |
-| `IT-018` | [it-018-upgrade-version-mismatch.values.yaml](/Users/serge/clone/helm/kube-stardog-stack/tests/values/integration/it-018-upgrade-version-mismatch.values.yaml) | Negative install case where `upgrade.approval.targetVersion` does not match `image.tag`. |
-| `IT-019` | [it-019-upgrade-automatic-forbidden.values.yaml](/Users/serge/clone/helm/kube-stardog-stack/tests/values/integration/it-019-upgrade-automatic-forbidden.values.yaml) | Negative install case where `upgrade.automatic=true` is set directly in `stardogProperties`. |
-| `IT-020-021` | [it-020-021-upgrade-approved.values.yaml](/Users/serge/clone/helm/kube-stardog-stack/tests/values/integration/it-020-021-upgrade-approved.values.yaml) | Approved upgrade case where `upgrade.approval.targetVersion` matches `image.tag`. |
-| `IT-022-and-036` | [it-022-and-036-stardog-only.values.yaml](/Users/serge/clone/helm/kube-stardog-stack/tests/values/integration/it-022-and-036-stardog-only.values.yaml) | Baseline Stardog-only install with no ingress, route, launchpad, or voicebox. |
-| `IT-023-025-and-038` | [it-023-025-and-038-voicebox-default.values.yaml](/Users/serge/clone/helm/kube-stardog-stack/tests/values/integration/it-023-025-and-038-voicebox-default.values.yaml) | Baseline Voicebox-only install on the default port, with default probes and Bites disabled. |
-| `IT-026-027` | [it-026-027-voicebox-custom-port.values.yaml](/Users/serge/clone/helm/kube-stardog-stack/tests/values/integration/it-026-027-voicebox-custom-port.values.yaml) | Voicebox-only install with a non-default port number and a custom port name. |
-| `IT-028-035` | [it-028-035-voicebox-bites.values.yaml](/Users/serge/clone/helm/kube-stardog-stack/tests/values/integration/it-028-035-voicebox-bites.values.yaml) | Voicebox with Bites, SparkApplication, PVC, writable temp storage, and explicit config paths. |
-| `IT-037` | [it-037-stardog-launchpad.values.yaml](/Users/serge/clone/helm/kube-stardog-stack/tests/values/integration/it-037-stardog-launchpad.values.yaml) | Baseline Stardog plus Launchpad install without Gateway or ingress exposure. |
+| `IT-001-009` | [it-001-009-managed-shared-gateway.values.yaml](tests/values/integration/it-001-009-managed-shared-gateway.values.yaml) | Umbrella install with Helm-managed shared Gateway, TLS, Launchpad, and BI enabled. |
+| `IT-010-017` | [it-010-017-external-shared-gateway.values.yaml](tests/values/integration/it-010-017-external-shared-gateway.values.yaml) | Umbrella install attaching Stardog and Launchpad routes to a pre-created external shared Gateway. |
+| `IT-018` | [it-018-upgrade-version-mismatch.values.yaml](tests/values/integration/it-018-upgrade-version-mismatch.values.yaml) | Negative install case where `upgrade.approval.targetVersion` does not match `image.tag`. |
+| `IT-019` | [it-019-upgrade-automatic-forbidden.values.yaml](tests/values/integration/it-019-upgrade-automatic-forbidden.values.yaml) | Negative install case where `upgrade.automatic=true` is set directly in `stardogProperties`. |
+| `IT-020-021` | [it-020-021-upgrade-approved.values.yaml](tests/values/integration/it-020-021-upgrade-approved.values.yaml) | Approved upgrade case where `upgrade.approval.targetVersion` matches `image.tag`. |
+| `IT-022-and-036` | [it-022-and-036-stardog-only.values.yaml](tests/values/integration/it-022-and-036-stardog-only.values.yaml) | Baseline Stardog-only install with no ingress, route, launchpad, or voicebox. |
+| `IT-023-025-and-038` | [it-023-025-and-038-voicebox-default.values.yaml](tests/values/integration/it-023-025-and-038-voicebox-default.values.yaml) | Baseline Voicebox-only install on the default port, with default probes and Bites disabled. |
+| `IT-026-027` | [it-026-027-voicebox-custom-port.values.yaml](tests/values/integration/it-026-027-voicebox-custom-port.values.yaml) | Voicebox-only install with a non-default port number and a custom port name. |
+| `IT-028-035` | [it-028-035-voicebox-bites.values.yaml](tests/values/integration/it-028-035-voicebox-bites.values.yaml) | Voicebox with Bites, SparkApplication, PVC, writable temp storage, and explicit config paths. |
+| `IT-037` | [it-037-stardog-launchpad.values.yaml](tests/values/integration/it-037-stardog-launchpad.values.yaml) | Baseline Stardog plus Launchpad install without Gateway or ingress exposure. |
 
 ## Test Catalog
 
