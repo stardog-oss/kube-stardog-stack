@@ -1,6 +1,10 @@
 # Kube Stardog Stack
 
-![Stardog Open Source](docs/assets/stardog_open_source.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/stardog-oss/.github/main/assets/stardog_open_source_dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/stardog-oss/.github/main/assets/stardog_open_source_light.svg">
+  <img alt="Stardog Open Source" src="https://raw.githubusercontent.com/stardog-oss/.github/main/assets/stardog_open_source_light.svg">
+</picture>
 
 An umbrella Helm chart that manages the complete Stardog ecosystem including Stardog, Launchpad, and Voicebox components.
 
@@ -27,7 +31,7 @@ This chart provides a unified way to deploy and manage the entire Stardog stack 
 
 Architecture is not one-size-fits-all, but this target architecture has worked well in practice. It protects your most expensive database resources while preserving deployment flexibility.
 
-![Target Architecture](docs/assets/target-architecture.png)
+![Target Architecture](docs/assets/target-architecture.svg)
 
 Related architecture note:
 
@@ -52,7 +56,17 @@ Web-based UI to access Stardog applications (Designer, Explorer, Studio). Enable
 Natural language interface for Stardog. Enable with `global.voicebox.enabled: true`
 
 ### ZooKeeper
-Coordination service for clustered Stardog deployments. Enable with `global.zookeeper.enabled: true`
+Coordination service for clustered Stardog deployments. Enable with `global.zookeeper.enabled: true`.
+
+Apache ZooKeeper support in this umbrella chart is provided as a convenience. Stardog does not own or harden the ZooKeeper container image. For production systems, use a commercially supported or internally hardened ZooKeeper deployment and configure Stardog to use it.
+
+The bundled ZooKeeper AdminServer is disabled by default. Enable it with `zookeeper.adminServerEnabled=true`; expose it on the ZooKeeper Service only when needed with `zookeeper.service.exposeAdmin=true`.
+
+The bundled ZooKeeper probes use client port four-letter commands. Liveness uses `ruok`; readiness uses `srvr` and requires ZooKeeper to report a serving role such as `leader`, `follower`, `observer`, or `standalone`. The chart default whitelist is therefore limited to `ruok,srvr`. Add more commands only for custom probes or operational debugging, and refer to the Apache ZooKeeper documentation for the supported command list: https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_zkCommands
+
+Bundled ZooKeeper installs use `podManagementPolicy: Parallel`, unchanged from earlier releases, so upgrading past `1.2.0` doesn't require any special handling for ZooKeeper's StatefulSet. (The Stardog StatefulSet does need the [StatefulSet migration guide](./docs/upgrades/statefulset-migration.md) -- see the note under Installation.)
+
+Bundled ZooKeeper keeps `zookeeper.minReadySeconds` configurable. The default is `0` because the readiness probe already waits for ZooKeeper to report a serving role.
 
 ## Shared Resources
 
@@ -64,6 +78,28 @@ The umbrella chart supports two shared Gateway patterns under `global.gateway.*`
 
 - managed shared Gateway: the umbrella chart creates and owns the `Gateway`
 - external shared Gateway: the `Gateway` already exists and the umbrella chart only renders routes that attach to it
+
+## Upgrading
+
+> [!WARNING]
+> If upgrading from any `kube-stardog-stack` version earlier than `1.2.0` to `1.2.0` or later, follow the [StatefulSet migration guide](./docs/upgrades/statefulset-migration.md) before running the upgrade.
+
+```bash
+helm repo add stardog https://stardog-oss.github.io/kube-stardog-stack
+helm repo update
+helm upgrade my-stardog-stack stardog/kube-stardog-stack \
+  --version <target-version> \
+  --reset-then-reuse-values \
+  --wait \
+  --timeout 10m
+```
+
+Use `--reset-then-reuse-values` for chart upgrades so new chart defaults are applied while existing release values are preserved.
+
+The `--timeout 10m` flag is recommended when using bundled ZooKeeper because
+ZooKeeper startup and Stardog readiness can exceed Helm's default five-minute
+wait. This timeout is a Helm client setting, so it must be set by the caller,
+for example Helm CLI, Terraform `helm_release.timeout`, or CI/CD automation.
 
 ## Installation
 
@@ -102,7 +138,7 @@ It is fine to use the public Helm repo for evaluation environments, but no SLA i
 export VERSION=${VERSION}
 helm repo add stardog https://stardog-oss.github.io/kube-stardog-stack
 helm repo update
-helm install my-stardog-stack stardog/kube-stardog-stack --version ${VERSION}
+helm install my-stardog-stack stardog/kube-stardog-stack --version ${VERSION} --timeout 10m
 ```
 
 **Production (Recommended)**
@@ -113,7 +149,7 @@ export VERSION=${VERSION}
 helm repo add stardog https://stardog-oss.github.io/kube-stardog-stack
 helm repo update
 helm pull stardog/kube-stardog-stack --version ${VERSION}
-helm install my-stardog-stack ./kube-stardog-stack-${VERSION}.tgz
+helm install my-stardog-stack ./kube-stardog-stack-${VERSION}.tgz --timeout 10m
 ```
 
 If you run a local Helm repo, add it and install from there:
@@ -235,7 +271,7 @@ In external mode, subcharts such as Stardog and Launchpad automatically reuse th
 | `global.cachetarget.enabled` | `false` | Deploy cache target nodes that register with Stardog |
 | `global.launchpad.enabled` | `false` | Deploy Launchpad |
 | `global.voicebox.enabled` | `false` | Deploy Voicebox |
-| `global.zookeeper.enabled` | `false` | Deploy a shared ZooKeeper ensemble |
+| `global.zookeeper.enabled` | `false` | Deploy a shared ZooKeeper ensemble. Convenience only; for production, use a commercially supported or internally hardened ZooKeeper deployment. |
 
 ### Example Configurations
 
@@ -345,15 +381,13 @@ voicebox:
     registry: your-registry.com
     repository: your-org/voicebox
     tag: latest
+  customCaBundle:
+    enabled: true
+    existingConfigMap: internal-ca
+    key: ca-bundle.crt
   environmentVariables:
     AZURE_API_KEY: "your-azure-api-key"
     PRODUCTION: 1
-```
-
-## Upgrading
-
-```bash
-helm upgrade my-stardog-stack ./kube-stardog-stack
 ```
 
 ## Uninstalling
@@ -392,7 +426,52 @@ For detailed configuration options for each component, see:
 
 ## Troubleshooting
 
-For detailed operational procedures, see the [FAQ and how-to articles](docs/faq/README.md).
+### FAQ: Microsoft Entra B2B guests can access Azure Portal but not Azure CLI
+
+When a user is invited as a Microsoft Entra B2B guest, the invite creates a
+guest object in the resource tenant. The guest object can receive Azure RBAC,
+group membership, and application assignments, but the authentication method is
+chosen when the user redeems the invitation.
+
+Two users invited through the same process can redeem through different identity
+paths. For example:
+
+```text
+issuer = MicrosoftAccount
+issuer = mail
+```
+
+`issuer = mail` usually indicates an email one-time passcode style external
+identity. That can be sufficient for some Microsoft web experiences, and it can
+still show `externalUserState = Accepted`, but it is not always equivalent to a
+Microsoft account or Entra work/school identity for Azure administration flows.
+
+If Azure Portal access works only with the tenant-specific URL, use:
+
+```text
+https://portal.azure.com/#@<tenant-domain>
+```
+
+For CLI-heavy workflows, validate Azure CLI access before relying on the account:
+
+```bash
+az login --tenant <tenant-domain> --use-device-code
+az account show
+az group show -n <resource-group>
+az aks get-credentials -g <resource-group> -n <aks-name>
+```
+
+If the CLI cannot authenticate the same guest identity, use a different external
+identity baseline for operational users:
+
+- Microsoft account-backed guest
+- Entra work/school account-backed guest
+- Native training or operations tenant user
+- Configured and tested external federation for the user's domain
+
+Do not treat `externalUserState = Accepted` as proof that Azure Portal, Azure
+CLI, AKS, Key Vault, and Terraform workflows will all work. For operational
+access, test the actual management-plane workflow.
 
 ### Common Issues
 

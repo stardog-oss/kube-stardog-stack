@@ -21,6 +21,21 @@ tests:
           path: data["log4j2.xml"]
           value: "<Configuration status=\"WARN\"/>\n"
 
+  - it: includes rolling file defaults in bundled log4j config
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-log4j
+    asserts:
+      - matchRegex:
+          path: data["log4j2.xml"]
+          pattern: "<RollingFile\\s+name=\"stardogAppender\""
+      - matchRegex:
+          path: data["log4j2.xml"]
+          pattern: "<SizeBasedTriggeringPolicy size=\"250 MB\"/>"
+      - matchRegex:
+          path: data["log4j2.xml"]
+          pattern: "<Logger name=\"com\\.stardog\" level=\"INFO\" additivity=\"false\">"
+
   - it: injects cluster, jwt, and BI settings into stardog.properties
     values:
       - values/values-stardog.yaml
@@ -47,10 +62,68 @@ tests:
           pattern: "pack\\.zookeeper\\.address="
       - matchRegex:
           path: data["stardog.properties"]
+          pattern: "pack\\.rejoin\\.shutdown=false"
+      - notMatchRegex:
+          path: data["stardog.properties"]
+          pattern: "pack\\.zookeeper\\.inactiveOnSuspend="
+      - matchRegex:
+          path: data["stardog.properties"]
           pattern: "jwt\\.conf=/var/opt/stardog/jwt.yaml"
       - matchRegex:
           path: data["stardog.properties"]
           pattern: "sql\\.server\\.enabled=true"
+
+  - it: uses explicit external ZooKeeper address unchanged
+    values:
+      - values/values-stardog.yaml
+    set:
+      cluster:
+        enabled: true
+        zookeeperService: "zk-a:2181,zk-b:2181,zk-c:2181"
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.zookeeper\\.address=zk-a:2181,zk-b:2181,zk-c:2181$"
+
+  - it: renders inactiveOnSuspend when explicitly set
+    values:
+      - values/values-stardog.yaml
+    set:
+      cluster:
+        enabled: true
+        zookeeperSessionTolerance:
+          inactiveOnSuspend: false
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "pack\\.rejoin\\.shutdown=false"
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "pack\\.zookeeper\\.inactiveOnSuspend=false"
+
+  - it: uses bundled ZooKeeper pod DNS addresses
+    values:
+      - values/values-stardog.yaml
+    set:
+      cluster:
+        enabled: true
+      global:
+        zookeeper:
+          enabled: true
+          replicaCount: 3
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.zookeeper\\.address=zookeeper-RELEASE-NAME-0\\.zookeeper-RELEASE-NAME-headless\\.NAMESPACE\\.svc\\.cluster\\.local:2181,zookeeper-RELEASE-NAME-1\\.zookeeper-RELEASE-NAME-headless\\.NAMESPACE\\.svc\\.cluster\\.local:2181,zookeeper-RELEASE-NAME-2\\.zookeeper-RELEASE-NAME-headless\\.NAMESPACE\\.svc\\.cluster\\.local:2181$"
 
   - it: injects TLS settings into stardog.properties when enabled
     values:
@@ -142,6 +215,26 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "Do not set upgrade.automatic in stardogProperties; use upgrade.approval.targetVersion instead."
+
+  - it: fails when pack.rejoin.shutdown is set directly in stardogProperties
+    values:
+      - values/values-stardog.yaml
+    set:
+      stardogProperties: |
+        pack.rejoin.shutdown=false
+    asserts:
+      - failedTemplate:
+          errorMessage: "Do not set pack.rejoin.shutdown in stardogProperties; use cluster.zookeeperSessionTolerance.rejoinShutdown instead."
+
+  - it: fails when pack.zookeeper.inactiveOnSuspend is set directly in stardogProperties
+    values:
+      - values/values-stardog.yaml
+    set:
+      stardogProperties: |
+        pack.zookeeper.inactiveOnSuspend=false
+    asserts:
+      - failedTemplate:
+          errorMessage: "Do not set pack.zookeeper.inactiveOnSuspend in stardogProperties; use cluster.zookeeperSessionTolerance.inactiveOnSuspend instead."
 
   - it: renders JWT config map when jwtConfig enabled
     values:

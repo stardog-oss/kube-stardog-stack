@@ -5,10 +5,10 @@ kind: {{ include "certIssuer.kind" . }}
 metadata:
   name: {{ include "certIssuer.name.lp" . }}
   {{- if not $issuer.clusterScoped }}
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "sdcommon.certIssuerNamespace" . }}
   {{- end }}
   labels:
-    {{- include "certIssuer.labels" . | nindent 4 }}
+    {{- include "certIssuer.labels.lp" . | nindent 4 }}
 spec:
   {{- if eq $issuer.type "selfSigned" }}
   selfSigned: {}
@@ -18,7 +18,7 @@ spec:
     email: {{ required "certIssuer.acme.email is required" $issuer.acme.email | quote }}
     server: {{ default "https://acme-v02.api.letsencrypt.org/directory" $issuer.acme.server | quote }}
     privateKeySecretRef:
-      name: {{ include "certIssuer.privateKeySecretName" . }}
+      name: {{ include "certIssuer.privateKeySecretName.lp" . }}
     solvers:
       {{- include "sdcommon.acmeSolvers" . | nindent 6 }}
 

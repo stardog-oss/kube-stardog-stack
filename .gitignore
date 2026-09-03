@@ -10,7 +10,10 @@
 
 ./doc/private-notes
 doc/private-notes/*
+
 .debug
+kube-stardog-stack*
 
 package/*
+local/
 .helm-hook/

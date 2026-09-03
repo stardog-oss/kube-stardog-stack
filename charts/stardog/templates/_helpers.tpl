@@ -14,7 +14,12 @@ Compute the redirect configuration for gateway root path handling.
 {{- end -}}
 {{- $gatewayVals := default (dict) .Values.gateway -}}
 {{- $httpGateway := default (dict) $gatewayVals.http -}}
-{{- $stardogDomain := default "" $httpGateway.domain -}}
+{{- $globalGateway := default (dict) (index (default (dict) .Values.global) "gateway") -}}
+{{- $globalGatewayDomain := trim (default "" (index $globalGateway "domain")) -}}
+{{- $stardogDomain := trim (default "" $httpGateway.domain) -}}
+{{- if and (eq $stardogDomain "") (ne $globalGatewayDomain "") -}}
+  {{- $stardogDomain = $globalGatewayDomain -}}
+{{- end -}}
 {{- $httpRedirect := default (dict) $httpGateway.redirectToLaunchpad -}}
 {{- $topRedirect := default (dict) $gatewayVals.redirectToLaunchpad -}}
 {{- $user := merge (dict) $httpRedirect $topRedirect -}}
@@ -143,6 +148,18 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- end -}}
 {{- end -}}
 
+{{- define "stardog.headlessServiceName" -}}
+{{- printf "%s-headless" (include "sdcommon.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "stardog.statefulSetServiceName" -}}
+{{- if .Values.cluster.enabled -}}
+{{- include "stardog.headlessServiceName" . -}}
+{{- else -}}
+{{- include "sdcommon.fullname" . -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "stardog.validateClusterConfig" -}}
 {{- $cluster := .Values.cluster | default dict -}}
 {{- $clusterEnabled := default false $cluster.enabled -}}
@@ -164,6 +181,12 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- if regexMatch `(?m)^\s*upgrade\.automatic\s*=` $properties -}}
 {{- fail "Do not set upgrade.automatic in stardogProperties; use upgrade.approval.targetVersion instead." -}}
 {{- end -}}
+{{- if regexMatch `(?m)^\s*pack\.rejoin\.shutdown\s*=` $properties -}}
+{{- fail "Do not set pack.rejoin.shutdown in stardogProperties; use cluster.zookeeperSessionTolerance.rejoinShutdown instead." -}}
+{{- end -}}
+{{- if regexMatch `(?m)^\s*pack\.zookeeper\.inactiveOnSuspend\s*=` $properties -}}
+{{- fail "Do not set pack.zookeeper.inactiveOnSuspend in stardogProperties; use cluster.zookeeperSessionTolerance.inactiveOnSuspend instead." -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "stardog.upgradeProperties" -}}
@@ -183,8 +206,21 @@ upgrade.automatic=true
 {{- if ne $service "" -}}
 {{- $service -}}
 {{- else if (eq (include "stardog.globalZookeeperEnabled" .) "true") -}}
-{{- printf "zookeeper-%s:2181" .Release.Name -}}
+{{- include "stardog.bundledZookeeperConnectString" . -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "stardog.bundledZookeeperConnectString" -}}
+{{- $globalZk := default (dict) (index (default (dict) .Values.global) "zookeeper") -}}
+{{- $replicas := int (default 3 (index $globalZk "replicaCount")) -}}
+{{- $clusterDomain := default .Values.clusterDomain (index $globalZk "clusterDomain") -}}
+{{- $fullname := printf "zookeeper-%s" .Release.Name -}}
+{{- $headless := printf "%s-headless" $fullname -}}
+{{- $parts := list -}}
+{{- range $i, $_ := until $replicas -}}
+  {{- $parts = append $parts (printf "%s-%d.%s.%s.svc.%s:2181" $fullname $i $headless $.Release.Namespace $clusterDomain) -}}
+{{- end -}}
+{{- join "," $parts -}}
 {{- end -}}
 
 {{- define "stardog.globalZookeeperEnabled" -}}
@@ -449,17 +485,27 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{- define "stardog.configmapChecksum" -}}
-{{- $cm := (lookup "v1" "ConfigMap" .Release.Namespace (include "sdcommon.fullname" . ) ) }}
-{{- if $cm }}
-{{- $cm | toYaml | sha256sum }}
-{{- end }}
+{{- $payload := dict
+  "log4jConfig" .Values.log4jConfig
+  "defaultLog4j" (.Files.Get "files/log4j2.xml")
+  "defaultProperties" (.Files.Get "files/stardog.properties")
+  "clusterEnabled" .Values.cluster.enabled
+  "zookeeperService" (include "stardog.zookeeperService" . | trim)
+  "jwtConfig" .Values.jwtConfig
+  "biEnabled" (include "stardog.effectiveBiEnabled" .)
+  "sparqlTlsEnabled" (include "stardog.sparqlTlsEnabled" .)
+  "truststoreEnabled" (or .Values.tls.truststore.enabled (eq (include "stardog.biTlsEnabled" .) "true"))
+  "tls" .Values.tls
+  "upgradeProperties" (include "stardog.upgradeProperties" . | trim)
+  "stardogProperties" .Values.stardogProperties
+-}}
+{{- $payload | toJson | sha256sum -}}
 {{- end }}
 
 {{- define "stardog.secretChecksum" -}}
-{{- if or (and (hasKey .Values "image") .Values.image.username .Values.image.password) .Values.backup.enabled -}}
-  {{- $secret := (lookup "v1" "Secret" .Release.Namespace (include "sdcommon.fullname" . )) -}}
-  {{- if $secret -}}
-    {{- $secret | toYaml | sha256sum -}}
-  {{- end -}}
+{{- $payload := dict "adminPassword" .Values.admin.password -}}
+{{- if and (hasKey .Values "image") .Values.image.username .Values.image.password -}}
+  {{- $_ := set $payload "imagePullSecret" (include "imagePullSecret" .) -}}
 {{- end -}}
+{{- $payload | toJson | sha256sum -}}
 {{- end -}}

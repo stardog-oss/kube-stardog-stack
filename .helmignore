@@ -4,7 +4,11 @@
 .gitignore
 .githooks
 .githooks/*
+.helm-hook
+.helm-hook/*
 .helmignore
+local
+local/*
 .DS_Store
 .idea
 .vscode
@@ -23,6 +27,8 @@ scripts
 scripts/*
 docs
 docs/*
+doc/private-notes
+doc/private-notes/*
 
 # Ignore local package files and archives
 *.tgz
@@ -31,6 +37,18 @@ docs/*
 # Optional: ignore node/python build dirs
 node_modules
 venv
+.venv
+.venv/*
+*/.venv
+*/.venv/*
+*/*/.venv
+*/*/.venv/*
+__pycache__
+__pycache__/*
+*/__pycache__
+*/__pycache__/*
+*/*/__pycache__
+*/*/__pycache__/*
 .env*
 
 # Keep top-level docs in the chart package, except hook notes

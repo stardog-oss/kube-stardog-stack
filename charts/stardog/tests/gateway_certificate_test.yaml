@@ -229,6 +229,110 @@ tests:
           path: spec.secretName
           value: platform-gw-tls
 
+  - it: renders shared gateway certificate from global gateway and issuer config
+    set:
+      global:
+        gateway:
+          enabled: true
+          createGateway: false
+          name: platform-gw
+          namespace: gateway-system
+          domain: example.com
+          tls:
+            secretName: platform-gw-tls
+        launchpad:
+          enabled: true
+        certIssuer:
+          enabled: true
+          type: acme
+      gateway:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - documentIndex: 0
+        equal:
+          path: metadata.namespace
+          value: gateway-system
+      - documentIndex: 0
+        equal:
+          path: spec.secretName
+          value: platform-gw-tls
+      - documentIndex: 0
+        contains:
+          path: spec.dnsNames
+          content: sparql.example.com
+      - documentIndex: 0
+        contains:
+          path: spec.dnsNames
+          content: launchpad.example.com
+
+  - it: renders separate BI certificate when biSecretName differs from sparqlSecretName
+    set:
+      global:
+        gateway:
+          enabled: true
+          createGateway: false
+          name: platform-gw
+          namespace: gateway-system
+          domain: example.com
+          tls:
+            sparqlSecretName: sparql-tls
+            biSecretName: bi-tls
+        certIssuer:
+          enabled: true
+          type: acme
+        bi:
+          enabled: true
+      gateway:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        equal:
+          path: spec.secretName
+          value: sparql-tls
+      - documentIndex: 0
+        notContains:
+          path: spec.dnsNames
+          content: bi.example.com
+      - documentIndex: 1
+        equal:
+          path: metadata.namespace
+          value: gateway-system
+      - documentIndex: 1
+        equal:
+          path: spec.secretName
+          value: bi-tls
+      - documentIndex: 1
+        equal:
+          path: spec.dnsNames[0]
+          value: bi.example.com
+
+  - it: uses managed global gateway TLS secret over certIssuer secretName
+    set:
+      global:
+        gateway:
+          enabled: true
+          createGateway: true
+          domain: example.com
+          tls:
+            secretName: shared-gateway-tls
+        certIssuer:
+          enabled: true
+          secretName: issuer-shared-tls
+          type: acme
+      gateway:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - documentIndex: 0
+        equal:
+          path: spec.secretName
+          value: shared-gateway-tls
+
   - it: does not render a certificate for external shared gateway mode
     set:
       certIssuer:

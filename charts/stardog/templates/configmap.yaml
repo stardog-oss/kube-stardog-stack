@@ -28,6 +28,16 @@ data:
     {{- if ne $zkService "" }}
     pack.zookeeper.address={{ $zkService }}
     {{- end }}
+    {{- if .Values.cluster.zookeeperSessionTolerance.enabled }}
+    {{- $rejoinShutdown := .Values.cluster.zookeeperSessionTolerance.rejoinShutdown }}
+    {{- if or (kindIs "bool" $rejoinShutdown) (and (kindIs "string" $rejoinShutdown) (ne $rejoinShutdown "")) }}
+    pack.rejoin.shutdown={{ $rejoinShutdown }}
+    {{- end }}
+    {{- $inactiveOnSuspend := .Values.cluster.zookeeperSessionTolerance.inactiveOnSuspend }}
+    {{- if or (kindIs "bool" $inactiveOnSuspend) (and (kindIs "string" $inactiveOnSuspend) (ne $inactiveOnSuspend "")) }}
+    pack.zookeeper.inactiveOnSuspend={{ $inactiveOnSuspend }}
+    {{- end }}
+    {{- end }}
     {{- end }}
     {{- if .Values.jwtConfig.enabled }}
     jwt.conf=/var/opt/stardog/jwt.yaml

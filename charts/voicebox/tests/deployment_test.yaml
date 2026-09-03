@@ -1,6 +1,8 @@
 suite: Test Voicebox Deployment
 values:
   - values/values-voicebox.yaml
+set:
+  frameStore.enabled: false
 templates:
   - deployment.yaml
 
@@ -33,12 +35,20 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].ports[0].protocol
           value: TCP
+      - notExists:
+          path: spec.template.spec.containers[0].command
+
+  - it: should use explicit command override when configured
+    set:
+      command:
+        - /custom-entrypoint
+        - serve
+    asserts:
       - equal:
-          path: spec.template.spec.containers[0].command[5]
-          value: --port
-      - equal:
-          path: spec.template.spec.containers[0].command[6]
-          value: "8000"
+          path: spec.template.spec.containers[0].command
+          value:
+            - /custom-entrypoint
+            - serve
 
   # Test 2: Validate environment variables
   - it: should set required environment variables
@@ -163,6 +173,119 @@ tests:
             subPath: vbx_config.json
             readOnly: true
 
+  - it: should mount inline custom CA bundle and configure Python TLS env vars
+    set:
+      customCaBundle:
+        enabled: true
+        bundle: |-
+          -----BEGIN CERTIFICATE-----
+          MIIBtest
+          -----END CERTIFICATE-----
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REQUESTS_CA_BUNDLE
+            value: /etc/ssl/certs/voicebox-custom-ca-bundle.crt
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/ssl/certs/voicebox-custom-ca-bundle.crt
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: voicebox-custom-ca-bundle
+            mountPath: /etc/ssl/certs/voicebox-custom-ca-bundle.crt
+            subPath: ca-bundle.crt
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: voicebox-custom-ca-bundle
+            configMap:
+              name: voicebox-RELEASE-NAME-ca-bundle
+              items:
+                - key: ca-bundle.crt
+                  path: ca-bundle.crt
+
+  - it: should mount custom CA bundle from an existing ConfigMap
+    set:
+      customCaBundle:
+        enabled: true
+        existingConfigMap: internal-ca
+        key: internal-root.pem
+        mountPath: /var/run/voicebox-ca/internal-root.pem
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REQUESTS_CA_BUNDLE
+            value: /var/run/voicebox-ca/internal-root.pem
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: voicebox-custom-ca-bundle
+            mountPath: /var/run/voicebox-ca/internal-root.pem
+            subPath: ca-bundle.crt
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: voicebox-custom-ca-bundle
+            configMap:
+              name: internal-ca
+              items:
+                - key: internal-root.pem
+                  path: ca-bundle.crt
+
+  - it: should mount custom CA bundle from an existing Secret
+    set:
+      customCaBundle:
+        enabled: true
+        existingSecret: internal-ca-secret
+        key: ca.pem
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: voicebox-custom-ca-bundle
+            secret:
+              secretName: internal-ca-secret
+              items:
+                - key: ca.pem
+                  path: ca-bundle.crt
+
+  - it: should not duplicate TLS env vars when custom CA bundle is enabled
+    set:
+      customCaBundle:
+        enabled: true
+        existingConfigMap: internal-ca
+      environmentVariables:
+        REQUESTS_CA_BUNDLE: /manual/requests.pem
+        SSL_CERT_FILE: /manual/ssl.pem
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[2]
+          value:
+            name: REQUESTS_CA_BUNDLE
+            value: /etc/ssl/certs/voicebox-custom-ca-bundle.crt
+      - equal:
+          path: spec.template.spec.containers[0].env[3]
+          value:
+            name: SSL_CERT_FILE
+            value: /etc/ssl/certs/voicebox-custom-ca-bundle.crt
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REQUESTS_CA_BUNDLE
+            value: /manual/requests.pem
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /manual/ssl.pem
+
   # Test 6: Validate security context
   - it: should set security context
     values:
@@ -270,7 +393,7 @@ tests:
             subPath: vbx_bites_config.yaml
             readOnly: true
 
-  - it: should pass a non-default service port to the container command and probes
+  - it: should pass a non-default service port to the container port and probes
     set:
       service:
         port: 8081
@@ -278,9 +401,6 @@ tests:
         - name: api
           port: 8081
     asserts:
-      - equal:
-          path: spec.template.spec.containers[0].command[6]
-          value: "8081"
       - equal:
           path: spec.template.spec.containers[0].ports[0].containerPort
           value: 8081
@@ -308,3 +428,190 @@ tests:
       - exists:
           path: metadata.labels["app.kubernetes.io/instance"]
           value: "RELEASE-NAME"
+
+  - it: has stable rollout checksums for mounted config and secrets
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/config"]
+          pattern: "^[a-f0-9]{64}$"
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/secret"]
+          pattern: "^[a-f0-9]{64}$"
+
+  - it: should render vault-friendly envFrom and extraEnv entries
+    set:
+      envFrom:
+        - secretRef:
+            name: voicebox-runtime-env
+      extraEnv:
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /mnt/secrets-store/google-credentials.json
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: voicebox-runtime-env
+              key: OPENAI_API_KEY
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: voicebox-runtime-env
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GOOGLE_APPLICATION_CREDENTIALS
+            value: /mnt/secrets-store/google-credentials.json
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OPENAI_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: voicebox-runtime-env
+                key: OPENAI_API_KEY
+
+  - it: should render extra volume and mount entries for CSI secrets
+    set:
+      extraVolumes:
+        - name: keyvault-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: voicebox-keyvault
+      extraVolumeMounts:
+        - name: keyvault-secrets
+          mountPath: /mnt/secrets-store
+          readOnly: true
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: keyvault-secrets
+            csi:
+              driver: secrets-store.csi.k8s.io
+              readOnly: true
+              volumeAttributes:
+                secretProviderClass: voicebox-keyvault
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: keyvault-secrets
+            mountPath: /mnt/secrets-store
+            readOnly: true
+
+  - it: should render pod labels and annotations
+    set:
+      podLabels:
+        azure.workload.identity/use: "true"
+      podAnnotations:
+        custom.annotation/example: "enabled"
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["azure.workload.identity/use"]
+          value: "true"
+      - equal:
+          path: spec.template.metadata.annotations["custom.annotation/example"]
+          value: "enabled"
+
+  - it: should mount configFiles and set VBX_CONFIG_DIR
+    set:
+      configFiles:
+        enabled: true
+        mountPath: /voicebox-config-dir
+        files:
+          default.json: '{"endpoint":"*","database":"*"}'
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: VBX_CONFIG_DIR
+            value: /voicebox-config-dir
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: voicebox-RELEASE-NAME-config-files
+            mountPath: /voicebox-config-dir
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: voicebox-RELEASE-NAME-config-files
+            configMap:
+              name: voicebox-RELEASE-NAME-config-files
+
+  - it: should configure local frame store on Deployment with Recreate strategy
+    set:
+      replicaCount: 1
+      frameStore:
+        enabled: true
+        backend: local
+        local:
+          path: /var/lib/voicebox/frames
+          size: 30Gi
+          storageClassName: managed-csi
+          sweeperEnabled: false
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: VOICEBOX_FRAME_STORE_BACKEND
+            value: local
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: VOICEBOX_FRAME_STORE_SWEEPER_ENABLED
+            value: "false"
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: voicebox-frames
+            mountPath: /var/lib/voicebox/frames
+
+  - it: should configure s3 frame store without local frame volume
+    set:
+      frameStore:
+        enabled: true
+        backend: s3
+        s3:
+          bucket: voicebox-frames
+          prefix: customer/frames
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: VOICEBOX_FRAME_STORE_BACKEND
+            value: s3
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: VOICEBOX_FRAME_STORE_S3_BUCKET
+            value: voicebox-frames
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: voicebox-frames
+            mountPath: /var/lib/voicebox/frames
+
+  - it: should fail local frame store with multiple replicas
+    set:
+      replicaCount: 2
+      frameStore:
+        enabled: true
+        backend: local
+    asserts:
+      - failedTemplate:
+          errorMessage: "voicebox.frameStore.backend=local requires voicebox.replicaCount to be 1"
+
+  - it: should fail s3 frame store without bucket
+    set:
+      frameStore:
+        enabled: true
+        backend: s3
+    asserts:
+      - failedTemplate:
+          errorMessage: "voicebox.frameStore.backend=s3 requires voicebox.frameStore.s3.bucket"

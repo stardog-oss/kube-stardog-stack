@@ -1,5 +1,37 @@
 # Changelog
 
+## 4.1.1
+- Update the bundled Log4j2 configuration to write Stardog and ZooKeeper logs through rolling file appenders with size/time rotation and retention cleanup.
+- Route root WARN+ records and additional Stardog namespaces (`com.complexible`, `com.stardog`, and `com.clarkparsia`) into `stardog.log`.
+- Suppress noisy Tomcat JDBC pool messages and keep BI channel-close warnings capped.
+
+## 4.1.0
+- Harden clustered Stardog/ZooKeeper behavior:
+  - Change clustered Stardog StatefulSets to use a headless service for stable pod DNS names. This requires the StatefulSet migration when upgrading to `4.1.0` or later from any earlier Stardog chart version -- whether bundled via the umbrella chart or installed standalone.
+  - Add chart-managed ZooKeeper session tolerance properties for clustered Stardog upgrades.
+  - Reject direct `pack.rejoin.shutdown` and `pack.zookeeper.inactiveOnSuspend` entries in `stardogProperties`; use `cluster.zookeeperSessionTolerance` values instead.
+  - Default Stardog StatefulSet `podManagementPolicy` to `Parallel`.
+  - Default `pack.rejoin.shutdown=false` through `cluster.zookeeperSessionTolerance.rejoinShutdown`. The product default (`true`) makes Stardog deliberately exit the JVM on every cluster rejoin; Kubernetes' CrashLoopBackOff does not distinguish that from a real crash, so repeated rejoins escalate into exponentially growing pod-restart delays. Confirmed via rolling-restart testing.
+  - Leave `pack.zookeeper.inactiveOnSuspend` unset by default so the deployed Stardog version's own default applies; set `cluster.zookeeperSessionTolerance.inactiveOnSuspend` explicitly to override.
+  - Add `cluster.zookeeperSessionTolerance.disableDnsCaching` (default `true`) to disable JVM DNS caching for clustered Stardog, so a ZooKeeper client notices a changed ensemble member address (e.g. after a pod restart) instead of retrying a stale one.
+- Bug fixes:
+  - Fix the backup CronJob's S3 credentials `secretKeyRef` to use `accessKey`/`secretKey`, matching the casing `secret.yaml` actually creates the `<release>-backup-s3-secret` keys with. Previously the backup Job failed with `couldn't find key accesskey in Secret`.
+  - Fix a values key typo (`backup.backupCredentialsSecret` instead of `backup.credentialsSecret`) that always evaluated as unset, so the chart kept rendering its own auto-generated backup-credentials Secret even when an install specified an externally managed `credentialsSecret`, leaving an orphaned unused Secret behind.
+
+## 4.0.4
+- Give clustered Stardog pods stable `pack.node.address` values through StatefulSet pod DNS and a headless service.
+- Render bundled ZooKeeper as a comma-separated headless pod DNS ensemble in `pack.zookeeper.address`.
+- Use `global.gateway.domain` as the default domain for the auto-enabled Launchpad redirect hostname when `global.launchpad.enabled=true`.
+- Keep `gateway.redirectToLaunchpad.hostname` as the explicit override for the Stardog root-path Launchpad redirect.
+- Create Stardog Gateway Certificates in the shared Gateway namespace when `global.gateway.createGateway=false`.
+- Honor shared, SPARQL-specific, and template-derived Gateway TLS secret names, and optionally render a separate BI Certificate with `global.gateway.tls.biSecretName`.
+- Ensure managed shared Gateway Certificates target `global.gateway.tls.secretName` when it is set, matching the Gateway listener secret.
+- Update the common chart dependency to `0.1.7`.
+
+## 4.0.3
+- Use deterministic pod-template checksums for chart-managed ConfigMaps and Secrets so no-op Helm upgrades do not restart Stardog pods.
+- Restart Stardog pods when chart-managed Stardog configuration or consumed Secret inputs change.
+
 ## 4.0.2
 - Gated Upgrade
   - Add `upgrade.approval.targetVersion` as a version-scoped replacement for setting `upgrade.automatic` directly in `stardogProperties`.
