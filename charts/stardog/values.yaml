@@ -98,7 +98,17 @@ stardogHome: /var/opt/stardog
 
 # The initial password for the Stardog admin user
 admin:
+  # Deprecated in favor of existingSecretName below - a literal value here is stored in plaintext in
+  # the Helm release Secret regardless of where it came from. Kept for backward compatibility only.
   password: admin
+  # [OPTIONAL] Name of an existing Secret already holding the admin password (e.g. synced onto this
+  # cluster by the Secrets Store CSI Driver - see secretProviderClass/extraVolumes below - or created
+  # by the operator directly). When set, the chart does not create its own password Secret and
+  # `password` above is ignored. Same pattern as backup.credentialsSecret below.
+  existingSecretName: ""
+  # [OPTIONAL] Key within existingSecretName holding the password - only used when existingSecretName
+  # is set.
+  existingSecretKey: "password"
 
 image:
   # You should not rely on Docker up for you production environment. You should ALWAYS use an implicit tag

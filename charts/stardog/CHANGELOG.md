@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.2.0
+- Add `admin.existingSecretName`/`admin.existingSecretKey` - the chart no longer requires the admin
+  password as a literal Helm value. When set, the chart skips creating its own password Secret and
+  mounts the named existing Secret instead (e.g. one synced by the Secrets Store CSI Driver from a
+  Key Vault, or created by the operator directly) - same pattern `backup.credentialsSecret` already
+  uses. Existence is validated via the same `sdcommon.ensureSecretExists` helper (and the same
+  `global.skipSecretValidation` escape hatch) `stardog-license` already relies on.
+- `admin.password` (the literal value) is now **deprecated** in favor of `existingSecretName` - a
+  literal value is stored in plaintext in the Helm release Secret regardless of where it came from.
+  Kept for backward compatibility; not removed.
+
 ## 4.1.1
 - Update the bundled Log4j2 configuration to write Stardog and ZooKeeper logs through rolling file appenders with size/time rotation and retention cleanup.
 - Route root WARN+ records and additional Stardog namespaces (`com.complexible`, `com.stardog`, and `com.clarkparsia`) into `stardog.log`.
