@@ -254,7 +254,7 @@ The official open-source umbrella chart managing the complete Stardog ecosystem:
 
 - **GitHub:** https://github.com/stardog-oss/kube-stardog-stack
 - **Public Helm repo:** https://stardog-oss.github.io/kube-stardog-stack
-- **Version:** `1.3.0`
+- **Version:** `1.3.1`
 
 **1. Add the repository:**
 
@@ -266,7 +266,7 @@ helm repo update
 **2. Pull the chart for internal mirroring (recommended for production):**
 
 ```bash
-export VERSION=1.3.0
+export VERSION=1.3.1
 helm pull stardog/kube-stardog-stack --version ${VERSION}
 # Push kube-stardog-stack-${VERSION}.tgz to your internal Helm registry
 ```
@@ -669,7 +669,7 @@ Configure PingIdentity or EntraID following the provider documentation.
 
 ```bash
 helm upgrade --install stardog \
-  stardog/kube-stardog-stack --version 1.3.0 \
+  stardog/kube-stardog-stack --version 1.3.1 \
   --namespace stardog-ns \
   --values ./quickstart_values.yaml \
   --timeout 10m0s
@@ -679,7 +679,7 @@ Or from a local chart artifact:
 
 ```bash
 helm upgrade --install stardog \
-  kube-stardog-stack-1.3.0.tgz \
+  kube-stardog-stack-1.3.1.tgz \
   --namespace stardog-ns \
   --values ./quickstart_values.yaml \
   --timeout 10m0s
@@ -747,7 +747,7 @@ The first Helm install creates the Gateway and assigns the public IP. After the 
 
 ```bash
 helm upgrade --install stardog \
-  stardog/kube-stardog-stack --version 1.3.0 \
+  stardog/kube-stardog-stack --version 1.3.1 \
   --namespace stardog-ns \
   --values ./quickstart_values.yaml \
   --timeout 10m0s
@@ -757,7 +757,7 @@ Or from a local chart artifact:
 
 ```bash
 helm upgrade --install stardog \
-  kube-stardog-stack-1.3.0.tgz \
+  kube-stardog-stack-1.3.1.tgz \
   --namespace stardog-ns \
   --values ./quickstart_values.yaml \
   --timeout 10m0s
@@ -1015,4 +1015,4 @@ kubectl exec -n stardog-ns deploy/voicebox-stardog -- \
 
 ---
 
-*Generated from real deployment experience on AKS with kube-stardog-stack v1.3.0 and Envoy Gateway v1.8.1.*
+*Generated from real deployment experience on AKS with kube-stardog-stack v1.3.1 and Envoy Gateway v1.8.1.*
