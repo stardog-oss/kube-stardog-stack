@@ -6,6 +6,7 @@
   read-only Stardog cluster, with its own ZooKeeper, that replicates from a primary cluster in another
   region or Kubernetes cluster and can be promoted online. The primary's credentials are read from a Secret
   or a mounted Key Vault CSI volume and kept off the data volume, the ConfigMap and the pod log.
+- Add the replica cluster guide (`docs/replica-cluster.md`), including the promotion runbook.
 
 ## 1.3.1
 - Update the bundled Stardog chart to `4.2.0`.

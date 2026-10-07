@@ -36,6 +36,7 @@ Architecture is not one-size-fits-all, but this target architecture has worked w
 Related architecture note:
 
 - [Per-pod Prometheus collection for external monitoring](docs/prometheus-option-1.md)
+- [Replica cluster (cluster to cluster): disaster recovery and promotion](docs/replica-cluster.md)
 
 ## Components
 

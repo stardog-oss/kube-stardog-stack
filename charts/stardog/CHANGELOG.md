@@ -29,6 +29,10 @@
 - `pack.replicaCluster*` is now rejected in `stardogProperties`; use the `replicaCluster` values instead.
 - `replicaCluster.restartToken` rolls the pods after rotating the primary's credentials, which Stardog only
   reads at startup.
+- A literal `replicaCluster.primary.credentials.username` is escaped for `java.util.Properties` (like
+  file-sourced values) and must be printable ASCII.
+- Add the [replica cluster guide](../../docs/replica-cluster.md): setup, Key Vault credentials, user
+  provisioning, credential rotation and the promotion runbook. The install notes link to it.
 
 ## 4.2.0
 - Add `admin.existingSecretName`/`admin.existingSecretKey` - the chart no longer requires the admin
