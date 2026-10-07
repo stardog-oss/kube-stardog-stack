@@ -1,0 +1,652 @@
+suite: Replica cluster
+values:
+  - values/values-stardog.yaml
+  - values/values-replica.yaml
+templates:
+  - configmap.yaml
+  - statefulset.yaml
+  - job-post-install.yaml
+  - backup/job.yaml
+  - NOTES.txt
+tests:
+  # ---------------------------------------------------------------- properties
+  - it: renders the non-secret replica properties into the properties ConfigMap
+    template: configmap.yaml
+    set:
+      replicaCluster.syncInterval: 1m
+      replicaCluster.promoteQuiesceTimeout: 20m
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.replicaCluster=true$"
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.replicaCluster\\.primary\\.address=sparql\\.dc1\\.example\\.com:443$"
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.replicaCluster\\.primary\\.insecure=false$"
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.replicaCluster\\.sync\\.interval=1m$"
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.replicaCluster\\.promote\\.quiesce\\.timeout=20m$"
+
+  - it: never renders credentials into the ConfigMap
+    template: configmap.yaml
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - notMatchRegex:
+          path: data["stardog.properties"]
+          pattern: "primary\\.(user|password)"
+
+  - it: renders a literal username into the ConfigMap, but never the password
+    template: configmap.yaml
+    set:
+      replicaCluster.primary.credentials.username: replicator
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.replicaCluster\\.primary\\.user=replicator$"
+      - notMatchRegex:
+          path: data["stardog.properties"]
+          pattern: "primary\\.password"
+
+  - it: omits optional properties when left at the server default
+    template: configmap.yaml
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - notMatchRegex:
+          path: data["stardog.properties"]
+          pattern: "sync\\.interval|quiesce\\.timeout"
+
+  - it: renders no replica properties when replica mode is off
+    template: configmap.yaml
+    set:
+      replicaCluster.enabled: false
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - notMatchRegex:
+          path: data["stardog.properties"]
+          pattern: "pack\\.replicaCluster"
+
+  - it: forces JWT auto-create off and drops the auto-delete schedule on a replica
+    template: configmap.yaml
+    set:
+      jwtConfig:
+        enabled: true
+        autoDeleteUsersSchedule: "0 0 * * * ?"
+        issuers:
+          - issuer: https://login.example.com/tenant/v2.0
+            audience: stardog
+            autoCreateUsers: true
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-jwt
+    asserts:
+      - matchRegex:
+          path: data["jwt.yaml"]
+          pattern: "autoCreateUsers: false"
+      - notMatchRegex:
+          path: data["jwt.yaml"]
+          pattern: "autoCreateUsers: true|autoDeleteUsersSchedule"
+
+  - it: keeps JWT auto-create and auto-delete when replica mode is off (after promotion)
+    template: configmap.yaml
+    set:
+      replicaCluster.enabled: false
+      jwtConfig:
+        enabled: true
+        autoDeleteUsersSchedule: "0 0 * * * ?"
+        issuers:
+          - issuer: https://login.example.com/tenant/v2.0
+            audience: stardog
+            autoCreateUsers: true
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-jwt
+    asserts:
+      - matchRegex:
+          path: data["jwt.yaml"]
+          pattern: "autoCreateUsers: true"
+      - matchRegex:
+          path: data["jwt.yaml"]
+          pattern: "autoDeleteUsersSchedule: 0 0 \\* \\* \\* \\?"
+
+  # ---------------------------------------------------------------- validation
+  - it: requires cluster mode
+    template: statefulset.yaml
+    set:
+      cluster.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCluster.enabled=true requires cluster.enabled=true (a replica cluster is a Stardog cluster with its own ZooKeeper)."
+
+  - it: requires a host:port primary address
+    template: statefulset.yaml
+    set:
+      replicaCluster.primary.address: https://sparql.dc1.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCluster.primary.address is required as host:port without scheme or path, e.g. sparql.dc1.example.com:443."
+
+  - it: requires a credential source
+    template: statefulset.yaml
+    set:
+      replicaCluster.primary.credentials.existingSecretName: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCluster.primary.credentials needs exactly one source: existingSecretName, or passwordFile (with usernameFile or username)."
+
+  - it: rejects two credential sources
+    template: statefulset.yaml
+    set:
+      replicaCluster.primary.credentials.passwordFile: /mnt/secrets-store/pw
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCluster.primary.credentials needs exactly one source: existingSecretName, or passwordFile (with usernameFile or username)."
+
+  - it: requires a username with passwordFile
+    template: statefulset.yaml
+    set:
+      replicaCluster.primary.credentials.existingSecretName: ""
+      replicaCluster.primary.credentials.passwordFile: /mnt/secrets-store/pw
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCluster.primary.credentials.passwordFile requires usernameFile or username."
+
+  - it: rejects usernameFile with existingSecretName
+    template: statefulset.yaml
+    set:
+      replicaCluster.primary.credentials.usernameFile: /mnt/secrets-store/user
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCluster.primary.credentials.usernameFile cannot be combined with existingSecretName; use usernameKey or username."
+
+  - it: fails when the credentials Secret does not exist
+    template: statefulset.yaml
+    set:
+      replicaCluster.primary.credentials.existingSecretName: missing-secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "Secret NAMESPACE/missing-secret not found. Please create it or choose an existing secret."
+
+  - it: always rejects pack.replicaCluster in stardogProperties
+    template: statefulset.yaml
+    set:
+      replicaCluster.enabled: false
+      stardogProperties: |
+        pack.replicaCluster=true
+    asserts:
+      - failedTemplate:
+          errorMessage: "Do not set pack.replicaCluster* in stardogProperties; use the replicaCluster values instead."
+
+  - it: rejects the standby family in replica mode
+    template: statefulset.yaml
+    set:
+      stardogProperties: |
+        pack.geoReplica=true
+    asserts:
+      - failedTemplate:
+          errorMessage: "pack.standby, pack.readReplica and pack.geoReplica cannot be combined with replicaCluster.enabled."
+
+  - it: rejects cachetarget in the same release
+    template: statefulset.yaml
+    set:
+      global.cachetarget.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCluster.enabled cannot be combined with global.cachetarget.enabled: a replica cluster rejects the writes the cache target registration makes."
+
+  - it: rejects a STARDOG_PROPERTIES override in environmentVariables
+    template: statefulset.yaml
+    set:
+      environmentVariables.STARDOG_PROPERTIES: /tmp/x.properties
+    asserts:
+      - failedTemplate:
+          errorMessage: "Do not set environmentVariables.STARDOG_PROPERTIES with replicaCluster.enabled; the chart manages the properties file location."
+
+  - it: rejects a STARDOG_PROPERTIES override in extraEnv
+    template: statefulset.yaml
+    set:
+      extraEnv:
+        - name: STARDOG_PROPERTIES
+          value: /tmp/x.properties
+    asserts:
+      - failedTemplate:
+          errorMessage: "Do not set STARDOG_PROPERTIES in extraEnv with replicaCluster.enabled; the chart manages the properties file location."
+
+  - it: requires backup.credentialsSecret when backups are enabled
+    template: statefulset.yaml
+    set:
+      backup.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.enabled with replicaCluster.enabled requires backup.credentialsSecret: the backup user comes from the primary, so a chart-generated password would never match."
+
+  - it: rejects Stardog versions before 12.2.0
+    template: statefulset.yaml
+    set:
+      image.tag: 12.1.3
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCluster.enabled requires Stardog 12.2.0 or later (image.tag is 12.1.3)."
+
+  - it: accepts 12.2.0 release candidates
+    template: statefulset.yaml
+    set:
+      image.tag: 12.2.0-rc1
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: skips the version check for non-semver tags
+    template: statefulset.yaml
+    set:
+      image.tag: latest
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: refuses to turn an existing non-replica release into a replica without acknowledgement
+    template: statefulset.yaml
+    release:
+      upgrade: true
+    set:
+      global.__configMapFixtures:
+        - metadata:
+            name: stardog-RELEASE-NAME-properties
+          data:
+            stardog.properties: |
+              pack.enabled=true
+    asserts:
+      - failedTemplate:
+          errorMessage: "Enabling replicaCluster on an existing release: the first sync drops every database the primary does not have. Set replicaCluster.acknowledgeDataLoss=true to proceed."
+
+  - it: allows the conversion when acknowledged
+    template: statefulset.yaml
+    release:
+      upgrade: true
+    set:
+      replicaCluster.acknowledgeDataLoss: true
+      global.__configMapFixtures:
+        - metadata:
+            name: stardog-RELEASE-NAME-properties
+          data:
+            stardog.properties: |
+              pack.enabled=true
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: allows upgrades of a release that is already a replica
+    template: statefulset.yaml
+    release:
+      upgrade: true
+    set:
+      global.__configMapFixtures:
+        - metadata:
+            name: stardog-RELEASE-NAME-properties
+          data:
+            stardog.properties: |
+              pack.enabled=true
+              pack.replicaCluster=true
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  # ---------------------------------------------------------------- statefulset
+  - it: reads stardog.properties from a memory-backed volume
+    template: statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: STARDOG_PROPERTIES
+            value: /etc/stardog-runtime/stardog.properties
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: stardog-runtime-properties
+            emptyDir:
+              medium: Memory
+              sizeLimit: 1Mi
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: stardog-runtime-properties
+            mountPath: /etc/stardog-runtime
+
+  - it: keeps stardog.properties on the data volume when replica mode is off
+    template: statefulset.yaml
+    set:
+      replicaCluster.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: STARDOG_PROPERTIES
+            value: /var/opt/stardog/stardog.properties
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: stardog-runtime-properties
+            emptyDir:
+              medium: Memory
+              sizeLimit: 1Mi
+
+  - it: mounts the credentials Secret with username and password keys
+    template: statefulset.yaml
+    set:
+      replicaCluster.primary.credentials.usernameKey: user
+      replicaCluster.primary.credentials.passwordKey: pass
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: stardog-replica-credentials
+            secret:
+              secretName: primary-replication
+              defaultMode: 0440
+              items:
+                - key: user
+                  path: username
+                - key: pass
+                  path: password
+
+  - it: mounts only the password key when the username is literal
+    template: statefulset.yaml
+    set:
+      replicaCluster.primary.credentials.username: replicator
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: stardog-replica-credentials
+            secret:
+              secretName: primary-replication
+              defaultMode: 0440
+              items:
+                - key: password
+                  path: password
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "primary\\.user="
+
+  - it: appends the credentials with tracing off and restricts the file
+    template: statefulset.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'chmod 600 "\$\{STARDOG_PROPERTIES\}"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)\{ set \+x; \} 2>/dev/null.*primary\.user=.*primary\.password=.*\n\s*set -x\n'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'replica_credential "/etc/stardog-replica/password"'
+
+  - it: reads credentials from directly mounted files
+    template: statefulset.yaml
+    set:
+      replicaCluster.primary.credentials.existingSecretName: ""
+      replicaCluster.primary.credentials.usernameFile: /mnt/secrets-store/replication-user
+      replicaCluster.primary.credentials.passwordFile: /mnt/secrets-store/replication-password
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'replica_credential "/mnt/secrets-store/replication-user"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'replica_credential "/mnt/secrets-store/replication-password"'
+      - notExists:
+          path: spec.template.spec.volumes[?(@.name == "stardog-replica-credentials")]
+      - notExists:
+          path: spec.template.spec.containers[0].volumeMounts[?(@.name == "stardog-replica-credentials")]
+
+  - it: stops the server with replica, admin, then default credentials
+    template: statefulset.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].lifecycle.preStop.exec.command[2]
+          pattern: '(?s)stop "\$\(cat "/etc/stardog-replica/username"\)" "\$\(cat "/etc/stardog-replica/password"\)".*\|\| stop admin "\$\(cat /etc/stardog-password/adminpw\)".*\|\| stop admin admin'
+
+  - it: keeps the original preStop when replica mode is off
+    template: statefulset.yaml
+    set:
+      replicaCluster.enabled: false
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].lifecycle.preStop.exec.command[2]
+          pattern: 'server stop -u admin -p \$\(cat /etc/stardog-password/adminpw\)'
+
+  # ---------------------------------------------------------------- jobs
+  - it: skips the admin password change and backup user on a replica
+    template: job-post-install.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "wait_for_start"
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "(?m)^\\s*(change_pw|backup_credentials) "
+
+  - it: does not render the backup CronJob on a replica by default
+    template: backup/job.yaml
+    set:
+      backup.enabled: true
+      backup.credentialsSecret: backup-creds
+      backup.cronjob.enabled: true
+      global.__secretFixtures:
+        - metadata:
+            name: stardog-license
+        - metadata:
+            name: primary-replication
+        - metadata:
+            name: backup-creds
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders the backup CronJob on a replica when allowed
+    template: backup/job.yaml
+    set:
+      backup.enabled: true
+      backup.credentialsSecret: backup-creds
+      backup.cronjob.enabled: true
+      replicaCluster.backup.allow: true
+      global.__secretFixtures:
+        - metadata:
+            name: stardog-license
+        - metadata:
+            name: primary-replication
+        - metadata:
+            name: backup-creds
+    asserts:
+      - isKind:
+          of: CronJob
+
+  # ---------------------------------------------------------------- notes
+  - it: shows the read-only replica banner
+    template: NOTES.txt
+    asserts:
+      - matchRegex:
+          path: raw
+          pattern: "READ-ONLY REPLICA CLUSTER"
+      - matchRegex:
+          path: raw
+          pattern: "replicates from the primary at sparql\\.dc1\\.example\\.com:443"
+
+  - it: mounts the credentials Secret into the container in Secret mode
+    template: statefulset.yaml
+    asserts:
+      - exists:
+          path: spec.template.spec.containers[0].volumeMounts[?(@.name == "stardog-replica-credentials")]
+
+  # ---------------------------------------------------------------- coverage gaps
+  - it: renders insecure=true when connecting to the primary over http
+    template: configmap.yaml
+    set:
+      replicaCluster.primary.insecure: true
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.replicaCluster\\.primary\\.insecure=true$"
+
+  - it: requires a port in the primary address
+    template: statefulset.yaml
+    set:
+      replicaCluster.primary.address: sparql.dc1.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCluster.primary.address is required as host:port without scheme or path, e.g. sparql.dc1.example.com:443."
+
+  - it: requires a primary address
+    template: statefulset.yaml
+    set:
+      replicaCluster.primary.address: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCluster.primary.address is required as host:port without scheme or path, e.g. sparql.dc1.example.com:443."
+
+  - it: rejects pack.standby in replica mode
+    template: statefulset.yaml
+    set:
+      stardogProperties: |
+        pack.standby=true
+    asserts:
+      - failedTemplate:
+          errorMessage: "pack.standby, pack.readReplica and pack.geoReplica cannot be combined with replicaCluster.enabled."
+
+  - it: rejects pack.readReplica in replica mode
+    template: statefulset.yaml
+    set:
+      stardogProperties: |
+        pack.readReplica=true
+    asserts:
+      - failedTemplate:
+          errorMessage: "pack.standby, pack.readReplica and pack.geoReplica cannot be combined with replicaCluster.enabled."
+
+  - it: still allows the standby family when replica mode is off
+    template: statefulset.yaml
+    set:
+      replicaCluster.enabled: false
+      stardogProperties: |
+        pack.standby=true
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: allows an upgrade when no properties ConfigMap exists yet
+    template: statefulset.yaml
+    release:
+      upgrade: true
+    set:
+      global.__configMapFixtures: []
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: only checks for data loss on upgrade, not on install
+    template: statefulset.yaml
+    set:
+      global.__configMapFixtures:
+        - metadata:
+            name: stardog-RELEASE-NAME-properties
+          data:
+            stardog.properties: |
+              pack.enabled=true
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: removes the stale properties file from the data volume
+    template: statefulset.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'rm -f "\$\{STARDOG_HOME\}/stardog\.properties"'
+
+  - it: combines a literal username with a password file
+    template: statefulset.yaml
+    set:
+      replicaCluster.primary.credentials.existingSecretName: ""
+      replicaCluster.primary.credentials.username: replicator
+      replicaCluster.primary.credentials.passwordFile: /mnt/secrets-store/replication-password
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "REPLICA_USER|primary\\.user="
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'replica_credential "/mnt/secrets-store/replication-password"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].lifecycle.preStop.exec.command[2]
+          pattern: 'stop "replicator" "\$\(cat "/mnt/secrets-store/replication-password"\)"'
+      - notExists:
+          path: spec.template.spec.volumes[?(@.name == "stardog-replica-credentials")]
+
+  - it: renders the literal username into the ConfigMap in password-file mode
+    template: configmap.yaml
+    set:
+      replicaCluster.primary.credentials.existingSecretName: ""
+      replicaCluster.primary.credentials.username: replicator
+      replicaCluster.primary.credentials.passwordFile: /mnt/secrets-store/replication-password
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.replicaCluster\\.primary\\.user=replicator$"
+
+  - it: stops the server with credentials from mounted files
+    template: statefulset.yaml
+    set:
+      replicaCluster.primary.credentials.existingSecretName: ""
+      replicaCluster.primary.credentials.usernameFile: /mnt/secrets-store/replication-user
+      replicaCluster.primary.credentials.passwordFile: /mnt/secrets-store/replication-password
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].lifecycle.preStop.exec.command[2]
+          pattern: 'stop "\$\(cat "/mnt/secrets-store/replication-user"\)" "\$\(cat "/mnt/secrets-store/replication-password"\)"'
+
+  - it: still changes the admin password and creates the backup user when replica mode is off
+    template: job-post-install.yaml
+    set:
+      replicaCluster.enabled: false
+      backup.enabled: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "(?m)^\\s*change_pw "
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "(?m)^\\s*backup_credentials "
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "Replica cluster: skipping"
+
+  - it: shows no replica banner when replica mode is off
+    template: NOTES.txt
+    set:
+      replicaCluster.enabled: false
+    asserts:
+      - notMatchRegex:
+          path: raw
+          pattern: "READ-ONLY REPLICA CLUSTER"

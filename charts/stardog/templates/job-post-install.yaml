@@ -69,9 +69,15 @@ spec:
           set -ex
           {{ .Files.Get "files/utils.sh" | indent 10 }}
           wait_for_start ${HOST} ${PORT} ${PROTOCOL}
+          {{- if eq (include "stardog.replicaClusterEnabled" .) "true" }}
+          # Replica cluster: users, roles and passwords come from the primary and every client write
+          # is rejected, so the admin password and backup user are managed on the primary instead.
+          echo "Replica cluster: skipping admin password change and backup user setup"
+          {{- else }}
           change_pw ${HOST} ${PORT} ${PROTOCOL}
           {{- if .Values.backup.enabled }}
           backup_credentials "${PROTOCOL}://${HOST}:${PORT}" ${BACKUP_USERNAME} ${BACKUP_PASSWORD}
+          {{- end }}
           {{- end }}
   {{- if and (hasKey .Values "image") .Values.image.pullSecrets }}
   imagePullSecrets:

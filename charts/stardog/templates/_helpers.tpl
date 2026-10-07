@@ -189,6 +189,162 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- end -}}
 {{- end -}}
 
+{{/*
+Replica cluster (pack.replicaCluster). Returns "true" when replica mode is enabled.
+*/}}
+{{- define "stardog.replicaClusterEnabled" -}}
+{{- $rc := default (dict) .Values.replicaCluster -}}
+{{- if eq (toString (default false $rc.enabled)) "true" -}}true{{- end -}}
+{{- end -}}
+
+{{/*
+Paths of the files the start script reads the primary credentials from. Empty when the value comes
+from somewhere else (a literal username is rendered into the ConfigMap instead).
+*/}}
+{{- define "stardog.replicaCredentialsMountPath" -}}/etc/stardog-replica{{- end -}}
+
+{{- define "stardog.replicaUsernameFile" -}}
+{{- $creds := default (dict) (default (dict) .Values.replicaCluster.primary).credentials -}}
+{{- if ne (default "" $creds.username) "" -}}
+{{- else if ne (default "" $creds.usernameFile) "" -}}
+{{- $creds.usernameFile -}}
+{{- else if ne (default "" $creds.existingSecretName) "" -}}
+{{- printf "%s/username" (include "stardog.replicaCredentialsMountPath" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "stardog.replicaPasswordFile" -}}
+{{- $creds := default (dict) (default (dict) .Values.replicaCluster.primary).credentials -}}
+{{- if ne (default "" $creds.passwordFile) "" -}}
+{{- $creds.passwordFile -}}
+{{- else if ne (default "" $creds.existingSecretName) "" -}}
+{{- printf "%s/password" (include "stardog.replicaCredentialsMountPath" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Where the server reads stardog.properties from. In replica mode the file holds the primary's
+password, so it lives on a memory-backed emptyDir instead of the data volume.
+sdcommon.stardogPropertiesPath is left unchanged because cachetarget uses it too.
+*/}}
+{{- define "stardog.runtimePropertiesDir" -}}/etc/stardog-runtime{{- end -}}
+
+{{- define "stardog.propertiesPath" -}}
+{{- if eq (include "stardog.replicaClusterEnabled" .) "true" -}}
+{{- printf "%s/stardog.properties" (include "stardog.runtimePropertiesDir" .) -}}
+{{- else -}}
+{{- include "sdcommon.stardogPropertiesPath" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Look up a ConfigMap. Unit tests supply global.__configMapFixtures (same shape as __secretFixtures);
+otherwise this uses lookup, which returns nothing under helm template / --dry-run.
+Usage: include "stardog.lookupConfigMap" (dict "context" $ "name" "x") | fromYaml
+*/}}
+{{- define "stardog.lookupConfigMap" -}}
+{{- $ctx := .context -}}
+{{- $ns := $ctx.Release.Namespace -}}
+{{- $global := default (dict) $ctx.Values.global -}}
+{{- if hasKey $global "__configMapFixtures" -}}
+  {{- range $global.__configMapFixtures -}}
+    {{- $meta := default (dict) .metadata -}}
+    {{- if and (eq (default "" $meta.name) $.name) (eq (default $ns $meta.namespace) $ns) -}}
+      {{- toYaml . -}}
+    {{- end -}}
+  {{- end -}}
+{{- else -}}
+  {{- with (lookup "v1" "ConfigMap" $ns .name) -}}
+    {{- toYaml . -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "stardog.validateReplicaClusterConfig" -}}
+{{- $properties := default "" .Values.stardogProperties -}}
+{{- if regexMatch `(?m)^\s*pack\.replicaCluster` $properties -}}
+{{- fail "Do not set pack.replicaCluster* in stardogProperties; use the replicaCluster values instead." -}}
+{{- end -}}
+{{- if eq (include "stardog.replicaClusterEnabled" .) "true" -}}
+{{- $rc := .Values.replicaCluster -}}
+{{- $primary := default (dict) $rc.primary -}}
+{{- $creds := default (dict) $primary.credentials -}}
+{{- if not .Values.cluster.enabled -}}
+{{- fail "replicaCluster.enabled=true requires cluster.enabled=true (a replica cluster is a Stardog cluster with its own ZooKeeper)." -}}
+{{- end -}}
+{{- if not (regexMatch `^[^/:\s]+:[0-9]+$` (default "" $primary.address)) -}}
+{{- fail "replicaCluster.primary.address is required as host:port without scheme or path, e.g. sparql.dc1.example.com:443." -}}
+{{- end -}}
+{{- $fromSecret := ne (default "" $creds.existingSecretName) "" -}}
+{{- $fromFile := ne (default "" $creds.passwordFile) "" -}}
+{{- if eq $fromSecret $fromFile -}}
+{{- fail "replicaCluster.primary.credentials needs exactly one source: existingSecretName, or passwordFile (with usernameFile or username)." -}}
+{{- end -}}
+{{- if and $fromFile (eq (default "" $creds.usernameFile) "") (eq (default "" $creds.username) "") -}}
+{{- fail "replicaCluster.primary.credentials.passwordFile requires usernameFile or username." -}}
+{{- end -}}
+{{- if and $fromSecret (ne (default "" $creds.usernameFile) "") -}}
+{{- fail "replicaCluster.primary.credentials.usernameFile cannot be combined with existingSecretName; use usernameKey or username." -}}
+{{- end -}}
+{{- if regexMatch `(?m)^\s*pack\.(standby|readReplica|geoReplica)\s*=` $properties -}}
+{{- fail "pack.standby, pack.readReplica and pack.geoReplica cannot be combined with replicaCluster.enabled." -}}
+{{- end -}}
+{{- $global := default (dict) .Values.global -}}
+{{- $cachetarget := default (dict) $global.cachetarget -}}
+{{- if eq (toString (default false $cachetarget.enabled)) "true" -}}
+{{- fail "replicaCluster.enabled cannot be combined with global.cachetarget.enabled: a replica cluster rejects the writes the cache target registration makes." -}}
+{{- end -}}
+{{- if hasKey (default (dict) .Values.environmentVariables) "STARDOG_PROPERTIES" -}}
+{{- fail "Do not set environmentVariables.STARDOG_PROPERTIES with replicaCluster.enabled; the chart manages the properties file location." -}}
+{{- end -}}
+{{- range (default (list) .Values.extraEnv) -}}
+{{- if eq (default "" .name) "STARDOG_PROPERTIES" -}}
+{{- fail "Do not set STARDOG_PROPERTIES in extraEnv with replicaCluster.enabled; the chart manages the properties file location." -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.backup.enabled (eq (default "" .Values.backup.credentialsSecret) "") -}}
+{{- fail "backup.enabled with replicaCluster.enabled requires backup.credentialsSecret: the backup user comes from the primary, so a chart-generated password would never match." -}}
+{{- end -}}
+{{- $tag := trimPrefix "v" (toString (default "" .Values.image.tag)) -}}
+{{- if regexMatch `^[0-9]+\.[0-9]+\.[0-9]+` $tag -}}
+{{- if not (semverCompare ">=12.2.0-0" $tag) -}}
+{{- fail (printf "replicaCluster.enabled requires Stardog 12.2.0 or later (image.tag is %s)." .Values.image.tag) -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Release.IsUpgrade (not $rc.acknowledgeDataLoss) -}}
+{{- $existing := include "stardog.lookupConfigMap" (dict "context" $ "name" (printf "%s-properties" (include "sdcommon.fullname" .))) | fromYaml -}}
+{{- if $existing -}}
+{{- $existingProps := index (default (dict) $existing.data) "stardog.properties" | default "" -}}
+{{- if not (regexMatch `(?m)^\s*pack\.replicaCluster\s*=\s*true\s*$` $existingProps) -}}
+{{- fail "Enabling replicaCluster on an existing release: the first sync drops every database the primary does not have. Set replicaCluster.acknowledgeDataLoss=true to proceed." -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Non-secret replica cluster properties, rendered into the properties ConfigMap.
+*/}}
+{{- define "stardog.replicaClusterProperties" -}}
+{{- if eq (include "stardog.replicaClusterEnabled" .) "true" -}}
+{{- $rc := .Values.replicaCluster -}}
+{{- $creds := default (dict) $rc.primary.credentials -}}
+pack.replicaCluster=true
+pack.replicaCluster.primary.address={{ $rc.primary.address }}
+pack.replicaCluster.primary.insecure={{ eq (toString (default false $rc.primary.insecure)) "true" }}
+{{- if ne (default "" $creds.username) "" }}
+pack.replicaCluster.primary.user={{ $creds.username }}
+{{- end }}
+{{- if ne (toString (default "" $rc.syncInterval)) "" }}
+pack.replicaCluster.sync.interval={{ $rc.syncInterval }}
+{{- end }}
+{{- if ne (toString (default "" $rc.promoteQuiesceTimeout)) "" }}
+pack.replicaCluster.promote.quiesce.timeout={{ $rc.promoteQuiesceTimeout }}
+{{- end }}
+{{- end -}}
+{{- end -}}
+
 {{- define "stardog.upgradeProperties" -}}
 {{- $upgrade := .Values.upgrade | default dict -}}
 {{- $approval := $upgrade.approval | default dict -}}
@@ -498,6 +654,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   "tls" .Values.tls
   "upgradeProperties" (include "stardog.upgradeProperties" . | trim)
   "stardogProperties" .Values.stardogProperties
+  "replicaClusterProperties" (include "stardog.replicaClusterProperties" . | trim)
 -}}
 {{- $payload | toJson | sha256sum -}}
 {{- end }}
@@ -506,6 +663,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $payload := dict "adminPassword" .Values.admin.password -}}
 {{- if and (hasKey .Values "image") .Values.image.username .Values.image.password -}}
   {{- $_ := set $payload "imagePullSecret" (include "imagePullSecret" .) -}}
+{{- end -}}
+{{- if eq (include "stardog.replicaClusterEnabled" .) "true" -}}
+  {{- $_ := set $payload "replicaCredentials" .Values.replicaCluster.primary.credentials -}}
+  {{- $_ := set $payload "replicaRestartToken" (toString (default "" .Values.replicaCluster.restartToken)) -}}
 {{- end -}}
 {{- $payload | toJson | sha256sum -}}
 {{- end -}}

@@ -12,6 +12,8 @@
 {{- $debugJavaSsl := or (eq (index $debugCfg "javaSsl") true) (eq (toString (index $debugCfg "javaSsl")) "true") -}}
 {{- include "stardog.validateClusterConfig" . }}
 {{- include "stardog.validateUpgradeConfig" . }}
+{{- include "stardog.validateReplicaClusterConfig" . }}
+{{- $replicaCluster := eq (include "stardog.replicaClusterEnabled" .) "true" -}}
 {{- if and $sparqlTlsRequired (not $sparqlTlsEnabled) }}
   {{- fail "tls.sparql.required=true requires tls.sparql.enabled=true." -}}
 {{- end }}
@@ -54,6 +56,9 @@ spec:
       {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" "stardog-license" "namespace" .Release.Namespace) }}
       {{- if .Values.admin.existingSecretName }}
       {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" .Values.admin.existingSecretName "namespace" .Release.Namespace) }}
+      {{- end }}
+      {{- if and $replicaCluster .Values.replicaCluster.primary.credentials.existingSecretName }}
+      {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" .Values.replicaCluster.primary.credentials.existingSecretName "namespace" .Release.Namespace) }}
       {{- end }}
       securityContext:
         {{- toYaml .Values.securityContext | nindent 8 }}
@@ -174,6 +179,15 @@ spec:
         - name: {{ include "sdcommon.fullname" . }}-password
           mountPath: /etc/stardog-password
           readOnly: true
+        {{- if $replicaCluster }}
+        - name: stardog-runtime-properties
+          mountPath: {{ include "stardog.runtimePropertiesDir" . }}
+        {{- if .Values.replicaCluster.primary.credentials.existingSecretName }}
+        - name: stardog-replica-credentials
+          mountPath: {{ include "stardog.replicaCredentialsMountPath" . }}
+          readOnly: true
+        {{- end }}
+        {{- end }}
         {{- if and .Values.backup.enabled }}
         {{- if or .Values.backup.location.azure.enabled .Values.backup.location.persistentVolume.enabled }}
         - name: {{ include "sdcommon.fullname" . }}-backup
@@ -213,7 +227,7 @@ spec:
         - name: STARDOG_LICENSE_PATH
           value: "/etc/stardog-license/stardog-license-key.bin"
         - name: STARDOG_PROPERTIES
-          value: "{{ include "sdcommon.stardogPropertiesPath" . }}"
+          value: "{{ include "stardog.propertiesPath" . }}"
         - name: STARDOG_SERVER_JAVA_ARGS
           value: |
             {{- if $debugJavaSsl }}
@@ -291,6 +305,13 @@ spec:
               cp "${SRC_PROPS}" "${STARDOG_PROPERTIES}"
             fi
           fi
+          {{- if $replicaCluster }}
+          # Replica mode: the properties file will hold the primary's password, so it lives on a
+          # memory-backed volume, readable by Stardog only. Remove the copy older chart versions
+          # left on the data volume so nobody inspects a stale file.
+          chmod 600 "${STARDOG_PROPERTIES}"
+          rm -f "${STARDOG_HOME}/stardog.properties"
+          {{- end }}
           mkdir -p ${DJL_CACHE_DIR}
           ln -sfn /var/opt/djl/pytorch ${DJL_CACHE_DIR}/pytorch
           {{- if .Values.backup.enabled }}
@@ -298,6 +319,31 @@ spec:
           {{- end }}
           {{- if .Values.cluster.enabled }}
           echo "pack.node.address=${NODE_NAME}.{{ include "stardog.headlessServiceName" . }}.${POD_NAMESPACE}.svc.{{ .Values.clusterDomain }}:${PORT}" >> ${STARDOG_PROPERTIES}
+          {{- end }}
+          {{- if $replicaCluster }}
+          {{- $replicaUserFile := include "stardog.replicaUsernameFile" . }}
+          # Append the primary's credentials with tracing off, so they never reach the pod log.
+          # Values are escaped for java.util.Properties; newlines and non-ASCII are rejected.
+          { set +x; } 2>/dev/null
+          replica_credential() {
+            local v
+            v="$(cat "$1")" || { echo "Cannot read replica credential file $1" >&2; return 1; }
+            case "$v" in *$'\n'*) echo "Replica credential file $1 contains a newline" >&2; return 1;; esac
+            if printf '%s' "$v" | LC_ALL=C grep -q '[^ -~]'; then
+              echo "Replica credential file $1 contains non-printable or non-ASCII characters" >&2
+              return 1
+            fi
+            printf '%s' "$v" | sed -e 's/\\/\\\\/g' -e 's/^\([[:space:]]\)/\\\1/'
+          }
+          {{- if ne $replicaUserFile "" }}
+          REPLICA_USER="$(replica_credential {{ $replicaUserFile | quote }})" || exit 1
+          printf 'pack.replicaCluster.primary.user=%s\n' "${REPLICA_USER}" >> "${STARDOG_PROPERTIES}"
+          unset REPLICA_USER
+          {{- end }}
+          REPLICA_PASSWORD="$(replica_credential {{ include "stardog.replicaPasswordFile" . | quote }})" || exit 1
+          printf 'pack.replicaCluster.primary.password=%s\n' "${REPLICA_PASSWORD}" >> "${STARDOG_PROPERTIES}"
+          unset REPLICA_PASSWORD
+          set -x
           {{- end }}
           set +e
           {{- if $sparqlTlsEnabled }}
@@ -322,7 +368,21 @@ spec:
               - /bin/bash
               - -c
               - |
+                {{- if $replicaCluster }}
+                {{- $replicaUserFile := include "stardog.replicaUsernameFile" . }}
+                # A replica's users come from the primary once it has synced; before that the admin
+                # password is still the default. Try each credential so the server stops cleanly.
+                stop() { /opt/stardog/bin/stardog-admin server stop -u "$1" -p "$2"; }
+                {{- if ne $replicaUserFile "" }}
+                stop "$(cat {{ $replicaUserFile | quote }})" "$(cat {{ include "stardog.replicaPasswordFile" . | quote }})" \
+                {{- else }}
+                stop {{ .Values.replicaCluster.primary.credentials.username | quote }} "$(cat {{ include "stardog.replicaPasswordFile" . | quote }})" \
+                {{- end }}
+                  || stop admin "$(cat /etc/stardog-password/adminpw)" \
+                  || stop admin admin
+                {{- else }}
                 /opt/stardog/bin/stardog-admin server stop -u admin -p $(cat /etc/stardog-password/adminpw)
+                {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       {{- if and (hasKey .Values "image") .Values.image.pullSecrets }}
       imagePullSecrets:
@@ -359,6 +419,26 @@ spec:
             - key: {{ ternary .Values.admin.existingSecretKey "password" (ne .Values.admin.existingSecretName "") }}
               path: adminpw
               mode: 444
+      {{- if $replicaCluster }}
+      - name: stardog-runtime-properties
+        emptyDir:
+          medium: Memory
+          sizeLimit: 1Mi
+      {{- $creds := .Values.replicaCluster.primary.credentials }}
+      {{- if $creds.existingSecretName }}
+      - name: stardog-replica-credentials
+        secret:
+          secretName: {{ $creds.existingSecretName }}
+          defaultMode: 0440
+          items:
+            {{- if eq (default "" $creds.username) "" }}
+            - key: {{ default "username" $creds.usernameKey }}
+              path: username
+            {{- end }}
+            - key: {{ default "password" $creds.passwordKey }}
+              path: password
+      {{- end }}
+      {{- end }}
       {{- if .Values.jwtConfig.enabled }}
       - name: {{ include "sdcommon.fullname" . }}-jwt
         configMap:
