@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.1
+- Update the bundled Stardog chart to `4.2.0`.
+- Add support for using an externally managed Stardog admin password Secret through `admin.existingSecretName` and `admin.existingSecretKey`.
+- Deprecate the literal `admin.password` value while retaining it for backward compatibility.
+
 ## 1.3.0
 - Add support for Voicebox 1.0 and Launchpad 4.0, with the chart updates needed to run the newer application images cleanly in Kubernetes.
 - Add support for Launchpad 4.0 deployment patterns, including ServiceAccount rendering, pod labels, annotations, and workload identity support.

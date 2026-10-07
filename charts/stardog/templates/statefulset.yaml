@@ -52,6 +52,9 @@ spec:
     spec:
       serviceAccountName: {{ include "stardog.serviceAccountName" . }}
       {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" "stardog-license" "namespace" .Release.Namespace) }}
+      {{- if .Values.admin.existingSecretName }}
+      {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" .Values.admin.existingSecretName "namespace" .Release.Namespace) }}
+      {{- end }}
       securityContext:
         {{- toYaml .Values.securityContext | nindent 8 }}
       {{- with .Values.affinity }}
@@ -351,9 +354,9 @@ spec:
       {{- end }}
       - name: {{ include "sdcommon.fullname" . }}-password
         secret:
-          secretName: {{ include "sdcommon.fullname" . }}-password
+          secretName: {{ .Values.admin.existingSecretName | default (printf "%s-password" (include "sdcommon.fullname" .)) }}
           items:
-            - key: password
+            - key: {{ ternary .Values.admin.existingSecretKey "password" (ne .Values.admin.existingSecretName "") }}
               path: adminpw
               mode: 444
       {{- if .Values.jwtConfig.enabled }}

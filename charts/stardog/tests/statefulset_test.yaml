@@ -312,3 +312,38 @@ tests:
     - equal:
         path: spec.template.metadata.annotations["custom.annotation/example"]
         value: "enabled"
+
+- it: should mount the chart's own password secret by default
+  asserts:
+    - equal:
+        path: spec.template.spec.volumes[5].name
+        value: stardog-RELEASE-NAME-password
+    - equal:
+        path: spec.template.spec.volumes[5].secret.secretName
+        value: stardog-RELEASE-NAME-password
+    - equal:
+        path: spec.template.spec.volumes[5].secret.items[0].key
+        value: password
+
+- it: should mount an existing secret when admin.existingSecretName is set
+  set:
+    admin:
+      existingSecretName: custom-admin-secret
+      existingSecretKey: adminpw
+    global:
+      skipSecretValidation: true
+  asserts:
+    - equal:
+        path: spec.template.spec.volumes[5].secret.secretName
+        value: custom-admin-secret
+    - equal:
+        path: spec.template.spec.volumes[5].secret.items[0].key
+        value: adminpw
+
+- it: fails when admin.existingSecretName is set but the secret doesn't exist
+  set:
+    admin:
+      existingSecretName: custom-admin-secret
+  asserts:
+    - failedTemplate:
+        errorMessage: "Secret NAMESPACE/custom-admin-secret not found. Please create it or choose an existing secret."
