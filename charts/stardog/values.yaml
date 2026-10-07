@@ -465,6 +465,12 @@ gateway:
     port: 443
     path: "/"
     pathType: "Prefix" # Prefix | Exact
+    # Optional Gateway API HTTPRoute timeouts. These are Extended features and
+    # require Gateway API v1.2+ plus controller support. Request must be greater
+    # than or equal to backendRequest. Use 0s to disable a configured timeout.
+    # Recommended for long-running SPARQL requests:
+    # timeouts: { request: "30m", backendRequest: "30m" }
+    timeouts: {}
     annotations: {}
     addresses: [] # Optional static addresses for the Gateway spec
     parentRefs: [] # Required when createGateway=false
@@ -482,6 +488,10 @@ gateway:
     enabled: null      # When unset, auto-enabled if global.launchpad.enabled=true
     serviceName: ""   # defaults to launchpad service when global.launchpad.enabled=true
     servicePort: 80
+    # Optional timeouts applied when Stardog proxies the root path to Launchpad.
+    # Requires Gateway API v1.2+ and controller support for Extended timeouts.
+    # timeouts: { request: "10m", backendRequest: "10m" }
+    timeouts: {}
     externalUrl: ""   # Provide when launching outside this cluster (https://launchpad.example.com)
     externalPort: 443
     mode: ""          # "redirect", "proxy", or "backend". Defaults to "redirect" when global.launchpad.enabled=true, otherwise "proxy"

@@ -110,10 +110,14 @@
     {{- $httpParentRefs = list (dict "name" $gatewayName "namespace" .Release.Namespace "sectionName" "launchpad-http") }}
   {{- end }}
   {{- $servicePort := 80 }}
+  {{- $routeRule := dict "matches" $matches "backendRefs" (list (dict "name" (include "sdcommon.fullname" .) "port" $servicePort)) }}
+  {{- with (index $gatewayConfig "timeouts") }}
+    {{- $_ := set $routeRule "timeouts" . }}
+  {{- end }}
   {{- $route := dict
         "name" (printf "%s-launchpad" (include "sdcommon.fullname" .))
         "hostnames" (list $host)
-        "rules" (list (dict "matches" $matches "backendRefs" (list (dict "name" (include "sdcommon.fullname" .) "port" $servicePort))))
+        "rules" (list $routeRule)
         "parentRefs" $tlsParentRefs
     }}
   {{- $listeners := list (dict "name" "launchpad" "hostname" $host "port" $port) }}

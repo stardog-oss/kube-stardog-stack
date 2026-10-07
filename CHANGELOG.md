@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.2
+- Add opt-in Gateway API request and backend-request timeouts for Stardog and Launchpad HTTP routes.
+- Update bundled subcharts:
+  - Common: 0.1.9
+  - Gateway: 1.0.6
+  - Stardog: 4.2.1
+  - ZooKeeper: 1.1.2
+  - Launchpad: 1.0.7
+  - Voicebox: 1.2.1
+  - CacheTarget: 1.0.6
+
 ## 1.3.1
 - Update the bundled Stardog chart to `4.2.0`.
 - Add support for using an externally managed Stardog admin password Secret through `admin.existingSecretName` and `admin.existingSecretKey`.

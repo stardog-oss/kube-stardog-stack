@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.9
+- Render optional Gateway API `HTTPRoute` rule timeouts from route definitions.
+
 ## 0.1.8
 - Add shared `SecretProviderClass` helper for charts that use the Secrets Store CSI driver.
 
