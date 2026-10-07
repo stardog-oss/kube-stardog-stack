@@ -4,21 +4,21 @@ dependencies:
   version: 0.1.9
 - name: gateway
   repository: file://charts/gateway
-  version: 1.0.5
+  version: 1.0.6
 - name: stardog
   repository: file://charts/stardog
   version: 4.2.1
 - name: zookeeper
   repository: file://charts/zookeeper
-  version: 1.1.1
+  version: 1.1.2
 - name: launchpad
   repository: file://charts/launchpad
   version: 1.0.7
 - name: voicebox
   repository: file://charts/voicebox
-  version: 1.2.0
+  version: 1.2.1
 - name: cachetarget
   repository: file://charts/cachetarget
-  version: 1.0.5
-digest: sha256:3101637671f665f8cda603d6b894b8ddea5132948c335c62fcc07ff274ed469d
-generated: "2026-10-07T11:59:20.519048-04:00"
+  version: 1.0.6
+digest: sha256:0f1431e6400c35216ddf5925ff731ee48eab23cfb72dc1ee520bad1f44f65bd8
+generated: "2026-10-07T16:25:48.746493-04:00"

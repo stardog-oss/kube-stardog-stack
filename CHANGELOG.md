@@ -4,8 +4,12 @@
 - Add configurable Gateway API request and backend-request timeouts, defaulting Stardog routes to 30 minutes and Launchpad routes to 10 minutes.
 - Update bundled subcharts:
   - Common: 0.1.9
+  - Gateway: 1.0.6
   - Stardog: 4.2.1
+  - ZooKeeper: 1.1.2
   - Launchpad: 1.0.7
+  - Voicebox: 1.2.1
+  - CacheTarget: 1.0.6
 
 ## 1.3.1
 - Update the bundled Stardog chart to `4.2.0`.

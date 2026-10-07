@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.1
+- Update the common chart dependency to `0.1.9`.
+
 ## 1.2.0
 - Add optional `Deployment`/`StatefulSet` workload selection for Voicebox.
 - Add first-class frame store configuration for local PVC-backed storage and S3-backed storage.
