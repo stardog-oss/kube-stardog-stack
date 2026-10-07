@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.2.1
+- Add `gateway.http.timeouts.request` and `gateway.http.timeouts.backendRequest` settings, defaulting Stardog routes to 30 minutes.
+- Add `gateway.redirectToLaunchpad.timeouts` settings for proxied Launchpad backend routes, defaulting to 10 minutes.
+- Update the common chart dependency to `0.1.9` for shared `HTTPRoute` timeout rendering.
+
 ## 4.2.0
 - Add `admin.existingSecretName`/`admin.existingSecretKey` - the chart no longer requires the admin
   password as a literal Helm value. When set, the chart skips creating its own password Secret and

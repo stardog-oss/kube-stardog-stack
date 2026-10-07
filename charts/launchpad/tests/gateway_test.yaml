@@ -31,6 +31,33 @@ tests:
         equal:
           path: spec.rules[0].backendRefs[0].port
           value: 80
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].timeouts
+          value:
+            request: 10m
+            backendRequest: 10m
+
+  - it: renders HTTPRoute timeouts for backend rules
+    set:
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          className: traefik
+          skipApiValidation: true
+          timeouts:
+            request: 1h
+            backendRequest: 1h
+    asserts:
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].timeouts.request
+          value: 1h
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].timeouts.backendRequest
+          value: 1h
 
   - it: enforces TLS secret when enabled
     set:

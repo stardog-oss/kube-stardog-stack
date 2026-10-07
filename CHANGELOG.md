@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.2
+- Add configurable Gateway API request and backend-request timeouts, defaulting Stardog routes to 30 minutes and Launchpad routes to 10 minutes.
+- Update bundled subcharts:
+  - Common: 0.1.9
+  - Stardog: 4.2.1
+  - Launchpad: 1.0.7
+
 ## 1.3.1
 - Update the bundled Stardog chart to `4.2.0`.
 - Add support for using an externally managed Stardog admin password Secret through `admin.existingSecretName` and `admin.existingSecretKey`.

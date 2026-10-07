@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.7
+- Add `gateway.http.timeouts.request` and `gateway.http.timeouts.backendRequest` settings for Launchpad backend routes, defaulting both to 10 minutes.
+- Update the common chart dependency to `0.1.9` for shared `HTTPRoute` timeout rendering.
+
 ## 1.0.6
 - Add `envFrom`, `extraEnv`, `extraVolumes`, and `extraVolumeMounts` hooks for external secret systems such as Azure Key Vault CSI.
 - Render and assign the configured Launchpad ServiceAccount so `serviceAccount.annotations` can be used for workload identity.
