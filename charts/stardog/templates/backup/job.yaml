@@ -1,5 +1,5 @@
 
-{{- if and .Values.backup.enabled .Values.backup.cronjob.enabled }}
+{{- if and .Values.backup.enabled .Values.backup.cronjob.enabled (or (ne (include "stardog.replicaClusterEnabled" .) "true") .Values.replicaCluster.backup.allow) }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:

@@ -1,5 +1,39 @@
 # Changelog
 
+## 4.3.0
+- Add replica cluster support (Stardog 12.2.0+, beta) through `replicaCluster.*`: run the cluster as a
+  read-only replica that pulls from a primary cluster and can be promoted online with
+  `stardog-admin cluster promote`. Renders `pack.replicaCluster`, `.primary.address`, `.primary.insecure`,
+  and the optional `.sync.interval` / `.promote.quiesce.timeout` into `stardog.properties`.
+- The primary's credentials (a superuser on the primary) come from an existing Secret
+  (`replicaCluster.primary.credentials.existingSecretName`) or from files on a directly mounted volume such
+  as a Key Vault CSI volume (`usernameFile`/`passwordFile`). Stardog only accepts them as plain values in
+  `stardog.properties`, so in replica mode the chart moves that file to a memory-backed `emptyDir`
+  (`/etc/stardog-runtime`), restricts it to mode 0600, and appends the credentials at pod start with shell
+  tracing off. They are never rendered into the ConfigMap, the data volume or the pod log.
+- In replica mode the post-install job only waits for the cluster: the admin password and backup user come
+  from the primary, and the replica rejects those writes. The backup CronJob is not rendered unless
+  `replicaCluster.backup.allow` is set. preStop falls back from the replication credentials to the admin
+  secret and finally the default admin password, which a replica still has before its first sync.
+- Validation: replica mode requires `cluster.enabled`, a `host:port` primary address, exactly one credential
+  source, Stardog 12.2.0 or later (semver tags only), and `backup.credentialsSecret` when backups are
+  enabled; it cannot be combined with `global.cachetarget.enabled`, with a `STARDOG_PROPERTIES` override, or
+  with `pack.standby`/`pack.readReplica`/`pack.geoReplica` in `stardogProperties`. Enabling it on an existing
+  non-replica release requires `replicaCluster.acknowledgeDataLoss=true`, because the first sync drops every
+  database the primary does not have.
+- In replica mode the JWT config renders `autoCreateUsers: false` for every issuer and omits
+  `autoDeleteUsersSchedule`: users come from the primary, and a replica cannot create or delete them. Users
+  must exist on the primary (and have synced) before they can log in to the replica; roles from the token
+  still apply. The upgrade that sets `replicaCluster.enabled=false` after promotion renders the configured
+  values again.
+- `pack.replicaCluster*` is now rejected in `stardogProperties`; use the `replicaCluster` values instead.
+- `replicaCluster.restartToken` rolls the pods after rotating the primary's credentials, which Stardog only
+  reads at startup.
+- A literal `replicaCluster.primary.credentials.username` is escaped for `java.util.Properties` (like
+  file-sourced values) and must be printable ASCII.
+- Add the [replica cluster guide](../../docs/replica-cluster.md): setup, Key Vault credentials, user
+  provisioning, credential rotation and the promotion runbook. The install notes link to it.
+
 ## 4.2.0
 - Add `admin.existingSecretName`/`admin.existingSecretKey` - the chart no longer requires the admin
   password as a literal Helm value. When set, the chart skips creating its own password Secret and

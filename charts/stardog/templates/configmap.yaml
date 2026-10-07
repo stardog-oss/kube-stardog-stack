@@ -1,4 +1,5 @@
 {{- include "stardog.validateUpgradeConfig" . }}
+{{- include "stardog.validateReplicaClusterConfig" . }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -38,6 +39,10 @@ data:
     pack.zookeeper.inactiveOnSuspend={{ $inactiveOnSuspend }}
     {{- end }}
     {{- end }}
+    {{- $replicaProps := include "stardog.replicaClusterProperties" . | trim }}
+    {{- if ne $replicaProps "" }}
+    {{- $replicaProps | nindent 4 }}
+    {{- end }}
     {{- end }}
     {{- if .Values.jwtConfig.enabled }}
     jwt.conf=/var/opt/stardog/jwt.yaml
@@ -62,6 +67,9 @@ data:
     {{- .Values.stardogProperties | nindent 4 }}
 
 {{- if .Values.jwtConfig.enabled }}
+{{- /* A replica cluster cannot create or delete users (they come from the primary), so auto-create and
+the auto-delete schedule are turned off there; the post-promotion upgrade renders them normally again. */}}
+{{- $replicaCluster := eq (include "stardog.replicaClusterEnabled" .) "true" }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -78,7 +86,7 @@ data:
     {{- if .Values.jwtConfig.deploymentName }}
     deploymentName: {{ .Values.jwtConfig.deploymentName }}
     {{- end }}
-    {{- if .Values.jwtConfig.autoDeleteUsersSchedule }}
+    {{- if and .Values.jwtConfig.autoDeleteUsersSchedule (not $replicaCluster) }}
     autoDeleteUsersSchedule: {{ .Values.jwtConfig.autoDeleteUsersSchedule  }}
     {{- end }}
     {{- if .Values.jwtConfig.signer.enabled }}
@@ -109,7 +117,7 @@ data:
         {{- if $issuer.usernameTemplates }}
         usernameTemplates: {{ $issuer.usernameTemplates | toJson }}
         {{- end }}
-        autoCreateUsers: {{ default true $issuer.autoCreateUsers }}
+        autoCreateUsers: {{ if $replicaCluster }}false{{ else }}{{ default true $issuer.autoCreateUsers }}{{ end }}
         {{- if $issuer.roleMappingSource }}
         roleMappingSource: {{ $issuer.roleMappingSource }}
         {{- end }}

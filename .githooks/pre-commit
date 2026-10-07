@@ -207,6 +207,11 @@ for c in "${charts[@]}"; do
   else
     (cd "$c" && helm unittest --strict .)
   fi
+  # Script-level tests for behaviour helm-unittest cannot express (multi-render, executed shell).
+  for t in "$c"/tests/scripts/*_test.sh; do
+    [[ -f "$t" ]] || continue
+    bash "$t"
+  done
 done
 
 if [[ $locks_updated -eq 1 ]]; then
