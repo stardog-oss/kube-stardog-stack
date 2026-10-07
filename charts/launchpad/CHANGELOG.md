@@ -1,7 +1,7 @@
 # Changelog
 
 ## 1.0.7
-- Add `gateway.http.timeouts.request` and `gateway.http.timeouts.backendRequest` settings for Launchpad backend routes, defaulting both to 10 minutes.
+- Add opt-in `gateway.http.timeouts.request` and `gateway.http.timeouts.backendRequest` settings for Launchpad backend routes.
 - Update the common chart dependency to `0.1.9` for shared `HTTPRoute` timeout rendering.
 
 ## 1.0.6

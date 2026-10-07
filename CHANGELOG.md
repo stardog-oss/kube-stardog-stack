@@ -1,7 +1,7 @@
 # Changelog
 
 ## 1.3.2
-- Add configurable Gateway API request and backend-request timeouts, defaulting Stardog routes to 30 minutes and Launchpad routes to 10 minutes.
+- Add opt-in Gateway API request and backend-request timeouts for Stardog and Launchpad HTTP routes.
 - Update bundled subcharts:
   - Common: 0.1.9
   - Gateway: 1.0.6

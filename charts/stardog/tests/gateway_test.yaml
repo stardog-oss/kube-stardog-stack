@@ -44,11 +44,8 @@ tests:
           path: spec.rules[0].backendRefs[0].port
           value: 5820
       - documentIndex: 1
-        equal:
+        notExists:
           path: spec.rules[0].timeouts
-          value:
-            request: 30m
-            backendRequest: 30m
 
   - it: renders HTTPRoute timeouts for backend rules
     set:
@@ -235,6 +232,9 @@ tests:
             enabled: true
             serviceName: custom-launchpad
             servicePort: 81
+            timeouts:
+              request: 10m
+              backendRequest: 10m
       global:
         __secretFixtures:
           - metadata:
@@ -263,11 +263,8 @@ tests:
           path: spec.rules[1].backendRefs[0].port
           value: 5820
       - documentIndex: 1
-        equal:
+        notExists:
           path: spec.rules[1].timeouts
-          value:
-            request: 30m
-            backendRequest: 30m
 
   - it: auto enables launchpad redirect when launchpad chart enabled
     set:

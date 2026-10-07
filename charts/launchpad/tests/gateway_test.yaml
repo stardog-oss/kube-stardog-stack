@@ -32,11 +32,8 @@ tests:
           path: spec.rules[0].backendRefs[0].port
           value: 80
       - documentIndex: 1
-        equal:
+        notExists:
           path: spec.rules[0].timeouts
-          value:
-            request: 10m
-            backendRequest: 10m
 
   - it: renders HTTPRoute timeouts for backend rules
     set:

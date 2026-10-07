@@ -1,8 +1,8 @@
 # Changelog
 
 ## 4.2.1
-- Add `gateway.http.timeouts.request` and `gateway.http.timeouts.backendRequest` settings, defaulting Stardog routes to 30 minutes.
-- Add `gateway.redirectToLaunchpad.timeouts` settings for proxied Launchpad backend routes, defaulting to 10 minutes.
+- Add opt-in `gateway.http.timeouts.request` and `gateway.http.timeouts.backendRequest` settings for Stardog routes.
+- Add opt-in `gateway.redirectToLaunchpad.timeouts` settings for proxied Launchpad backend routes.
 - Update the common chart dependency to `0.1.9` for shared `HTTPRoute` timeout rendering.
 
 ## 4.2.0

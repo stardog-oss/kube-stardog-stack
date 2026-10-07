@@ -174,11 +174,12 @@ gateway:
     port: 443
     path: "/"
     pathType: "Prefix"
-    # Gateway API HTTPRoute timeouts. Request must be greater than or equal to
-    # backendRequest. Use 0s to disable the corresponding timeout.
-    timeouts:
-      request: "10m"
-      backendRequest: "10m"
+    # Optional Gateway API HTTPRoute timeouts. These are Extended features and
+    # require Gateway API v1.2+ plus controller support. Request must be greater
+    # than or equal to backendRequest. Use 0s to disable a configured timeout.
+    # Recommended for Launchpad requests:
+    # timeouts: { request: "10m", backendRequest: "10m" }
+    timeouts: {}
     annotations: {}
     addresses: []
     parentRefs: [] # Required when createGateway=false
