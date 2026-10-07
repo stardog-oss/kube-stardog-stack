@@ -650,3 +650,35 @@ tests:
       - notMatchRegex:
           path: raw
           pattern: "READ-ONLY REPLICA CLUSTER"
+
+  - it: escapes a literal username for java.util.Properties
+    template: configmap.yaml
+    set:
+      replicaCluster.primary.credentials.username: 'ACME\replicator'
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: '(?m)^pack\.replicaCluster\.primary\.user=ACME\\\\replicator$'
+
+  - it: escapes leading whitespace in a literal username
+    template: configmap.yaml
+    set:
+      replicaCluster.primary.credentials.username: ' replicator'
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: '(?m)^pack\.replicaCluster\.primary\.user=\\ replicator$'
+
+  - it: rejects a non-ASCII literal username
+    template: statefulset.yaml
+    set:
+      replicaCluster.primary.credentials.username: "réplicateur"
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCluster.primary.credentials.username must be printable ASCII (no newlines or non-ASCII characters)."

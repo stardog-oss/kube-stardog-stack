@@ -283,6 +283,9 @@ Usage: include "stardog.lookupConfigMap" (dict "context" $ "name" "x") | fromYam
 {{- if and $fromFile (eq (default "" $creds.usernameFile) "") (eq (default "" $creds.username) "") -}}
 {{- fail "replicaCluster.primary.credentials.passwordFile requires usernameFile or username." -}}
 {{- end -}}
+{{- if regexMatch "[^ -~]" (toString (default "" $creds.username)) -}}
+{{- fail "replicaCluster.primary.credentials.username must be printable ASCII (no newlines or non-ASCII characters)." -}}
+{{- end -}}
 {{- if and $fromSecret (ne (default "" $creds.usernameFile) "") -}}
 {{- fail "replicaCluster.primary.credentials.usernameFile cannot be combined with existingSecretName; use usernameKey or username." -}}
 {{- end -}}
@@ -324,6 +327,15 @@ Usage: include "stardog.lookupConfigMap" (dict "context" $ "name" "x") | fromYam
 {{- end -}}
 
 {{/*
+Escape a value for java.util.Properties, the same way the start script escapes values read from
+credential files: backslashes doubled, a leading space/tab escaped (Properties strips leading
+whitespace from values). Callers validate that the value is printable ASCII first.
+*/}}
+{{- define "stardog.javaPropertiesValue" -}}
+{{- regexReplaceAll "^([ \t])" (replace "\\" "\\\\" (toString .)) "\\$1" -}}
+{{- end -}}
+
+{{/*
 Non-secret replica cluster properties, rendered into the properties ConfigMap.
 */}}
 {{- define "stardog.replicaClusterProperties" -}}
@@ -334,7 +346,7 @@ pack.replicaCluster=true
 pack.replicaCluster.primary.address={{ $rc.primary.address }}
 pack.replicaCluster.primary.insecure={{ eq (toString (default false $rc.primary.insecure)) "true" }}
 {{- if ne (default "" $creds.username) "" }}
-pack.replicaCluster.primary.user={{ $creds.username }}
+pack.replicaCluster.primary.user={{ include "stardog.javaPropertiesValue" $creds.username }}
 {{- end }}
 {{- if ne (toString (default "" $rc.syncInterval)) "" }}
 pack.replicaCluster.sync.interval={{ $rc.syncInterval }}

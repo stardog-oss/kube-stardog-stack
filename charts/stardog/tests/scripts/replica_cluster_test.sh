@@ -120,6 +120,19 @@ else
   echo "  SKIP  java.util.Properties round trip (java not found)"
 fi
 
+# A literal username is rendered into the ConfigMap by the template, not by the script; it must get
+# the same escaping. Values file, not --set: --set treats backslashes as escapes itself.
+LITERAL_USER='ACME\replicator'
+printf 'replicaCluster:\n  primary:\n    credentials:\n      username: %s\n' "'${LITERAL_USER}'" > "${WORK}/literal-user.yaml"
+helm template t "${CHART_DIR}" -s templates/configmap.yaml "${BASE_ARGS[@]}" \
+  --set replicaCluster.primary.credentials.passwordFile=/etc/stardog-replica/password -f "${WORK}/literal-user.yaml" \
+  | awk '/^    pack\.replicaCluster\.primary\.user=/ {sub(/^    /, ""); print}' > "${WORK}/literal-user.properties"
+check "literal username line renders" grep -q '^pack.replicaCluster.primary.user=' "${WORK}/literal-user.properties"
+if command -v java > /dev/null 2>&1; then
+  check "java.util.Properties reads back the exact literal username" \
+    test "$(java "${WORK}/ReadProps.java" "${WORK}/literal-user.properties" | head -1)" = "${LITERAL_USER}"
+fi
+
 printf 'line1\nline2' > "${CRED_DIR}/password"
 check "a password with an embedded newline is rejected" bash -c "! STARDOG_PROPERTIES='${WORK}/p' bash -c 'set -e; source \"${SECRET_BLOCK}\"' 2> '${WORK}/stderr'"
 check "the newline error names the file, not the value" bash -c "grep -q 'contains a newline' '${WORK}/stderr' && ! grep -q line1 '${WORK}/stderr'"
