@@ -143,11 +143,11 @@ spec:
           {{- if .Values.cluster.enabled }}
           checkZKReadiness "${ZK_SERVICE}" "${ZK_MAX_ATTEMPTS}"
           {{- end }}
-        {{- if $anyTlsEnabled }}
+        {{- if or $anyTlsEnabled $truststoreEnabled }}
         volumeMounts:
           - name: stardog-keystore
             mountPath: "/var/opt/stardog/keystore"
-          {{- if ne $tlsSecretName "" }}
+          {{- if and $anyTlsEnabled (ne $tlsSecretName "") }}
           - name: stardog-tls
             mountPath: "/var/opt/stardog/ssl"
           {{- end }}
@@ -201,11 +201,11 @@ spec:
           subPath: jwt.yaml
           readOnly: true
         {{- end }}
-        {{- if $anyTlsEnabled }}
+        {{- if or $anyTlsEnabled $truststoreEnabled }}
         - name: stardog-keystore
           mountPath: "/var/opt/stardog/keystore"
           readOnly: true
-        {{- if ne $tlsSecretName "" }}
+        {{- if and $anyTlsEnabled (ne $tlsSecretName "") }}
         - name: stardog-tls
           mountPath: "/var/opt/stardog/ssl"
           readOnly: true
@@ -336,11 +336,11 @@ spec:
             printf '%s' "$v" | sed -e 's/\\/\\\\/g' -e 's/^\([[:space:]]\)/\\\1/'
           }
           {{- if ne $replicaUserFile "" }}
-          REPLICA_USER="$(replica_credential {{ $replicaUserFile | quote }})" || exit 1
+          REPLICA_USER="$(replica_credential {{ include "stardog.shellQuote" $replicaUserFile }})" || exit 1
           printf 'pack.replicaCluster.primary.user=%s\n' "${REPLICA_USER}" >> "${STARDOG_PROPERTIES}"
           unset REPLICA_USER
           {{- end }}
-          REPLICA_PASSWORD="$(replica_credential {{ include "stardog.replicaPasswordFile" . | quote }})" || exit 1
+          REPLICA_PASSWORD="$(replica_credential {{ include "stardog.shellQuote" (include "stardog.replicaPasswordFile" .) }})" || exit 1
           printf 'pack.replicaCluster.primary.password=%s\n' "${REPLICA_PASSWORD}" >> "${STARDOG_PROPERTIES}"
           unset REPLICA_PASSWORD
           set -x
@@ -374,9 +374,9 @@ spec:
                 # password is still the default. Try each credential so the server stops cleanly.
                 stop() { /opt/stardog/bin/stardog-admin server stop -u "$1" -p "$2"; }
                 {{- if ne $replicaUserFile "" }}
-                stop "$(cat {{ $replicaUserFile | quote }})" "$(cat {{ include "stardog.replicaPasswordFile" . | quote }})" \
+                stop "$(cat {{ include "stardog.shellQuote" $replicaUserFile }})" "$(cat {{ include "stardog.shellQuote" (include "stardog.replicaPasswordFile" .) }})" \
                 {{- else }}
-                stop {{ .Values.replicaCluster.primary.credentials.username | quote }} "$(cat {{ include "stardog.replicaPasswordFile" . | quote }})" \
+                stop {{ include "stardog.shellQuote" .Values.replicaCluster.primary.credentials.username }} "$(cat {{ include "stardog.shellQuote" (include "stardog.replicaPasswordFile" .) }})" \
                 {{- end }}
                   || stop admin "$(cat /etc/stardog-password/adminpw)" \
                   || stop admin admin

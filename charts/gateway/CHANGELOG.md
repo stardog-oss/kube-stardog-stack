@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.6
+- Update the common chart dependency to `0.1.9`.
+
 ## 1.0.5
 - Update the common chart dependency to `0.1.8`.
 

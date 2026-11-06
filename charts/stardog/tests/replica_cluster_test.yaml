@@ -396,7 +396,7 @@ tests:
           pattern: '(?s)\{ set \+x; \} 2>/dev/null.*primary\.user=.*primary\.password=.*\n\s*set -x\n'
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
-          pattern: 'replica_credential "/etc/stardog-replica/password"'
+          pattern: 'replica_credential ''/etc/stardog-replica/password'''
 
   - it: reads credentials from directly mounted files
     template: statefulset.yaml
@@ -407,10 +407,10 @@ tests:
     asserts:
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
-          pattern: 'replica_credential "/mnt/secrets-store/replication-user"'
+          pattern: 'replica_credential ''/mnt/secrets-store/replication-user'''
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
-          pattern: 'replica_credential "/mnt/secrets-store/replication-password"'
+          pattern: 'replica_credential ''/mnt/secrets-store/replication-password'''
       - notExists:
           path: spec.template.spec.volumes[?(@.name == "stardog-replica-credentials")]
       - notExists:
@@ -421,7 +421,7 @@ tests:
     asserts:
       - matchRegex:
           path: spec.template.spec.containers[0].lifecycle.preStop.exec.command[2]
-          pattern: '(?s)stop "\$\(cat "/etc/stardog-replica/username"\)" "\$\(cat "/etc/stardog-replica/password"\)".*\|\| stop admin "\$\(cat /etc/stardog-password/adminpw\)".*\|\| stop admin admin'
+          pattern: '(?s)stop "\$\(cat ''/etc/stardog-replica/username''\)" "\$\(cat ''/etc/stardog-replica/password''\)".*\|\| stop admin "\$\(cat /etc/stardog-password/adminpw\)".*\|\| stop admin admin'
 
   - it: keeps the original preStop when replica mode is off
     template: statefulset.yaml
@@ -594,10 +594,10 @@ tests:
           pattern: "REPLICA_USER|primary\\.user="
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
-          pattern: 'replica_credential "/mnt/secrets-store/replication-password"'
+          pattern: 'replica_credential ''/mnt/secrets-store/replication-password'''
       - matchRegex:
           path: spec.template.spec.containers[0].lifecycle.preStop.exec.command[2]
-          pattern: 'stop "replicator" "\$\(cat "/mnt/secrets-store/replication-password"\)"'
+          pattern: 'stop ''replicator'' "\$\(cat ''/mnt/secrets-store/replication-password''\)"'
       - notExists:
           path: spec.template.spec.volumes[?(@.name == "stardog-replica-credentials")]
 
@@ -624,7 +624,7 @@ tests:
     asserts:
       - matchRegex:
           path: spec.template.spec.containers[0].lifecycle.preStop.exec.command[2]
-          pattern: 'stop "\$\(cat "/mnt/secrets-store/replication-user"\)" "\$\(cat "/mnt/secrets-store/replication-password"\)"'
+          pattern: 'stop "\$\(cat ''/mnt/secrets-store/replication-user''\)" "\$\(cat ''/mnt/secrets-store/replication-password''\)"'
 
   - it: still changes the admin password and creates the backup user when replica mode is off
     template: job-post-install.yaml
@@ -682,3 +682,60 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "replicaCluster.primary.credentials.username must be printable ASCII (no newlines or non-ASCII characters)."
+
+  - it: restores an explicit JWT auto-create false after promotion
+    template: configmap.yaml
+    set:
+      replicaCluster.enabled: false
+      jwtConfig:
+        enabled: true
+        issuers:
+          - issuer: https://login.example.com/tenant/v2.0
+            audience: stardog
+            autoCreateUsers: false
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-jwt
+    asserts:
+      - matchRegex:
+          path: data["jwt.yaml"]
+          pattern: "autoCreateUsers: false"
+
+  - it: mounts a private CA and truststore without enabling inbound TLS
+    template: statefulset.yaml
+    set:
+      tls.sparql.enabled: false
+      tls.bi.enabled: false
+      tls.truststore.enabled: true
+      tls.truststore.caSecretName: primary-ca
+      tls.sparql.secretName: unused-inbound-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: stardog-keystore
+            mountPath: /var/opt/stardog/keystore
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: stardog-truststore-ca
+            mountPath: /var/opt/stardog/ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: stardog-keystore
+            mountPath: /var/opt/stardog/keystore
+            readOnly: true
+
+      - notExists:
+          path: spec.template.spec.initContainers[0].volumeMounts[?(@.name == "stardog-tls")]
+      - notExists:
+          path: spec.template.spec.containers[0].volumeMounts[?(@.name == "stardog-tls")]
+
+  - it: fails the replica hook when the cluster never becomes healthy
+    template: job-post-install.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'wait_for_start \$\{HOST\} \$\{PORT\} \$\{PROTOCOL\} \|\| exit 1'

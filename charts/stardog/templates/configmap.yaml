@@ -117,7 +117,7 @@ data:
         {{- if $issuer.usernameTemplates }}
         usernameTemplates: {{ $issuer.usernameTemplates | toJson }}
         {{- end }}
-        autoCreateUsers: {{ if $replicaCluster }}false{{ else }}{{ default true $issuer.autoCreateUsers }}{{ end }}
+        autoCreateUsers: {{ if $replicaCluster }}false{{ else }}{{ if hasKey $issuer "autoCreateUsers" }}{{ $issuer.autoCreateUsers }}{{ else }}true{{ end }}{{ end }}
         {{- if $issuer.roleMappingSource }}
         roleMappingSource: {{ $issuer.roleMappingSource }}
         {{- end }}

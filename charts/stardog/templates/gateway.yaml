@@ -124,6 +124,9 @@
   {{- $match := dict "path" (dict "type" $matchType "value" $pathValue) }}
   {{- $sparqlBackend := dict "name" (include "sdcommon.fullname" .) "port" .Values.ports.server }}
   {{- $sparqlRule := dict "matches" (list $match) "backendRefs" (list $sparqlBackend) }}
+  {{- with (index $gatewayConfig "timeouts") }}
+    {{- $_ := set $sparqlRule "timeouts" . }}
+  {{- end }}
   {{- $routeRules := list $sparqlRule }}
   {{- if $redirectCfg.enabled }}
     {{- $rootMatch := dict "path" (dict "type" "Exact" "value" "/") }}
@@ -133,6 +136,9 @@
       {{- $_ := set $launchpadRule "filters" (list $redirectFilter) }}
     {{- else }}
       {{- $_ := set $launchpadRule "backendRefs" (list (dict "name" $redirectCfg.serviceName "port" $redirectCfg.servicePort)) }}
+      {{- with (index $redirectCfg "timeouts") }}
+        {{- $_ := set $launchpadRule "timeouts" . }}
+      {{- end }}
     {{- end }}
     {{- $routeRules = list $launchpadRule $sparqlRule }}
   {{- end }}

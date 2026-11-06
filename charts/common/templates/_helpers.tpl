@@ -777,6 +777,10 @@ spec:
       filters:
 {{ toYaml . | indent 8 }}
       {{- end }}
+      {{- with .timeouts }}
+      timeouts:
+{{ toYaml . | indent 8 }}
+      {{- end }}
       {{- with .backendRefs }}
       backendRefs:
 {{ toYaml . | indent 8 }}

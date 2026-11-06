@@ -201,6 +201,11 @@ Replica cluster (pack.replicaCluster). Returns "true" when replica mode is enabl
 Paths of the files the start script reads the primary credentials from. Empty when the value comes
 from somewhere else (a literal username is rendered into the ConfigMap instead).
 */}}
+{{/* Quote a literal shell argument, including embedded apostrophes. YAML quote is not shell quoting. */}}
+{{- define "stardog.shellQuote" -}}
+{{- printf "'%s'" (replace "'" "'\"'\"'" (toString .)) -}}
+{{- end -}}
+
 {{- define "stardog.replicaCredentialsMountPath" -}}/etc/stardog-replica{{- end -}}
 
 {{- define "stardog.replicaUsernameFile" -}}

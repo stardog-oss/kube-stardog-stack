@@ -43,6 +43,36 @@ tests:
         equal:
           path: spec.rules[0].backendRefs[0].port
           value: 5820
+      - documentIndex: 1
+        notExists:
+          path: spec.rules[0].timeouts
+
+  - it: renders HTTPRoute timeouts for backend rules
+    set:
+      gateway:
+        enabled: true
+        http:
+          domain: example.com
+          className: traefik
+          skipApiValidation: true
+          timeouts:
+            request: 1h
+            backendRequest: 1h
+          redirect:
+            enabled: false
+      global:
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].timeouts.request
+          value: 1h
+      - documentIndex: 1
+        equal:
+          path: spec.rules[0].timeouts.backendRequest
+          value: 1h
 
   - it: does not render BI HTTP routes even when BI enabled
     set:
@@ -202,6 +232,9 @@ tests:
             enabled: true
             serviceName: custom-launchpad
             servicePort: 81
+            timeouts:
+              request: 10m
+              backendRequest: 10m
       global:
         __secretFixtures:
           - metadata:
@@ -221,8 +254,17 @@ tests:
           value: 81
       - documentIndex: 1
         equal:
+          path: spec.rules[0].timeouts
+          value:
+            request: 10m
+            backendRequest: 10m
+      - documentIndex: 1
+        equal:
           path: spec.rules[1].backendRefs[0].port
           value: 5820
+      - documentIndex: 1
+        notExists:
+          path: spec.rules[1].timeouts
 
   - it: auto enables launchpad redirect when launchpad chart enabled
     set:

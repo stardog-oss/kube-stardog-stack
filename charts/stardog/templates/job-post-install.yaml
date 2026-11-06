@@ -68,7 +68,7 @@ spec:
         - |
           set -ex
           {{ .Files.Get "files/utils.sh" | indent 10 }}
-          wait_for_start ${HOST} ${PORT} ${PROTOCOL}
+          wait_for_start ${HOST} ${PORT} ${PROTOCOL} || exit 1
           {{- if eq (include "stardog.replicaClusterEnabled" .) "true" }}
           # Replica cluster: users, roles and passwords come from the primary and every client write
           # is rejected, so the admin password and backup user are managed on the primary instead.

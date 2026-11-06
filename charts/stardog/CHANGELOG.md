@@ -1,6 +1,9 @@
 # Changelog
 
 ## 4.3.0
+- Quote replica usernames and credential file paths as literal shell arguments in startup and preStop.
+- Mount the outbound truststore and private CA even when inbound TLS is disabled.
+- Preserve explicit JWT `autoCreateUsers: false` after promotion and fail the post-install hook if health checks time out.
 - Add replica cluster support (Stardog 12.2.0+, beta) through `replicaCluster.*`: run the cluster as a
   read-only replica that pulls from a primary cluster and can be promoted online with
   `stardog-admin cluster promote`. Renders `pack.replicaCluster`, `.primary.address`, `.primary.insecure`,
@@ -33,6 +36,11 @@
   file-sourced values) and must be printable ASCII.
 - Add the [replica cluster guide](../../docs/replica-cluster.md): setup, Key Vault credentials, user
   provisioning, credential rotation and the promotion runbook. The install notes link to it.
+
+## 4.2.1
+- Add opt-in `gateway.http.timeouts.request` and `gateway.http.timeouts.backendRequest` settings for Stardog routes.
+- Add opt-in `gateway.redirectToLaunchpad.timeouts` settings for proxied Launchpad backend routes.
+- Update the common chart dependency to `0.1.9` for shared `HTTPRoute` timeout rendering.
 
 ## 4.2.0
 - Add `admin.existingSecretName`/`admin.existingSecretKey` - the chart no longer requires the admin

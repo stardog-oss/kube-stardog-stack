@@ -149,6 +149,34 @@ run_block "${LITERAL_BLOCK}"
 check "literal username mode appends only the password" \
   bash -c "grep -qxF 'pack.replicaCluster.primary.password=secret' '${PROPS}' && ! grep -q 'primary.user' '${PROPS}'"
 
+# Exercise shell metacharacters as data in both startup paths and the literal preStop username.
+# The marker is in WORK so a regression can never execute anything beyond creating a test file.
+WEIRD_USER='ACME\\user'"'"'$(touch SHELL_EXPANDED)`touch SHELL_EXPANDED`$USER'
+WEIRD_PATH="${CRED_DIR}/"'password'"'"'$(touch SHELL_EXPANDED)`touch SHELL_EXPANDED`$USER'
+printf '%s' 'special-path-password' > "${WEIRD_PATH}"
+# YAML single-quoted scalars escape an apostrophe by doubling it.
+YAML_USER="$(printf '%s' "${WEIRD_USER}" | sed "s/'/''/g")"
+YAML_PATH="$(printf '%s' "${WEIRD_PATH}" | sed "s/'/''/g")"
+printf "replicaCluster:\n  primary:\n    credentials:\n      username: '%s'\n      passwordFile: '%s'\n" "${YAML_USER}" "${YAML_PATH}" > "${WORK}/shell-literals.yaml"
+extract_block "${WORK}/shell-literals.sh" -f "${WORK}/shell-literals.yaml"
+(
+  cd "${WORK}"
+  run_block "${WORK}/shell-literals.sh"
+)
+check "startup treats credential paths as literal shell arguments" \
+  grep -qxF 'pack.replicaCluster.primary.password=special-path-password' "${WORK}/stardog.properties"
+render_statefulset -f "${WORK}/shell-literals.yaml" \
+  | awk '/# A replica.s users/ {on=1} on && /terminationGracePeriodSeconds:/ {exit} on {print}' \
+  | sed -e 's/^                //' -e 's#/opt/stardog/bin/stardog-admin#record_stop#g' > "${WORK}/prestop.sh"
+(
+  cd "${WORK}"
+  record_stop() { printf '%s\n' "$@" > "${WORK}/stop-args"; }
+  source "${WORK}/prestop.sh"
+)
+check "preStop preserves the exact literal username" test "$(sed -n '4p' "${WORK}/stop-args")" = "${WEIRD_USER}"
+check "preStop reads the exact credential path" test "$(sed -n '6p' "${WORK}/stop-args")" = 'special-path-password'
+check "neither startup nor preStop evaluates shell substitutions" test ! -e "${WORK}/SHELL_EXPANDED"
+
 echo
 echo "Replica cluster script tests: ${PASSED} passed, ${FAILED} failed"
 [[ "${FAILED}" -eq 0 ]]

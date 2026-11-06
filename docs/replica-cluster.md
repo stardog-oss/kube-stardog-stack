@@ -7,7 +7,7 @@ it for disaster recovery, high availability at a remote site, and serving remote
 > **Beta.** Replica clusters are a beta feature of Stardog 12.2.0. They require Stardog **12.2.0 or
 > later** and the `stardog` chart **4.3.0 or later** (umbrella `kube-stardog-stack` **1.4.0 or later**).
 > Stardog's own documentation: *High Availability Cluster → Operating the Cluster → Replica Clusters*
-> on docs.stardog.com.
+> on [docs.stardog.com](https://docs.stardog.com/high-availability-cluster/operating-the-cluster/replica-clusters).
 
 ## How it works
 
