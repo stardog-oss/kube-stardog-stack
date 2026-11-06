@@ -1,0 +1,22 @@
+# Overlay on values-stardog.yaml: a valid replica cluster whose primary credentials come from a Secret.
+global:
+  __secretFixtures:
+    - metadata:
+        name: stardog-license
+    - metadata:
+        name: primary-replication
+
+image:
+  tag: 12.2.0
+
+cluster:
+  enabled: true
+  replicaCount: 3
+  zookeeperService: zk-0.zk:2181
+
+replicaCluster:
+  enabled: true
+  primary:
+    address: sparql.dc1.example.com:443
+    credentials:
+      existingSecretName: primary-replication

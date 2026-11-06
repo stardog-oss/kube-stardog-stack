@@ -1,0 +1,58 @@
+suite: Umbrella replica cluster passthrough
+templates:
+  - charts/stardog/templates/configmap.yaml
+  - charts/stardog/templates/statefulset.yaml
+set:
+  global:
+    skipSecretValidation: true
+    zookeeper:
+      enabled: true
+  stardog:
+    image:
+      tag: 12.2.0
+    cluster:
+      enabled: true
+      replicaCount: 3
+    replicaCluster:
+      enabled: true
+      primary:
+        address: sparql.dc1.example.com:443
+        credentials:
+          existingSecretName: primary-replication
+tests:
+  - it: renders stardog.replicaCluster values into the Stardog properties
+    template: charts/stardog/templates/configmap.yaml
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.replicaCluster=true$"
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.replicaCluster\\.primary\\.address=sparql\\.dc1\\.example\\.com:443$"
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: "(?m)^pack\\.zookeeper\\.address=zookeeper-RELEASE-NAME-0\\."
+
+  - it: wires the replica credentials and in-memory properties file into the StatefulSet
+    template: charts/stardog/templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: STARDOG_PROPERTIES
+            value: /etc/stardog-runtime/stardog.properties
+      - exists:
+          path: spec.template.spec.volumes[?(@.name == "stardog-replica-credentials")]
+
+  - it: rejects the bundled cachetarget alongside a replica cluster
+    template: charts/stardog/templates/statefulset.yaml
+    set:
+      global:
+        cachetarget:
+          enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicaCluster.enabled cannot be combined with global.cachetarget.enabled: a replica cluster rejects the writes the cache target registration makes."

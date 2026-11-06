@@ -204,6 +204,23 @@ Changing an existing clustered StatefulSet from the previous client Service to t
 
 None of `rejoinShutdown` or `inactiveOnSuspend` can be set directly in `stardogProperties`/`additionalStardogProperties` -- the chart fails fast with a message pointing at the corresponding `cluster.zookeeperSessionTolerance.*` value instead, so there is a single source of truth.
 
+### Replica cluster
+
+`replicaCluster.enabled` (Stardog 12.2.0+, beta) runs this cluster as a read-only replica that pulls from a primary cluster in another region or Kubernetes cluster, and can be promoted online with `stardog-admin cluster promote`. It requires `cluster.enabled=true` and the replica's own ZooKeeper.
+
+```yaml
+cluster:
+  enabled: true
+replicaCluster:
+  enabled: true
+  primary:
+    address: sparql.primary.example.com:443   # host:port, no scheme or path
+    credentials:
+      existingSecretName: primary-replication # a superuser on the primary; or username/passwordFile
+```
+
+The primary's credentials never reach the ConfigMap, the data volume or the pod log: in replica mode `stardog.properties` lives on a memory-backed volume and the credentials are appended at pod start. Users, roles and passwords come from the primary, so `admin.existingSecretName` must hold the primary's admin password, and JWT `autoCreateUsers` is rendered as `false`. See the [replica cluster guide](../../docs/replica-cluster.md) for setup, Key Vault credentials, user provisioning and the promotion runbook.
+
 ### Service accounts and custom environment variables
 
 Stardog and its hooks run under the same service account determined by `serviceAccount.create` and `serviceAccount.name`. Populate `environmentVariables` when you need to inject extra JVM flags or platform-specific settings—the chart renders them verbatim into the container spec while still managing the base PATH and Stardog variables on your behalf.
