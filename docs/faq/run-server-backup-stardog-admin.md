@@ -30,7 +30,7 @@ The examples prompt for the Stardog password with `-P` so it does not appear in 
 
 ## Run the Backup
 
-Run `stardog-admin server backup` against the Stardog service:
+For a standalone deployment, run `stardog-admin server backup` against the Stardog service. For a cluster using filesystem backups (including PVC and Azure Blob CSI), first follow [Clustered Deployments](#clustered-deployments); do not send an explicit shared filesystem destination through a load-balanced service:
 
 ```bash
 stardog-admin \
@@ -49,6 +49,8 @@ You can write the on-demand backup to the same location used by the Helm-managed
 
 ### S3
 
+S3 server backup requires a Stardog license that enables this feature, in addition to valid AWS credentials and bucket access. Confirm the license entitlement before using this procedure. See [Stardog's S3 backup prerequisites](https://docs.stardog.com/operating-stardog/server-administration/backup-and-restore#backup-to-s3).
+
 For S3, pass the S3 URI directly to `stardog-admin server backup`.
 
 ```bash
@@ -64,7 +66,23 @@ To reuse the same S3 destination as the Helm CronJob, use the same bucket, bucke
 
 ### Generic PVC
 
-Configure `backup.enabled: true` and `backup.location.persistentVolume.enabled: true` before using this path. You can leave `backup.cronjob.enabled: false` when only on-demand backups are required. In umbrella values, these settings belong under `stardog.backup`.
+Create an existing `ReadWriteMany` PVC in the Stardog release namespace before enabling this backend. Set `customPersitentVolumeClaim` to its name; this key's spelling matches the chart. The generic backend does not supply a fallback claim when this name is empty.
+
+For the umbrella chart, merge the following into your deployment values, replacing `<PVC_NAME>` with the existing claim name:
+
+```yaml
+stardog:
+  backup:
+    enabled: true
+    cronjob:
+      enabled: false
+    location:
+      persistentVolume:
+        enabled: true
+        customPersitentVolumeClaim: <PVC_NAME>
+```
+
+For the standalone Stardog chart, omit the outer `stardog:` key. This example disables the CronJob for on-demand-only operation. Keep other backup backends disabled. Clustered filesystem backups also require the configuration and per-node commands below.
 
 For a generic PVC configured by the Helm chart, the chart mounts the PVC into the Stardog pods at:
 
@@ -78,7 +96,7 @@ The chart also writes a per-node `backup.location` value to `stardog.properties`
 ${STARDOG_HOME}/backups/<backupDir>/<release-name>/<node-name>
 ```
 
-To reuse that Helm-configured PVC backup location, run `server backup` without an explicit backup location:
+For a standalone server, reuse that Helm-configured PVC backup location by running `server backup` without an explicit backup location:
 
 ```bash
 stardog-admin \
@@ -102,7 +120,7 @@ For Azure Blob configured by the Helm chart, the chart uses the Azure Blob CSI d
 ${STARDOG_HOME}/backups/<backupDir>/<release-name>/<node-name>
 ```
 
-To reuse that Helm-configured Azure Blob backup location, run `server backup` without an explicit backup location:
+For a standalone server, reuse that Helm-configured Azure Blob backup location by running `server backup` without an explicit backup location. For a cluster, use the per-node procedure below:
 
 ```bash
 stardog-admin \
@@ -118,11 +136,49 @@ Prefer Kubernetes secrets, IAM roles, or another approved credential mechanism o
 
 ## Clustered Deployments
 
-Server backups are incremental and keep node-specific backup state. In a clustered deployment, do not have multiple nodes write incremental server backups into the same directory.
+### Filesystem backups: PVC and Azure Blob CSI
 
-If the backup destination is a shared filesystem location, give each Stardog node its own backup directory. If you always write to an empty directory, you avoid mixing node-specific incremental state, but you also lose incremental backup behavior for that destination.
+Backup requests are replicated to all nodes by default. An explicit filesystem destination overrides the configured destination on every participating node, so sending one shared directory through the service can mix node-specific incremental backup state.
 
-S3 server backups are handled differently by Stardog and do not require the same shared filesystem layout.
+For node-specific filesystem backups:
+
+1. Add `pack.backups.replicated.scheme=none` to the existing `stardogProperties` value on every Stardog node. In umbrella values, edit `stardog.stardogProperties`; in standalone chart values, edit `stardogProperties`. Append the following line to the existing multiline value, preserving all its other properties:
+
+   ```properties
+   pack.backups.replicated.scheme=none
+   ```
+
+2. Apply the values through your normal Helm upgrade procedure and wait for the Stardog rollout to finish before taking backups. Keep scheduled backups disabled during this procedure. With replication disabled, a CronJob that calls the shared service backs up only the receiving node; a recurring backup plan must explicitly target every node.
+3. Address each Stardog pod individually, not the load-balanced service. For the default release `sd-stack` in namespace `stardog`, forward a local port to the first pod in a separate terminal:
+
+   ```bash
+   kubectl -n stardog port-forward pod/stardog-sd-stack-0 15820:5820
+   ```
+
+4. While that port-forward is active, run the backup from your workstation using a matching Stardog CLI. Omit the destination to retain that node's chart-configured `backup.location`:
+
+   ```bash
+   stardog-admin --server http://localhost:15820 server backup \
+     -u <username> -P
+   ```
+
+5. Confirm the command succeeds and inspect that pod's backup output. Stop the port-forward, change the pod name to `stardog-sd-stack-1`, and repeat. Continue through every actual Stardog replica; do not assume its replica count matches ZooKeeper's.
+
+Replace the namespace, pod names, and server port for your deployment. The forwarding example assumes HTTP is enabled on pod port 5820. If the deployment requires HTTPS, forward its TLS port and use an HTTPS endpoint with the correct certificate trust and hostname validation.
+
+The chart configures the shared volume's destination separately for each node:
+
+```text
+${STARDOG_HOME}/backups/<backupDir>/<release-name>/<node-name>
+```
+
+If you need an explicit filesystem destination instead, keep backup replication disabled, address each pod directly, and give each pod its own directory on backup storage. Never reuse one shared incremental directory across nodes.
+
+These steps follow the [Stardog cluster backup guidance](https://docs.stardog.com/high-availability-cluster/operating-the-cluster/#backing-up-the-cluster).
+
+### S3 backups
+
+With normal backup replication enabled, one node performs an S3 backup on behalf of the cluster. Use the same S3 destination and access configuration on every node that may handle the request. The per-node filesystem layout above does not apply to S3. If you previously disabled backup replication, account for that setting when planning S3 backups.
 
 ## Verify the Backup
 
