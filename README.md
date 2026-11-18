@@ -36,10 +36,7 @@ Architecture is not one-size-fits-all, but this target architecture has worked w
 Related architecture note:
 
 - [Per-pod Prometheus collection for external monitoring](docs/prometheus-option-1.md)
-
-Operational documentation:
-
-- [FAQ and how-to articles](docs/faq/README.md)
+- [Replica cluster (cluster to cluster): disaster recovery and promotion](docs/replica-cluster.md)
 
 ## Components
 
@@ -389,6 +386,10 @@ voicebox:
     AZURE_API_KEY: "your-azure-api-key"
     PRODUCTION: 1
 ```
+
+## Backups
+
+See [Server backup procedures](docs/faq/run-server-backup.md) to choose between Helm-managed scheduled backups and on-demand backups using `stardog-admin`. The [backup FAQ index](docs/faq/README.md) links both workflows.
 
 ## Uninstalling
 

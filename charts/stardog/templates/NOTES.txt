@@ -27,6 +27,14 @@ APP VERSION: {{ .Chart.AppVersion }}
 {{- end }}
 
 ** Please be patient while the chart is being deployed **
+{{- if eq (include "stardog.replicaClusterEnabled" .) "true" }}
+
+*** READ-ONLY REPLICA CLUSTER (beta) ***
+This cluster replicates from the primary at {{ .Values.replicaCluster.primary.address }} and rejects client writes.
+Users, roles and passwords come from the primary after the first sync.
+Check sync status:  kubectl exec -n {{ .Release.Namespace }} {{ include "sdcommon.fullname" . }}-0 -- stardog-admin cluster status -u admin -p <primary admin password>
+Promotion and failover: https://github.com/stardog-oss/kube-stardog-stack/blob/main/docs/replica-cluster.md
+{{- end }}
 
 Your application is now deployed and can be accessed via:
 

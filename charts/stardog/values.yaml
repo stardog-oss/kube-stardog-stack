@@ -39,6 +39,48 @@ cluster:
     # member address (e.g. after a pod restart) instead of retrying a stale one.
     disableDnsCaching: true
 
+# Replica cluster (Stardog 12.2.0+, beta): run this cluster as a read-only replica that pulls from
+# a primary cluster and can later be promoted with `stardog-admin cluster promote`. See
+# docs/replica-cluster.md. Requires cluster.enabled and this cluster's OWN ZooKeeper (never point it
+# at the primary's ensemble). The replica's users, roles and passwords are replaced by the primary's
+# on the first sync, so admin.existingSecretName must hold the PRIMARY's admin password.
+replicaCluster:
+  enabled: false
+  # The first sync drops every database the primary does not have. Enabling replica mode on an
+  # existing (non-replica) release therefore requires this explicit acknowledgement.
+  acknowledgeDataLoss: false
+  primary:
+    # host:port of the primary cluster's endpoint (typically its load balancer or route), without
+    # scheme or path. Example: sparql.dc1.example.com:443
+    address: ""
+    # Connect to the primary over http instead of https. Never in production or across a WAN.
+    insecure: false
+    # A superuser on the primary. Stardog only accepts these as a plain value in stardog.properties;
+    # the chart writes them to an in-memory copy of the file at pod start (never to the ConfigMap or
+    # the data volume). Use exactly ONE source:
+    credentials:
+      # a) an existing Secret (created by the operator or synced by the Secrets Store CSI Driver)
+      existingSecretName: ""
+      usernameKey: username
+      passwordKey: password
+      # Optional literal username, instead of reading usernameKey/usernameFile.
+      username: ""
+      # b) files from a volume mounted with extraVolumes/extraVolumeMounts (e.g. a Key Vault CSI
+      #    volume mounted directly, with no Kubernetes Secret)
+      usernameFile: ""
+      passwordFile: ""
+  # pack.replicaCluster.sync.interval, e.g. "5m". Empty uses the server default (5m).
+  syncInterval: ""
+  # pack.replicaCluster.promote.quiesce.timeout, e.g. "10m". Empty uses the server default (10m).
+  promoteQuiesceTimeout: ""
+  # Stardog reads the credentials once at startup. Change this value to roll the pods after rotating
+  # them (or use a reloader such as Stakater Reloader via podAnnotations).
+  restartToken: ""
+  backup:
+    # Render the backup CronJob in replica mode. Backups on a replica cluster are not documented by
+    # Stardog yet, so this is off by default.
+    allow: false
+
   # How to start the pods - use OrderedReady to start each pod one at a time
   # or use Parallel to start them all at once
 podManagementPolicy: Parallel
@@ -98,7 +140,17 @@ stardogHome: /var/opt/stardog
 
 # The initial password for the Stardog admin user
 admin:
+  # Deprecated in favor of existingSecretName below - a literal value here is stored in plaintext in
+  # the Helm release Secret regardless of where it came from. Kept for backward compatibility only.
   password: admin
+  # [OPTIONAL] Name of an existing Secret already holding the admin password (e.g. synced onto this
+  # cluster by the Secrets Store CSI Driver - see secretProviderClass/extraVolumes below - or created
+  # by the operator directly). When set, the chart does not create its own password Secret and
+  # `password` above is ignored. Same pattern as backup.credentialsSecret below.
+  existingSecretName: ""
+  # [OPTIONAL] Key within existingSecretName holding the password - only used when existingSecretName
+  # is set.
+  existingSecretKey: "password"
 
 image:
   # You should not rely on Docker up for you production environment. You should ALWAYS use an implicit tag
@@ -455,6 +507,12 @@ gateway:
     port: 443
     path: "/"
     pathType: "Prefix" # Prefix | Exact
+    # Optional Gateway API HTTPRoute timeouts. These are Extended features and
+    # require Gateway API v1.2+ plus controller support. Request must be greater
+    # than or equal to backendRequest. Use 0s to disable a configured timeout.
+    # Recommended for long-running SPARQL requests:
+    # timeouts: { request: "30m", backendRequest: "30m" }
+    timeouts: {}
     annotations: {}
     addresses: [] # Optional static addresses for the Gateway spec
     parentRefs: [] # Required when createGateway=false
@@ -472,6 +530,10 @@ gateway:
     enabled: null      # When unset, auto-enabled if global.launchpad.enabled=true
     serviceName: ""   # defaults to launchpad service when global.launchpad.enabled=true
     servicePort: 80
+    # Optional timeouts applied when Stardog proxies the root path to Launchpad.
+    # Requires Gateway API v1.2+ and controller support for Extended timeouts.
+    # timeouts: { request: "10m", backendRequest: "10m" }
+    timeouts: {}
     externalUrl: ""   # Provide when launching outside this cluster (https://launchpad.example.com)
     externalPort: 443
     mode: ""          # "redirect", "proxy", or "backend". Defaults to "redirect" when global.launchpad.enabled=true, otherwise "proxy"

@@ -32,11 +32,15 @@ ACR Tasks must be able to pull the image in the Dockerfile `FROM` line. If the s
 
 ## Configure Pull Access
 
-For AKS, attach the registry to the cluster or create an image pull secret.
+For an AKS cluster using an ACR registry with the standard RBAC permissions mode, attach the registry:
 
 ```bash
 az aks update --name <aks-cluster-name> --resource-group <resource-group> --attach-acr <acr-name>
 ```
+
+For ABAC-enabled registries (`RBAC Registry + ABAC Repository Permissions`), `--attach-acr` is not supported. Assign the `Container Registry Repository Reader` role on the registry to the AKS kubelet managed identity instead. See [AKS and ACR integration](https://learn.microsoft.com/en-us/azure/aks/cluster-container-registry-integration) for the role assignment procedure.
+
+Alternatively, configure an image pull secret with credentials authorized to pull the image.
 
 ## Update Helm Values
 
@@ -49,6 +53,8 @@ stardog:
     repository: stardog/stardog
     tag: <tag>
 ```
+
+For the standalone Stardog chart, omit the outer `stardog:` key.
 
 Validate with:
 

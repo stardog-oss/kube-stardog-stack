@@ -195,3 +195,14 @@ jobs:
         if: ${{ matrix.chart == '.' }}
         working-directory: ${{ matrix.chart }}
         run: helm unittest --with-subchart=false ${{ inputs.unittest_flags }} .
+      - name: Run script tests
+        working-directory: ${{ matrix.chart }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for t in tests/scripts/*_test.sh; do
+            echo "::group::$t"
+            bash "$t"
+            echo "::endgroup::"
+          done

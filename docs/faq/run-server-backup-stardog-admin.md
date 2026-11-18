@@ -23,7 +23,10 @@ You can use this method even if the Helm backup CronJob is configured. Before ru
 - A running Stardog deployment.
 - Network access from the machine or pod running `stardog-admin` to the Stardog service.
 - A Stardog user with permission to run server backups.
-- A backup destination reachable from the Stardog server.
+- A backup destination reachable and writable from every Stardog server that may handle the request, with sufficient space for the backup.
+- A compatible Stardog CLI version, preferably matching the deployed server version.
+
+The examples prompt for the Stardog password with `-P` so it does not appear in shell history. Use the deployment's actual HTTP or HTTPS endpoint and configure trust for private CAs as required.
 
 ## Run the Backup
 
@@ -32,9 +35,9 @@ Run `stardog-admin server backup` against the Stardog service:
 ```bash
 stardog-admin \
   --server http://<stardog-service>:5820 \
+  server backup \
   -u <username> \
-  -p <password> \
-  server backup -- <backup-location>
+  -P -- <backup-location>
 ```
 
 Replace `<backup-location>` with a destination that the Stardog server can write to. For filesystem paths, the path is resolved on the Stardog server, not on the machine running `stardog-admin`.
@@ -51,15 +54,17 @@ For S3, pass the S3 URI directly to `stardog-admin server backup`.
 ```bash
 stardog-admin \
   --server http://<stardog-service>:5820 \
+  server backup \
   -u <username> \
-  -p <password> \
-  server backup -- \
+  -P -- \
   "s3:///bucket-name/path?region=<region>&AWS_ACCESS_KEY_ID=<key>&AWS_SECRET_ACCESS_KEY=<secret>"
 ```
 
 To reuse the same S3 destination as the Helm CronJob, use the same bucket, bucket directory, region, and credentials configured under `backup.location.s3` in the Helm values.
 
 ### Generic PVC
+
+Configure `backup.enabled: true` and `backup.location.persistentVolume.enabled: true` before using this path. You can leave `backup.cronjob.enabled: false` when only on-demand backups are required. In umbrella values, these settings belong under `stardog.backup`.
 
 For a generic PVC configured by the Helm chart, the chart mounts the PVC into the Stardog pods at:
 
@@ -78,9 +83,9 @@ To reuse that Helm-configured PVC backup location, run `server backup` without a
 ```bash
 stardog-admin \
   --server http://<stardog-service>:5820 \
+  server backup \
   -u <username> \
-  -p <password> \
-  server backup
+  -P
 ```
 
 Stardog will use the configured `backup.location` on the server.
@@ -88,6 +93,8 @@ Stardog will use the configured `backup.location` on the server.
 If you pass a filesystem path explicitly, use a path that exists in the Stardog server pod, not a path on the machine running `stardog-admin`.
 
 ### Azure Blob
+
+Configure `backup.enabled: true` and `backup.location.azure.enabled: true` before using this path. You can leave `backup.cronjob.enabled: false` when only on-demand backups are required. In umbrella values, these settings belong under `stardog.backup`.
 
 For Azure Blob configured by the Helm chart, the chart uses the Azure Blob CSI driver to expose the blob container as a mounted filesystem in the Stardog pods. It uses the same server-side `backup.location` pattern as the generic PVC case:
 
@@ -100,9 +107,9 @@ To reuse that Helm-configured Azure Blob backup location, run `server backup` wi
 ```bash
 stardog-admin \
   --server http://<stardog-service>:5820 \
+  server backup \
   -u <username> \
-  -p <password> \
-  server backup
+  -P
 ```
 
 Stardog will write through the mounted Azure Blob CSI volume using the server's configured `backup.location`.
@@ -119,4 +126,6 @@ S3 server backups are handled differently by Stardog and do not require the same
 
 ## Verify the Backup
 
-Check the command output and confirm that the expected backup files were written to the backup destination.
+Treat a nonzero CLI exit status as a failed backup. Check the command output and confirm that the expected backup files were written to the server-side backup destination before proceeding with maintenance. A successful command alone does not replace periodically testing recovery from a backup.
+
+For command syntax and server-side destination semantics, see the [Stardog server backup reference](https://docs.stardog.com/stardog-admin-cli-reference/server/server-backup).

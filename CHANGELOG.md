@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.4.0
+- Update the bundled Stardog chart to `4.3.0`.
+- Add replica cluster support (Stardog 12.2.0+, beta) through `stardog.replicaCluster.*`: deploy a
+  read-only Stardog cluster, with its own ZooKeeper, that replicates from a primary cluster in another
+  region or Kubernetes cluster and can be promoted online. The primary's credentials are read from a Secret
+  or a mounted Key Vault CSI volume and kept off the data volume, the ConfigMap and the pod log.
+- Add the replica cluster guide (`docs/replica-cluster.md`), including the promotion runbook.
+
+## 1.3.2
+- Add opt-in Gateway API request and backend-request timeouts for Stardog and Launchpad HTTP routes.
+- Update bundled subcharts:
+  - Common: 0.1.9
+  - Gateway: 1.0.6
+  - Stardog: 4.2.1
+  - ZooKeeper: 1.1.2
+  - Launchpad: 1.0.7
+  - Voicebox: 1.2.1
+  - CacheTarget: 1.0.6
+
+## 1.3.1
+- Update the bundled Stardog chart to `4.2.0`.
+- Add support for using an externally managed Stardog admin password Secret through `admin.existingSecretName` and `admin.existingSecretKey`.
+- Deprecate the literal `admin.password` value while retaining it for backward compatibility.
+
 ## 1.3.0
 - Add support for Voicebox 1.0 and Launchpad 4.0, with the chart updates needed to run the newer application images cleanly in Kubernetes.
 - Add support for Launchpad 4.0 deployment patterns, including ServiceAccount rendering, pod labels, annotations, and workload identity support.

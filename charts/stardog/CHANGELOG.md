@@ -1,5 +1,58 @@
 # Changelog
 
+## 4.3.0
+- Quote replica usernames and credential file paths as literal shell arguments in startup and preStop.
+- Mount the outbound truststore and private CA even when inbound TLS is disabled.
+- Preserve explicit JWT `autoCreateUsers: false` after promotion and fail the post-install hook if health checks time out.
+- Add replica cluster support (Stardog 12.2.0+, beta) through `replicaCluster.*`: run the cluster as a
+  read-only replica that pulls from a primary cluster and can be promoted online with
+  `stardog-admin cluster promote`. Renders `pack.replicaCluster`, `.primary.address`, `.primary.insecure`,
+  and the optional `.sync.interval` / `.promote.quiesce.timeout` into `stardog.properties`.
+- The primary's credentials (a superuser on the primary) come from an existing Secret
+  (`replicaCluster.primary.credentials.existingSecretName`) or from files on a directly mounted volume such
+  as a Key Vault CSI volume (`usernameFile`/`passwordFile`). Stardog only accepts them as plain values in
+  `stardog.properties`, so in replica mode the chart moves that file to a memory-backed `emptyDir`
+  (`/etc/stardog-runtime`), restricts it to mode 0600, and appends the credentials at pod start with shell
+  tracing off. They are never rendered into the ConfigMap, the data volume or the pod log.
+- In replica mode the post-install job only waits for the cluster: the admin password and backup user come
+  from the primary, and the replica rejects those writes. The backup CronJob is not rendered unless
+  `replicaCluster.backup.allow` is set. preStop falls back from the replication credentials to the admin
+  secret and finally the default admin password, which a replica still has before its first sync.
+- Validation: replica mode requires `cluster.enabled`, a `host:port` primary address, exactly one credential
+  source, Stardog 12.2.0 or later (semver tags only), and `backup.credentialsSecret` when backups are
+  enabled; it cannot be combined with `global.cachetarget.enabled`, with a `STARDOG_PROPERTIES` override, or
+  with `pack.standby`/`pack.readReplica`/`pack.geoReplica` in `stardogProperties`. Enabling it on an existing
+  non-replica release requires `replicaCluster.acknowledgeDataLoss=true`, because the first sync drops every
+  database the primary does not have.
+- In replica mode the JWT config renders `autoCreateUsers: false` for every issuer and omits
+  `autoDeleteUsersSchedule`: users come from the primary, and a replica cannot create or delete them. Users
+  must exist on the primary (and have synced) before they can log in to the replica; roles from the token
+  still apply. The upgrade that sets `replicaCluster.enabled=false` after promotion renders the configured
+  values again.
+- `pack.replicaCluster*` is now rejected in `stardogProperties`; use the `replicaCluster` values instead.
+- `replicaCluster.restartToken` rolls the pods after rotating the primary's credentials, which Stardog only
+  reads at startup.
+- A literal `replicaCluster.primary.credentials.username` is escaped for `java.util.Properties` (like
+  file-sourced values) and must be printable ASCII.
+- Add the [replica cluster guide](../../docs/replica-cluster.md): setup, Key Vault credentials, user
+  provisioning, credential rotation and the promotion runbook. The install notes link to it.
+
+## 4.2.1
+- Add opt-in `gateway.http.timeouts.request` and `gateway.http.timeouts.backendRequest` settings for Stardog routes.
+- Add opt-in `gateway.redirectToLaunchpad.timeouts` settings for proxied Launchpad backend routes.
+- Update the common chart dependency to `0.1.9` for shared `HTTPRoute` timeout rendering.
+
+## 4.2.0
+- Add `admin.existingSecretName`/`admin.existingSecretKey` - the chart no longer requires the admin
+  password as a literal Helm value. When set, the chart skips creating its own password Secret and
+  mounts the named existing Secret instead (e.g. one synced by the Secrets Store CSI Driver from a
+  Key Vault, or created by the operator directly) - same pattern `backup.credentialsSecret` already
+  uses. Existence is validated via the same `sdcommon.ensureSecretExists` helper (and the same
+  `global.skipSecretValidation` escape hatch) `stardog-license` already relies on.
+- `admin.password` (the literal value) is now **deprecated** in favor of `existingSecretName` - a
+  literal value is stored in plaintext in the Helm release Secret regardless of where it came from.
+  Kept for backward compatibility; not removed.
+
 ## 4.1.1
 - Update the bundled Log4j2 configuration to write Stardog and ZooKeeper logs through rolling file appenders with size/time rotation and retention cleanup.
 - Route root WARN+ records and additional Stardog namespaces (`com.complexible`, `com.stardog`, and `com.clarkparsia`) into `stardog.log`.
@@ -38,13 +91,8 @@
   - Inject `upgrade.automatic=true` only when `upgrade.approval.targetVersion` exactly matches `image.tag`; mismatched or empty approval values do not inject it.
   - Fail chart rendering when `upgrade.automatic` is set directly in `stardogProperties`.
 - Stardog properties default update.
-  - Previous chart versions overrode Stardog defaults with `pack.node.join.retry.count=15` and `pack.node.join.retry.delay=1m`.
-  - These chart-level overrides have been removed so Stardog uses its own defaults.
-  - To preserve the previous chart behavior after upgrading, add the following entries to `stardogProperties` in your values file:
-    ```properties
-    pack.node.join.retry.count=15
-    pack.node.join.retry.delay=1m
-    ```
+  - Removed pack.node.join.retry.count=15,  default 20
+  - Removed pack.node.join.retry.delay=1m,  defualt 3s
 - Add support for umbrella-managed external shared Gateway references via `global.gateway.*`.
 - Auto-populate shared HTTPS, HTTP redirect, and BI TCP listener `parentRefs` from umbrella values.
 
