@@ -49,10 +49,13 @@ For the standalone Stardog chart, use only the contents under `stardog:` and omi
 
 If your deployment enables Launchpad, Voicebox, ZooKeeper, Cache Target, or other workloads, mirror every enabled component's container and init-container images and configure their image values as well. Mirroring only Stardog does not make a multi-component deployment independent of public registries.
 
-Validate with:
+Validate with a client-side render:
 
 ```bash
-helm template <release> <chart> -n <namespace> -f values.yaml
+helm template <release> <chart> -n <namespace> -f values.yaml \
+  --set global.skipSecretValidation=true
 ```
+
+The flag bypasses required Secret lookups during offline rendering, including the `stardog-license` lookup. Use it only for this dry run; leave secret validation enabled for real installs and upgrades.
 
 Inspect all rendered `image:` references to confirm that each enabled workload uses an accessible registry. Keep the normal license, storage, and other environment-specific values required by your deployment.
