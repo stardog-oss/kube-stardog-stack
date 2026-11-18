@@ -387,6 +387,10 @@ voicebox:
     PRODUCTION: 1
 ```
 
+## Backups
+
+See [Server backup procedures](docs/faq/run-server-backup.md) to choose between Helm-managed scheduled backups and on-demand backups using `stardog-admin`. The [backup FAQ index](docs/faq/README.md) links both workflows.
+
 ## Uninstalling
 
 ```bash
