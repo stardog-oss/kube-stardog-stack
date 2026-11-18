@@ -347,3 +347,45 @@ tests:
   asserts:
     - failedTemplate:
         errorMessage: "Secret NAMESPACE/custom-admin-secret not found. Please create it or choose an existing secret."
+
+- it: configures outbound trust without enabling inbound TLS
+  set:
+    tls.sparql.enabled: false
+    tls.bi.enabled: false
+    tls.truststore.enabled: true
+    tls.truststore.name: outbound.p12
+    tls.truststore.pass: outbound-pass
+    tls.truststore.caSecretName: private-ca
+  asserts:
+  - contains:
+      path: spec.template.spec.initContainers[0].volumeMounts
+      content:
+        name: stardog-keystore
+        mountPath: /var/opt/stardog/keystore
+  - contains:
+      path: spec.template.spec.initContainers[0].volumeMounts
+      content:
+        name: stardog-truststore-ca
+        mountPath: /var/opt/stardog/ca
+        readOnly: true
+  - contains:
+      path: spec.template.spec.containers[0].volumeMounts
+      content:
+        name: stardog-keystore
+        mountPath: /var/opt/stardog/keystore
+        readOnly: true
+  - matchRegex:
+      path: spec.template.spec.containers[0].env[4].value
+      pattern: '-Djavax.net.ssl.trustStore=/var/opt/stardog/keystore/outbound.p12'
+  - matchRegex:
+      path: spec.template.spec.containers[0].env[4].value
+      pattern: '-Djavax.net.ssl.trustStorePassword=outbound-pass'
+  - notMatchRegex:
+      path: spec.template.spec.containers[0].env[4].value
+      pattern: '-Djavax.net.ssl.keyStore'
+  - matchRegex:
+      path: spec.template.spec.initContainers[0].command[2]
+      pattern: '^\{ set \+x; \} 2>/dev/null'
+  - notMatchRegex:
+      path: spec.template.spec.initContainers[0].command[2]
+      pattern: 'echo[^}]*"KEYSTORE_PASS"'

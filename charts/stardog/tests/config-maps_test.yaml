@@ -271,3 +271,47 @@ tests:
       - matchRegex:
           path: data["jwt.yaml"]
           pattern: "audience: stardog"
+
+  - it: configures outbound trust properties without inbound TLS
+    set:
+      tls.sparql.enabled: false
+      tls.bi.enabled: false
+      tls.truststore.enabled: true
+      tls.truststore.name: outbound.p12
+      tls.truststore.pass: outbound-pass
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-properties
+    asserts:
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: 'javax.net.ssl.trustStore=/var/opt/stardog/keystore/outbound.p12'
+      - matchRegex:
+          path: data["stardog.properties"]
+          pattern: 'javax.net.ssl.trustStorePassword=outbound-pass'
+      - notMatchRegex:
+          path: data["stardog.properties"]
+          pattern: '(?m)^javax\.net\.ssl\.keyStore'
+
+  - it: preserves false and true and defaults omitted JWT autoCreateUsers to true
+    set:
+      jwtConfig.enabled: true
+      jwtConfig.issuers:
+        - issuer: https://disabled.example.com
+          autoCreateUsers: false
+        - issuer: https://enabled.example.com
+          autoCreateUsers: true
+        - issuer: https://default.example.com
+    documentSelector:
+      path: metadata.name
+      value: stardog-RELEASE-NAME-jwt
+    asserts:
+      - matchRegex:
+          path: data["jwt.yaml"]
+          pattern: 'https://disabled\.example\.com:\n    audience:[^\n]*\n    autoCreateUsers: false'
+      - matchRegex:
+          path: data["jwt.yaml"]
+          pattern: 'https://enabled\.example\.com:\n    audience:[^\n]*\n    autoCreateUsers: true'
+      - matchRegex:
+          path: data["jwt.yaml"]
+          pattern: 'https://default\.example\.com:\n    audience:[^\n]*\n    autoCreateUsers: true'

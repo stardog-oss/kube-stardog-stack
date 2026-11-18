@@ -54,11 +54,11 @@ data:
     javax.net.ssl.keyStore=/var/opt/stardog/keystore/{{ .Values.tls.keystore.name }}
     javax.net.ssl.keyStorePassword={{ .Values.tls.keystore.pass }}
     javax.net.ssl.keyStoreType=PKCS12
+    {{- end }}
     {{- if $truststoreEnabled }}
     javax.net.ssl.trustStore=/var/opt/stardog/keystore/{{ default "stardog-truststore.p12" .Values.tls.truststore.name }}
     javax.net.ssl.trustStorePassword={{ default .Values.tls.keystore.pass .Values.tls.truststore.pass }}
     javax.net.ssl.trustStoreType={{ default "PKCS12" .Values.tls.truststore.type }}
-    {{- end }}
     {{- end }}
     {{- $upgradeProps := include "stardog.upgradeProperties" . | trim }}
     {{- if ne $upgradeProps "" }}

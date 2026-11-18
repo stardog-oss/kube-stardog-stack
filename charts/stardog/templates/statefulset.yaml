@@ -131,7 +131,8 @@ spec:
         - /bin/bash
         - -c
         - |
-          {{- .Files.Get "files/pre-hook-script.sh" | indent 10 }}
+          { set +x; } 2>/dev/null
+          {{ .Files.Get "files/pre-hook-script.sh" | indent 10 }}
           {{- if and $anyTlsEnabled  .Values.tls.keystore.create }}
           waitForTlsSecret "$TLS_CERT_PATH" "$TLS_KEY_PATH" "$TLS_MAX_ATTEMPTS" || exit 1
           cd ${STARDOG_HOME}
@@ -238,11 +239,11 @@ spec:
             -Djavax.net.ssl.keyStore=/var/opt/stardog/keystore/{{ .Values.tls.keystore.name }}
             -Djavax.net.ssl.keyStorePassword={{ .Values.tls.keystore.pass }}
             -Djavax.net.ssl.keyStoreType=PKCS12
+            {{- end }}
             {{- if $truststoreEnabled }}
             -Djavax.net.ssl.trustStore=/var/opt/stardog/keystore/{{ default "stardog-truststore.p12" .Values.tls.truststore.name }}
             -Djavax.net.ssl.trustStorePassword={{ default .Values.tls.keystore.pass .Values.tls.truststore.pass }}
             -Djavax.net.ssl.trustStoreType={{ default "PKCS12" .Values.tls.truststore.type }}
-            {{- end }}
             {{- end }}
             -Djava.io.tmpdir={{ $tmpDirPath }}
             -XX:+HeapDumpOnOutOfMemoryError

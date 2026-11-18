@@ -26,19 +26,20 @@ function wait_for_start {
 
 function change_pw {
     (
-    set +ex
+    { set +x; } 2>/dev/null
+    set +e
     HOST=${1}
     PORT=${2}
 
     echo "/opt/stardog/bin/stardog-admin --server http://${HOST}:${PORT} user passwd -N xxxxxxxxxxxxxx"
     NEW_PW=${STARDOG_ADMINPW}
-    /opt/stardog/bin/stardog-admin --server http://${HOST}:${PORT} user passwd -N ${NEW_PW}
+    /opt/stardog/bin/stardog-admin --server http://${HOST}:${PORT} user passwd -N "${NEW_PW}"
     if [[ $? -eq 0 ]];
     then
         echo "Password successfully changed"
         return 0
     else
-        curl --fail -u admin:${NEW_PW} http://${HOST}:${PORT}/admin/status
+        curl --fail -u "admin:${NEW_PW}" http://${HOST}:${PORT}/admin/status
         RC=$?
         if [[ $RC -eq 0 ]];
         then
@@ -73,6 +74,7 @@ function make_temp {
 
 function setup_cache_target {
     (
+    { set +x; } 2>/dev/null
     TARGET_NAME=${1}
     TARGET_PORT=${2}
     PRIMARY_NAME=${3}
@@ -80,10 +82,9 @@ function setup_cache_target {
     NAMESPACE=${5}
     THIS_PW=${STARDOG_ADMINPW}
 
-    set -x
     set +e
     echo "Registering cache target"
-    CACHE_ADD_OUTPUT=$(/opt/stardog/bin/stardog-admin --server http://${PRIMARY_NAME}.${NAMESPACE}:${PRIMARY_PORT} cache target add -p ${PRIMARY_PW} ${TARGET_NAME} ${TARGET_NAME}.${NAMESPACE}:${TARGET_PORT} admin ${THIS_PW} 2>&1)
+    CACHE_ADD_OUTPUT=$(/opt/stardog/bin/stardog-admin --server http://${PRIMARY_NAME}.${NAMESPACE}:${PRIMARY_PORT} cache target add -p "${PRIMARY_PW}" ${TARGET_NAME} ${TARGET_NAME}.${NAMESPACE}:${TARGET_PORT} admin "${THIS_PW}" 2>&1)
     CACHE_ADD_STATUS=$?
     echo "${CACHE_ADD_OUTPUT}"
     if [ ${CACHE_ADD_STATUS} -ne 0 ]; then

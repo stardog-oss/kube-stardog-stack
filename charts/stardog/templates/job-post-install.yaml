@@ -59,14 +59,15 @@ spec:
         - name: PORT
           value: "{{ .Values.ports.server }}"
         - name: HOST
-          value: "{{ include "sdcommon.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local"
+          value: "{{ include "sdcommon.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
         - name: PROTOCOL
           value: "http"
         command:
         - /bin/bash
         - -c
         - |
-          set -ex
+          { set +x; } 2>/dev/null
+          set -e
           {{ .Files.Get "files/utils.sh" | indent 10 }}
           wait_for_start ${HOST} ${PORT} ${PROTOCOL} || exit 1
           {{- if eq (include "stardog.replicaClusterEnabled" .) "true" }}
@@ -74,18 +75,19 @@ spec:
           # is rejected, so the admin password and backup user are managed on the primary instead.
           echo "Replica cluster: skipping admin password change and backup user setup"
           {{- else }}
-          change_pw ${HOST} ${PORT} ${PROTOCOL}
+          change_pw ${HOST} ${PORT} ${PROTOCOL} || exit 1
           {{- if .Values.backup.enabled }}
-          backup_credentials "${PROTOCOL}://${HOST}:${PORT}" ${BACKUP_USERNAME} ${BACKUP_PASSWORD}
+          backup_credentials "${PROTOCOL}://${HOST}:${PORT}" "${BACKUP_USERNAME}" "${BACKUP_PASSWORD}" || exit 1
           {{- end }}
           {{- end }}
-  {{- if and (hasKey .Values "image") .Values.image.pullSecrets }}
-  imagePullSecrets:
-  {{ toYaml .Values.image.pullSecrets }}
-  {{- end }}
-      {{- if and (hasKey .Values "image") .Values.image.username .Values.image.password }}
+      {{- if or .Values.image.pullSecrets (and .Values.image.username .Values.image.password) }}
       imagePullSecrets:
+        {{- with .Values.image.pullSecrets }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if and .Values.image.username .Values.image.password }}
         - name: {{ .Release.Name }}-image-pull-secret
+        {{- end }}
       {{- end }}
       volumes:
       - name: {{ include "sdcommon.fullname" . }}-password
