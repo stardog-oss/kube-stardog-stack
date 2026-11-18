@@ -222,6 +222,8 @@ docker pull stardog/voicebox-service:v1.0.0
 
 ### Tag and Push to Internal Registry
 
+For a standalone Stardog example with matching Docker and Helm image tags, see [Push a Stardog Image to a Private Registry Using Docker](docs/faq/push-stardog-image-to-private-registry-using-docker.md).
+
 ```bash
 export INTERNAL_REGISTRY="<your-internal-registry>"  # e.g. myregistry.azurecr.io
 
