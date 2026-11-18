@@ -17,6 +17,6 @@ stardog:
 
 This enables the backup feature and CronJob; also configure credentials and exactly one storage backend as described in the Helm backup guide before deploying.
 
-Filesystem backup output is written by the Stardog server. Mounting a backup PVC only in a separate CLI pod does not make that storage available to the server. The chart's PVC and Azure Blob CSI backends mount backup storage into the Stardog pods and configure a separate destination per node. For these backends, omit an explicit path when you want to use the chart-configured destination.
+Filesystem backup output is written by the Stardog server. Mounting a backup PVC only in a separate CLI pod does not make that storage available to the server. The chart's PVC and Azure Blob CSI backends mount backup storage into the Stardog pods and configure a separate destination per node. For these backends, omit an explicit path when you want to use the chart-configured destination. In a cluster, first disable backup replication with `pack.backups.replicated.scheme=none` and address each Stardog pod separately, as described in the [clustered on-demand backup procedure](run-server-backup-stardog-admin.md#clustered-deployments).
 
 Before an on-demand backup, prevent overlap with any scheduled backup writing to the same backup set. Confirm CLI success and the backup output before maintenance, and test recovery periodically.
