@@ -4,14 +4,29 @@ Cache target helper overrides.
 
 {{- define "cachetarget.deprecationNotice" -}}
 WARNING: The CacheTarget chart is deprecated. Continued use requires explicit acknowledgement.
+Cache targets will be removed in Stardog 13. Deployment is blocked for Stardog 13 or later, even with allowDeprecated=true.
 Standalone chart: set allowDeprecated=true. Umbrella chart: set cachetarget.allowDeprecated=true.
-The acknowledgement allows deployment but does not remove this deprecation warning.
+Pin image.tag and set primary.version to explicit Stardog versions below 13; latest and unversioned tags are not accepted.
+More details: https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management
+{{- end -}}
+
+{{- define "cachetarget.validateVersion" -}}
+{{- $version := trim (toString (default "" .version)) -}}
+{{- if not (regexMatch `^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$` $version) -}}
+{{- fail (printf "%s must be an explicit Stardog version below 13 (for example, 12.2.0); got %q. Mutable or unversioned tags cannot establish compatibility. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management" .field $version) -}}
+{{- end -}}
+{{- $parsed := semver $version -}}
+{{- if ge (int $parsed.Major) 13 -}}
+{{- fail (printf "Cache targets are removed in Stardog 13. %s=%s is not supported, even with allowDeprecated=true. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management" .field $version) -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "cachetarget.validateDeprecation" -}}
 {{- if not (and (kindIs "bool" .Values.allowDeprecated) .Values.allowDeprecated) -}}
 {{- fail (include "cachetarget.deprecationNotice" . | replace "\n" " ") -}}
 {{- end -}}
+{{- include "cachetarget.validateVersion" (dict "field" "image.tag" "version" .Values.image.tag) -}}
+{{- include "cachetarget.validateVersion" (dict "field" "primary.version" "version" .Values.primary.version) -}}
 {{- end -}}
 
 {{- define "cachetarget.primaryName" -}}

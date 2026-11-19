@@ -202,7 +202,7 @@ for c in "${charts[@]}"; do
     lint_values_arg="-f $repo_root/values.skip-secret-validation.yaml"
   fi
   if [[ "$c" == "charts/cachetarget" ]]; then
-    lint_values_arg="${lint_values_arg} --set allowDeprecated=true"
+    lint_values_arg="${lint_values_arg} --set allowDeprecated=true,image.tag=12.2.0,primary.version=12.2.0"
   fi
   (cd "$c" && helm lint . ${lint_values_arg})
   if [[ "$c" == "." ]]; then

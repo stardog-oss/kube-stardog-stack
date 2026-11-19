@@ -1,0 +1,94 @@
+suite: CacheTarget Stardog version boundary
+values:
+  - values/values-cachetarget.yaml
+templates:
+  - validate.yaml
+  - service.yaml
+tests:
+  - it: rejects Stardog 13 despite acknowledgement
+    template: validate.yaml
+    set:
+      image.tag: "13.0.0"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Cache targets are removed in Stardog 13. image.tag=13.0.0 is not supported, even with allowDeprecated=true. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management"
+  - it: rejects Stardog 13 prereleases
+    template: validate.yaml
+    set:
+      image.tag: "v13.0.0-rc.1"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Cache targets are removed in Stardog 13. image.tag=v13.0.0-rc.1 is not supported, even with allowDeprecated=true. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management"
+  - it: rejects future major versions
+    template: validate.yaml
+    set:
+      image.tag: "14.1.0"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Cache targets are removed in Stardog 13. image.tag=14.1.0 is not supported, even with allowDeprecated=true. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management"
+  - it: rejects a mutable latest target image
+    template: validate.yaml
+    set:
+      image.tag: "latest"
+    asserts:
+      - failedTemplate:
+          errorMessage: "image.tag must be an explicit Stardog version below 13 (for example, 12.2.0); got \"latest\". Mutable or unversioned tags cannot establish compatibility. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management"
+  - it: rejects unversioned target aliases
+    template: validate.yaml
+    set:
+      image.tag: "production"
+    asserts:
+      - failedTemplate:
+          errorMessage: "image.tag must be an explicit Stardog version below 13 (for example, 12.2.0); got \"production\". Mutable or unversioned tags cannot establish compatibility. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management"
+  - it: rejects empty target tags
+    template: validate.yaml
+    set:
+      image.tag: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "image.tag must be an explicit Stardog version below 13 (for example, 12.2.0); got \"\". Mutable or unversioned tags cannot establish compatibility. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management"
+  - it: rejects a Stardog 13 primary
+    template: validate.yaml
+    set:
+      primary.version: "13.0.0"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Cache targets are removed in Stardog 13. primary.version=13.0.0 is not supported, even with allowDeprecated=true. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management"
+  - it: rejects Stardog 13 primary prereleases
+    template: validate.yaml
+    set:
+      primary.version: "13.0.0-beta.1"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Cache targets are removed in Stardog 13. primary.version=13.0.0-beta.1 is not supported, even with allowDeprecated=true. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management"
+  - it: requires the actual primary version
+    template: validate.yaml
+    set:
+      primary.version: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "primary.version must be an explicit Stardog version below 13 (for example, 12.2.0); got \"\". Mutable or unversioned tags cannot establish compatibility. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management"
+  - it: rejects an unknown primary version
+    template: validate.yaml
+    set:
+      primary.version: "latest"
+    asserts:
+      - failedTemplate:
+          errorMessage: "primary.version must be an explicit Stardog version below 13 (for example, 12.2.0); got \"latest\". Mutable or unversioned tags cannot establish compatibility. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management"
+  - it: rejects Stardog 13 on upgrade too
+    template: validate.yaml
+    release:
+      upgrade: true
+    set:
+      image.tag: 13.0.0
+    asserts:
+      - failedTemplate:
+          errorMessage: "Cache targets are removed in Stardog 13. image.tag=13.0.0 is not supported, even with allowDeprecated=true. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management"
+  - it: allows pinned versions throughout 12.x with acknowledgement
+    template: service.yaml
+    set:
+      image.tag: v12.99.9
+      primary.version: 12.99.9
+    asserts:
+      - isKind:
+          of: Service

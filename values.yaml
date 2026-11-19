@@ -125,6 +125,8 @@ global:
     enabled: false
 
 # Required only when global.cachetarget.enabled=true. Acknowledges continued use
-# of the deprecated CacheTarget chart; does not suppress its warning.
+# of the deprecated CacheTarget chart; does not suppress its warning or permit
+# Stardog 13+. Enabled CacheTarget deployments must pin cachetarget.image.tag,
+# declare cachetarget.primary.version, and pin stardog.image.tag when enabled.
 cachetarget:
   allowDeprecated: false

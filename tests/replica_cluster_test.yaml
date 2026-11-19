@@ -52,6 +52,10 @@ tests:
     set:
       cachetarget:
         allowDeprecated: true
+        image:
+          tag: 12.2.0
+        primary:
+          version: 12.2.0
       global:
         cachetarget:
           enabled: true

@@ -9,8 +9,10 @@ tests:
       - failedTemplate:
           errorMessage: &deprecationError >-
             WARNING: The CacheTarget chart is deprecated. Continued use requires explicit acknowledgement.
+            Cache targets will be removed in Stardog 13. Deployment is blocked for Stardog 13 or later, even with allowDeprecated=true.
             Standalone chart: set allowDeprecated=true. Umbrella chart: set cachetarget.allowDeprecated=true.
-            The acknowledgement allows deployment but does not remove this deprecation warning.
+            Pin image.tag and set primary.version to explicit Stardog versions below 13; latest and unversioned tags are not accepted.
+            More details: https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management
 
   - it: blocks upgrades without acknowledgement
     template: validate.yaml
@@ -56,6 +58,8 @@ tests:
     template: service.yaml
     set:
       allowDeprecated: true
+      image.tag: 12.2.0
+      primary.version: 12.2.0
     asserts:
       - isKind:
           of: Service
@@ -66,6 +70,8 @@ tests:
       upgrade: true
     set:
       allowDeprecated: true
+      image.tag: 12.2.0
+      primary.version: 12.2.0
     asserts:
       - isKind:
           of: Service

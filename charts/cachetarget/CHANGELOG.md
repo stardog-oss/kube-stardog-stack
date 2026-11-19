@@ -1,6 +1,7 @@
 # Changelog
 
 ## 1.1.0
+- State removal in Stardog 13 and link to the cache-management documentation. Reject Stardog 13 prereleases and later majors even after acknowledgement; require an explicit versioned target image and `primary.version`, and validate the bundled Stardog image when enabled.
 - SAT-905: mark the chart deprecated and require `allowDeprecated=true` for standalone installs, upgrades, and template rendering (`cachetarget.allowDeprecated=true` in the umbrella).
 - Default the acknowledgement to `false` and reject non-boolean values. Continue showing the deprecation warning in install/upgrade NOTES after opt-in.
 - Document the upgrade requirement and test standalone/umbrella gating, visible warnings, disabled dependencies, and packaged chart behavior.

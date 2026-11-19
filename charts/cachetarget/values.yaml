@@ -1,6 +1,8 @@
 ---
 # The CacheTarget chart is deprecated. Installs and upgrades require explicit
 # acknowledgement. In the umbrella chart, set cachetarget.allowDeprecated=true.
+# Removed in Stardog 13: opt-in requires versioned image.tag and primary.version
+# below 13. Neither latest nor the acknowledgement bypasses version validation.
 allowDeprecated: false
 
 # The namespace for Stardog cache target resources that override the release namespace
@@ -173,6 +175,9 @@ additionalStardogProperties: |
 
 # The name and port for the primary Stardog release that the cache target will connect to
 primary:
+  # Required: the actual Stardog version of the primary, e.g. "12.2.0".
+  # Must be below 13, including when allowDeprecated=true.
+  version: ""
   #name: ""  #default is stardog-<release-name>
   port: 5820
   validateService: false

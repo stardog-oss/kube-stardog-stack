@@ -26,7 +26,11 @@ def check(args, blocked=False, quiet=False):
     output = result.stdout + result.stderr
     if blocked:
         assert result.returncode != 0, 'unacknowledged deployment was accepted'
-        assert notice in output and 'cachetarget.allowDeprecated=true' in output, output
+        if isinstance(blocked, str):
+            assert blocked in output, output
+        else:
+            assert notice in output and 'cachetarget.allowDeprecated=true' in output, output
+        assert 'https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management' in output, output
         assert not result.stdout.strip(), 'failed render emitted resources'
     else:
         assert result.returncode == 0, output
@@ -53,12 +57,25 @@ with tempfile.TemporaryDirectory(prefix='sat905-') as directory:
             # This archive was generated above from the local chart, not downloaded.
             package.extractall(work / 'notes')
 
-        flags = (['--set', 'allowDeprecated=true'] if relative == 'cachetarget'
-                 else ['--set', 'global.cachetarget.enabled=true,cachetarget.allowDeprecated=true'])
+        flags = (['--set', 'allowDeprecated=true,image.tag=12.2.0,primary.version=12.2.0'] if relative == 'cachetarget'
+                 else ['--set', 'global.cachetarget.enabled=true,cachetarget.allowDeprecated=true,cachetarget.image.tag=12.2.0,cachetarget.primary.version=12.2.0,stardog.image.tag=12.2.0'])
         enabled = ([] if relative == 'cachetarget' else ['--set', 'global.cachetarget.enabled=true'])
         check(['template', 'sat905', archive, *offline, *enabled], blocked=True)
         check(['template', 'sat905', archive, '--is-upgrade', *offline, *enabled], blocked=True)
         check(['template', 'sat905', archive, '--is-upgrade', *offline, *flags])
+        target_key = 'image.tag' if relative == 'cachetarget' else 'cachetarget.image.tag'
+        primary_key = 'primary.version' if relative == 'cachetarget' else 'cachetarget.primary.version'
+        for version in ('13.0.0', 'v13.0.0-rc.1', '14.0.0'):
+            for upgrade in ([], ['--is-upgrade']):
+                check(['template', 'sat905', archive, *upgrade, *offline, *flags,
+                       '--set', f'{target_key}={version}'], blocked='Cache targets are removed in Stardog 13.')
+        check(['template', 'sat905', archive, *offline, *flags, '--set', f'{primary_key}=13.0.0'],
+              blocked='Cache targets are removed in Stardog 13.')
+        check(['template', 'sat905', archive, *offline, *flags, '--set', f'{target_key}=latest'],
+              blocked='must be an explicit Stardog version below 13')
+        if relative != 'cachetarget':
+            check(['template', 'sat905', archive, *offline, *flags, '--set', 'stardog.image.tag=13.0.0'],
+                  blocked='Cache targets are removed in Stardog 13.')
 
         # Helm 3 install dry-runs still require a reachable cluster. Render the
         # actual top-level NOTES template through a temporary ConfigMap instead.
@@ -77,6 +94,7 @@ data:
             output = check(['template', 'sat905', probe, *upgrade, *offline, *flags,
                             '--show-only', 'templates/notes-probe.yaml'])
             assert notice in output, 'deprecation warning missing from top-level NOTES'
+            assert 'removed in Stardog 13' in output and 'cache-management' in output, 'removal version or documentation link missing'
         if relative != 'cachetarget':
             check(['template', 'sat905', archive, *offline], quiet=True)
             for extra in ([], ['--set', 'cachetarget.allowDeprecated=true']):

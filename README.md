@@ -44,7 +44,7 @@ Related architecture note:
 The core graph database component. Enable with `global.stardog.enabled: true`
 
 ### Cache Target
-**Deprecated.** Installs cache target nodes and runs a post-install job that registers them against the primary Stardog cluster or an external endpoint. Starting with umbrella chart `1.5.0`, continued use requires both `global.cachetarget.enabled: true` and `cachetarget.allowDeprecated: true`. Installs and upgrades stop without this acknowledgement, and the warning remains visible after opt-in. See the [CacheTarget upgrade requirement](charts/cachetarget/README.md#deprecation-and-upgrade-requirement).
+**Deprecated; removed in Stardog 13.** Installs cache target nodes and runs a post-install job that registers them against the primary Stardog cluster or an external endpoint. Starting with umbrella chart `1.5.0`, continued use requires both `global.cachetarget.enabled: true` and `cachetarget.allowDeprecated: true`, plus explicit versions below 13 in `cachetarget.image.tag`, `cachetarget.primary.version`, and `stardog.image.tag` when Stardog is enabled. Stardog 13 or later is rejected regardless of acknowledgement. See the [CacheTarget upgrade requirement](charts/cachetarget/README.md#deprecation-and-upgrade-requirement) and [Stardog cache management](https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management).
 
 ### Launchpad
 Web-based UI to access Stardog applications (Designer, Explorer, Studio). Enable with `global.launchpad.enabled: true`
@@ -197,11 +197,16 @@ When the cache target subchart is enabled it automatically registers itself agai
 
 ```yaml
 global:
+  stardog:
+    enabled: false # This example uses a primary in another release
   cachetarget:
     enabled: true
 cachetarget:
   allowDeprecated: true
+  image:
+    tag: 12.2.0
   primary:
+    version: 12.2.0
     name: stardog-secondary         # defaults to stardog-<release>
     namespace: shared-services      # defaults to the release namespace
     port: 5820
@@ -306,11 +311,15 @@ global:
     enabled: true
 
 stardog:
-  # Stardog configuration here
+  image:
+    tag: 12.2.0
 
 cachetarget:
   allowDeprecated: true # Required acknowledgement for the deprecated chart
+  image:
+    tag: 12.2.0
   primary:
+    version: 12.2.0
     validateConnectivity: true
     skipTLSVerify: false
 
