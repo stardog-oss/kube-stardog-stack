@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Exercise Helm's actual NOTES output and the packaged standalone/umbrella charts.
-# Requires Helm and Python 3; build chart dependencies before running.
+# Exercise rendered NOTES and packaged standalone/umbrella charts without a cluster.
+# Requires Helm and Python 3; build root dependencies before running.
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # The umbrella CI job builds only root dependencies. Its standalone source chart
@@ -20,7 +20,7 @@ offline = ['-f', str(root / 'values.skip-secret-validation.yaml')]
 notice = 'WARNING: The CacheTarget chart is deprecated.'
 checks = 0
 
-def check(args, blocked=False, notes=False, quiet=False):
+def check(args, blocked=False, quiet=False):
     global checks
     result = subprocess.run(['helm', *map(str, args)], capture_output=True, text=True)
     output = result.stdout + result.stderr
@@ -30,23 +30,16 @@ def check(args, blocked=False, notes=False, quiet=False):
         assert not result.stdout.strip(), 'failed render emitted resources'
     else:
         assert result.returncode == 0, output
-    if notes:
-        assert 'NOTES:' in result.stdout, 'install output omitted NOTES'
-        assert notice in result.stdout.split('NOTES:', 1)[1], 'deprecation warning missing from visible NOTES'
     if quiet:
         assert notice not in output, 'disabled CacheTarget produced a deprecation warning'
         assert 'kind: StatefulSet\nmetadata:\n  name: cachetarget-' not in result.stdout
     checks += 1
+    return result.stdout
 
 with tempfile.TemporaryDirectory(prefix='sat905-') as directory:
     work = Path(directory)
-    check(['install', 'sat905', cache, '--dry-run=client', *offline], blocked=True)
+    check(['template', 'sat905', cache, *offline], blocked=True)
     check(['template', 'sat905', cache, *offline, '--set-string', 'allowDeprecated=true'], blocked=True)
-    check(['install', 'sat905', cache, '--dry-run=client', *offline, '--set', 'allowDeprecated=true'], notes=True)
-    # Subchart NOTES are hidden by Helm by default. The umbrella must show its own warning.
-    check(['install', 'sat905', root, '--dry-run=client', *offline], quiet=True)
-    check(['install', 'sat905', root, '--dry-run=client', *offline,
-           '--set', 'global.cachetarget.enabled=true,cachetarget.allowDeprecated=true'], notes=True)
 
     for chart, relative in [(cache, 'cachetarget'), (root, 'kube-stardog-stack')]:
         check(['package', chart, '--destination', work])
@@ -57,6 +50,8 @@ with tempfile.TemporaryDirectory(prefix='sat905-') as directory:
                 assert re.search(r'^deprecated: true$', metadata, re.M), 'chart metadata is not deprecated'
             else:
                 assert not re.search(r'^deprecated: true$', metadata, re.M), 'umbrella was marked deprecated'
+            # This archive was generated above from the local chart, not downloaded.
+            package.extractall(work / 'notes')
 
         flags = (['--set', 'allowDeprecated=true'] if relative == 'cachetarget'
                  else ['--set', 'global.cachetarget.enabled=true,cachetarget.allowDeprecated=true'])
@@ -64,10 +59,29 @@ with tempfile.TemporaryDirectory(prefix='sat905-') as directory:
         check(['template', 'sat905', archive, *offline, *enabled], blocked=True)
         check(['template', 'sat905', archive, '--is-upgrade', *offline, *enabled], blocked=True)
         check(['template', 'sat905', archive, '--is-upgrade', *offline, *flags])
-        check(['install', 'sat905', archive, '--dry-run=client', *offline, *flags], notes=True)
+
+        # Helm 3 install dry-runs still require a reachable cluster. Render the
+        # actual top-level NOTES template through a temporary ConfigMap instead.
+        # This also proves the umbrella warning does not depend on subchart NOTES.
+        probe = work / 'notes' / relative
+        (probe / 'templates/NOTES.txt').rename(probe / 'notes-under-test.txt')
+        (probe / 'templates/notes-probe.yaml').write_text('''apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notes-probe
+data:
+  notes: |
+{{ tpl (.Files.Get "notes-under-test.txt") . | indent 4 }}
+''')
+        for upgrade in ([], ['--is-upgrade']):
+            output = check(['template', 'sat905', probe, *upgrade, *offline, *flags,
+                            '--show-only', 'templates/notes-probe.yaml'])
+            assert notice in output, 'deprecation warning missing from top-level NOTES'
         if relative != 'cachetarget':
-            check(['install', 'sat905', archive, '--dry-run=client', *offline,
-                   '--set', 'cachetarget.allowDeprecated=true'], quiet=True)
+            check(['template', 'sat905', archive, *offline], quiet=True)
+            for extra in ([], ['--set', 'cachetarget.allowDeprecated=true']):
+                check(['template', 'sat905', probe, *offline, *extra,
+                       '--show-only', 'templates/notes-probe.yaml'], quiet=True)
 
 print(f'CacheTarget deprecation CLI/package checks: {checks} passed')
 PY
