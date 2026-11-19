@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.1
+- SAT-894: fix password disclosure in hook and TLS-init logs, authenticate backup-user provisioning with the configured admin password, and fail the hook when provisioning fails.
+- Fix Stardog post-install pull-secret placement and honor the configured cluster domain.
+- Configure outbound truststores independently of inbound TLS; retain regression coverage for explicit JWT `autoCreateUsers: false`.
+- Update bundled Stardog to `4.3.1` and CacheTarget to `1.0.7`.
+
 ## 1.4.0
 - Update the bundled Stardog chart to `4.3.0`.
 - Add replica cluster support (Stardog 12.2.0+, beta) through `stardog.replicaCluster.*`: deploy a

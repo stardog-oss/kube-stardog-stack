@@ -71,7 +71,8 @@ spec:
         - /bin/bash
         - -c
         - |
-          set -ex
+          { set +x; } 2>/dev/null
+          set -e
           {{ .Files.Get "files/utils.sh" | indent 10 }}
           wait_for_start ${HOST} ${PORT} ${DELAY}
           change_pw ${HOST} ${PORT}

@@ -26,20 +26,21 @@ function wait_for_start {
 
 function change_pw {
     (
+    { set +x; } 2>/dev/null
     set +e
     HOST=${1}
     PORT=${2}
     PROTOCOL=${3}
 
     echo "/opt/stardog/bin/stardog-admin --server ${PROTOCOL}://${HOST}:${PORT} user passwd -N xxxxxxxxxxxxxx"
-    NEW_PW=$(cat /etc/stardog-password/adminpw)
-    /opt/stardog/bin/stardog-admin --server ${PROTOCOL}://${HOST}:${PORT} user passwd -N ${NEW_PW}
+    NEW_PW=$(cat /etc/stardog-password/adminpw) || return 1
+    /opt/stardog/bin/stardog-admin --server ${PROTOCOL}://${HOST}:${PORT} user passwd -N "${NEW_PW}"
     if [[ $? -eq 0 ]];
     then
 	    echo "Password successfully changed"
 	    return 0
     else
-    	curl --fail -u admin:${NEW_PW} ${PROTOCOL}://${HOST}:${PORT}/admin/status
+      curl --fail -u "admin:${NEW_PW}" ${PROTOCOL}://${HOST}:${PORT}/admin/status
     	RC=$?
     	if [[ $RC -eq 0 ]];
       then
@@ -59,33 +60,40 @@ function change_pw {
 
 function backup_credentials {
     (
+    { set +x; } 2>/dev/null
     set +e
     HOST=${1}
     USERNAME=${2}
     PASSWORD=${3}
 
-    /opt/stardog/bin/stardog-admin --server ${HOST} user permission -- ${USERNAME}
-    if [[ $? -eq 0 ]];
-    then
-      echo "Backup role and user already exist"
-	    return 0
-    else
-      echo "Creating Backup Role: /opt/stardog/bin/stardog-admin  --server ${HOST} role add backup"
-      /opt/stardog/bin/stardog-admin  --server ${HOST} role add backup
-      echo "Adding Backup Role permissions:/opt/stardog/bin/stardog-admin  --server ${HOST} role grant backup execute -o 'dbms-admin:backup-all'"  
-      /opt/stardog/bin/stardog-admin  --server ${HOST} role grant backup -a execute -o "dbms-admin:backup-all" 
-      echo "Creating Backup User: /opt/stardog/bin/stardog-admin  --server ${HOST} user add ${USERNAME} -N ${PASSWORD}" 
-      /opt/stardog/bin/stardog-admin  --server ${HOST} user add ${USERNAME} -N ${PASSWORD}
-      echo "Adding Backup Role to Backup User:/opt/stardog/bin/stardog-admin  --server ${HOST} user addrole -R backup ${USERNAME}"
-      /opt/stardog/bin/stardog-admin  --server ${HOST} user addrole -R backup ${USERNAME}  
-      echo "Backup role and user successfully created"
-      return 0
+    ADMIN_PASSWORD=$(cat /etc/stardog-password/adminpw) || return 1
+    admin_command() {
+      local category=$1 action=$2
+      shift 2
+      /opt/stardog/bin/stardog-admin --server "${HOST}" "${category}" "${action}" -u admin -p "${ADMIN_PASSWORD}" "$@"
+    }
+
+    # A previous attempt may have created the role before failing to create the user.
+    if ! admin_command role permission backup; then
+      echo "Creating Backup Role"
+      admin_command role add backup || return $?
     fi
+    echo "Adding Backup Role permissions"
+    admin_command role grant -a execute -o "dbms-admin:backup-all" -- backup || return $?
+    if ! admin_command user permission -- "${USERNAME}"; then
+      echo "Creating Backup User"
+      admin_command user add -N "${PASSWORD}" -- "${USERNAME}" || return $?
+    fi
+    echo "Adding Backup Role to Backup User"
+    admin_command user addrole -R backup -- "${USERNAME}" || return $?
+    echo "Backup role and user successfully created"
+    return 0
     )
 }
 
 function add_roles {
     (
+    { set +x; } 2>/dev/null
     set +e
     HOST=${1}
     PORT=${2}
@@ -94,14 +102,14 @@ function add_roles {
     
 
     echo "/opt/stardog/bin/stardog-admin --server ${PROTOCOL}://${HOST}:${PORT} user passwd -N xxxxxxxxxxxxxx"
-    NEW_PW=$(cat /etc/stardog-password/adminpw)
-    /opt/stardog/bin/stardog-admin --server ${PROTOCOL}://${HOST}:${PORT} user passwd -N ${NEW_PW}
+    NEW_PW=$(cat /etc/stardog-password/adminpw) || return 1
+    /opt/stardog/bin/stardog-admin --server ${PROTOCOL}://${HOST}:${PORT} user passwd -N "${NEW_PW}"
     if [[ $? -eq 0 ]];
     then
 	    echo "Role ${ROLE} successfully Add"
 	    return 0
     else
-    	curl --fail -u admin:${NEW_PW} ${PROTOCOL}://${HOST}:${PORT}/admin/status
+      curl --fail -u "admin:${NEW_PW}" ${PROTOCOL}://${HOST}:${PORT}/admin/status
     	RC=$?
     	if [[ $RC -eq 0 ]];
       then

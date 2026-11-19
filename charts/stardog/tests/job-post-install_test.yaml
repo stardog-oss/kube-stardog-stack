@@ -3,6 +3,54 @@ suite: Validate Stardog Init Job
 templates:
 - job-post-install.yaml
 tests:
+- it: places explicit and generated pull secrets in the pod spec
+  set:
+    image.pullSecrets:
+      - name: private-registry
+    image.username: registry-user
+    image.password: registry-password
+  asserts:
+  - equal:
+      path: spec.template.spec.imagePullSecrets
+      value:
+        - name: private-registry
+        - name: RELEASE-NAME-image-pull-secret
+  - notExists:
+      path: spec.imagePullSecrets
+
+- it: uses the configured cluster domain for hook connectivity
+  set:
+    clusterDomain: example.internal
+  asserts:
+  - contains:
+      path: spec.template.spec.containers[0].env
+      content:
+        name: HOST
+        value: stardog-RELEASE-NAME.NAMESPACE.svc.example.internal
+
+- it: keeps tracing off before expanding backup credentials
+  set:
+    backup.enabled: true
+  asserts:
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: '^\{ set \+x; \} 2>/dev/null\nset -e\n'
+  - notMatchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: 'set -[^\n]*x'
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: 'backup_credentials "\$\{PROTOCOL\}://\$\{HOST\}:\$\{PORT\}" "\$\{BACKUP_USERNAME\}" "\$\{BACKUP_PASSWORD\}"'
+  - notMatchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: 'echo[^\n]*\$\{?(PASSWORD|ADMIN_PASSWORD|NEW_PW)'
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: '(?m)^change_pw [^\n]+ \|\| exit 1$'
+  - matchRegex:
+      path: spec.template.spec.containers[0].command[2]
+      pattern: '(?m)^backup_credentials [^\n]+ \|\| exit 1$'
+
 # Test for Stardog Job Creation
 - it: should create a Stardog initialization job when Stardog is enabled
   values:

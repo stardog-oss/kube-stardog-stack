@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.7
+- SAT-894: disable tracing throughout post-install password changes and cache registration, including inherited tracing, and quote primary/cache admin passwords as literal arguments.
+- Add regression tests for credential secrecy and cache registration success, retries, and failures.
+
 ## 1.0.6
 - Update the common chart dependency to `0.1.9`.
 

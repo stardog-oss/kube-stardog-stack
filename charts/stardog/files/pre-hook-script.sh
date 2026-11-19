@@ -58,6 +58,7 @@ waitForTlsSecret() {
 }
 
 generateKeystore() {
+  { set +x; } 2>/dev/null
     # Receive parameters
     # Set default values if parameters are not provided
     KEYSTORE_NAME="${1:-keystore.p12}"
@@ -68,8 +69,7 @@ generateKeystore() {
     CERT_PATH="/var/opt/stardog/ssl"
 
     echo '{
-        "KEYSTORE_NAME": "'"$KEYSTORE_NAME"'",
-        "KEYSTORE_PASS": "'"$KEYSTORE_PASS"'"
+        "KEYSTORE_NAME": "'"$KEYSTORE_NAME"'"
     }'
 
     export KEYSTORE_PASS=$KEYSTORE_PASS
@@ -115,6 +115,7 @@ findDefaultCacerts() {
 }
 
 generateTruststore() {
+  { set +x; } 2>/dev/null
   TRUSTSTORE_NAME="${1:-stardog-truststore.p12}"
   TRUSTSTORE_PASS="${2:-changeit}"
   TRUSTSTORE_SOURCE_PASS="${3:-changeit}"
@@ -172,6 +173,7 @@ generateTruststore() {
 # Function to generate certificates
 
 generateCertificates() {
+  { set +x; } 2>/dev/null
     # Receive parameters
     # Set default values if parameters are not provided
     KEYSTORE_NAME="${1:-keystore.p12}"
@@ -189,7 +191,6 @@ generateCertificates() {
     CERT_PATH="/var/opt/stardog/ssl"
 
     echo '{
-        "KEYSTORE_PASS": "'"$KEYSTORE_PASS"'",
         "KEYSTORE_NAME": "'"$KEYSTORE_NAME"'",
         "COUNTRY": "'"$COUNTRY"'",
         "STATE": "'"$STATE"'",
