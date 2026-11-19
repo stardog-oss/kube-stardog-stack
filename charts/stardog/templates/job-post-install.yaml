@@ -68,6 +68,9 @@ spec:
         - |
           set -ex
           {{ .Files.Get "files/utils.sh" | indent 10 }}
+          {{- if .Values.restore.enabled }}
+          echo "Restore mode is enabled; skipping post-install initialization. Reconcile restored credentials after validation."
+          {{- else }}
           wait_for_start ${HOST} ${PORT} ${PROTOCOL} || exit 1
           {{- if eq (include "stardog.replicaClusterEnabled" .) "true" }}
           # Replica cluster: users, roles and passwords come from the primary and every client write
@@ -79,9 +82,10 @@ spec:
           backup_credentials "${PROTOCOL}://${HOST}:${PORT}" ${BACKUP_USERNAME} ${BACKUP_PASSWORD}
           {{- end }}
           {{- end }}
+          {{- end }}
   {{- if and (hasKey .Values "image") .Values.image.pullSecrets }}
   imagePullSecrets:
-  {{ toYaml .Values.image.pullSecrets }}
+  {{ toYaml .Values.image.pullSecrets | nindent 8 }}
   {{- end }}
       {{- if and (hasKey .Values "image") .Values.image.username .Values.image.password }}
       imagePullSecrets:

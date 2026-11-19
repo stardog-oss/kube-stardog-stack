@@ -12,7 +12,15 @@ tests:
         cronjob:
           enabled: true
           schedule: "0 3 * * *"
+          suspend: true
           ttlSecondsAfterFinished: 7200
+        location:
+          s3:
+            enabled: true
+            bucketName: test-bucket
+            region: us-east-1
+            accessKey: test-access
+            secretKey: test-secret
         credentialsSecret: custom-backup-secret
       global:
         __secretFixtures:
@@ -26,6 +34,9 @@ tests:
       - equal:
           path: spec.schedule
           value: "0 3 * * *"
+      - equal:
+          path: spec.suspend
+          value: true
       - contains:
           path: spec.jobTemplate.spec.template.spec.containers[0].env
           content:
@@ -34,6 +45,129 @@ tests:
               secretKeyRef:
                 name: custom-backup-secret
                 key: username
+
+  - it: forces the backup schedule to suspend in restore mode
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        cronjob:
+          enabled: true
+          suspend: false
+        location:
+          s3:
+            enabled: true
+            bucketName: test-bucket
+            region: us-east-1
+            accessKey: test-access
+            secretKey: test-secret
+      restore:
+        enabled: true
+        id: incident-2026-11-10
+        source:
+          existingClaim: backup-pvc
+          path: backups
+          backupId: "9"
+        safety:
+          confirmEmptyVolumes: true
+      global:
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - equal:
+          path: spec.suspend
+          value: true
+
+  - it: writes copy-ready restore values beside Azure backups
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        cronjob:
+          enabled: true
+        location:
+          azure:
+            enabled: true
+            accountName: backupaccount
+            accountKey: test-key
+            containerName: stardog-container
+            protocol: fuse
+      global:
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].volumeMounts
+          content:
+            name: backup-storage
+            mountPath: /var/opt/stardog/backups
+            readOnly: false
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: backup-azure-stardog-data-RELEASE-NAME
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'backup-\$\{BACKUP_ID\}-values.yaml'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'type: azure'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'credentialsSecret: RELEASE-NAME-restore-azure-secret'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'confirmEmptyVolumes: true'
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AZURE_STORAGE_ACCOUNT
+            value: backupaccount
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'Configured storage account: %s'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'Configured container: %s'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'Storage type: %s'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'Stardog backup path: %s'
+
+  - it: uses the custom backup claim in generated restore values
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        cronjob:
+          enabled: true
+        location:
+          persistentVolume:
+            enabled: true
+            customPersitentVolumeClaim: shared-backups
+      global:
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.volumes[0].persistentVolumeClaim.claimName
+          value: shared-backups
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'existingClaim: shared-backups'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'Kubernetes PersistentVolumeClaim'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'Configured PVC: %s'
 
   - it: injects S3 environment variables when S3 backup enabled
     values:
@@ -49,6 +183,8 @@ tests:
             bucketName: my-bucket
             bucketDir: backups
             region: us-east-1
+            accessKey: test-access
+            secretKey: test-secret
     asserts:
       - contains:
           path: spec.jobTemplate.spec.template.spec.containers[0].env
@@ -68,3 +204,186 @@ tests:
           content:
             name: AWS_BUCKET_DIR
             value: backups
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'Configured bucket: %s'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'Configured region: %s'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'Storage location: %s'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'RESTORE_NODE_ID='
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'meta/\$\{BACKUP_ID\}'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'type: s3'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'nodeId: \$\{RESTORE_NODE_ID\}'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'credentialsSecret: RELEASE-NAME-restore-s3-secret'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'latest-values.yaml'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'if \[ "\$AWS_REGION" = "us-east-1" \]'
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'us-east-1 bucket-creation compatibility mode'
+
+  - it: supports the legacy AWS values and logs the S3 destination
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        cronjob:
+          enabled: true
+        location:
+          aws:
+            enabled: true
+            bucketName: legacy-bucket
+            backupDir: legacy-prefix
+            region: us-east-2
+            accessKeyId: test-access-key
+            secretAccessKey: test-secret-key
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_BUCKET
+            value: legacy-bucket
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_BUCKET_DIR
+            value: legacy-prefix
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'STORAGE_TYPE="Amazon S3"'
+
+  - it: reads S3 credentials from an independent existing Secret
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        cronjob:
+          enabled: true
+        location:
+          s3:
+            enabled: true
+            bucketName: secure-bucket
+            bucketDir: backups
+            region: us-east-1
+            credentialsSecret: aws-backup-storage
+      global:
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+          - metadata:
+              name: aws-backup-storage
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: aws-backup-storage
+                key: accessKey
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: aws-backup-storage
+                key: secretKey
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'credentialsSecret: aws-backup-storage'
+
+  - it: writes the shared Azure Secret into generated restore values
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        cronjob:
+          enabled: true
+        location:
+          azure:
+            enabled: true
+            accountName: backupaccount
+            credentialsSecret: azure-shared-storage
+            containerName: backups
+      global:
+        __secretFixtures:
+          - metadata:
+              name: stardog-license
+          - metadata:
+              name: azure-shared-storage
+    asserts:
+      - matchRegex:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[2]
+          pattern: 'credentialsSecret: azure-shared-storage'
+
+  - it: rejects an S3 Secret combined with plain credentials
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup.enabled: true
+      backup.cronjob.enabled: true
+      backup.location.s3.enabled: true
+      backup.location.s3.credentialsSecret: aws-backup-storage
+      backup.location.s3.accessKey: accidental-plain-key
+      backup.location.s3.secretKey: accidental-plain-secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "S3 backup credentials must use either credentialsSecret or plain accessKey/secretKey, not both."
+
+  - it: rejects an Azure Secret combined with a plain account key
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup.enabled: true
+      backup.cronjob.enabled: true
+      backup.location.azure.enabled: true
+      backup.location.azure.credentialsSecret: azure-backup-storage
+      backup.location.azure.accountKey: accidental-plain-key
+    asserts:
+      - failedTemplate:
+          errorMessage: "Azure backup credentials must use either credentialsSecret or plain accountKey, not both."
+
+  - it: rejects a CronJob without a storage backend
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup.enabled: true
+      backup.cronjob.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.cronjob requires exactly one storage backend: location.s3 (or legacy location.aws), location.azure, or location.persistentVolume"
+
+  - it: rejects multiple storage backends
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup.enabled: true
+      backup.cronjob.enabled: true
+      backup.location.s3.enabled: true
+      backup.location.azure.enabled: true
+      backup.location.s3.accessKey: test-access
+      backup.location.s3.secretKey: test-secret
+      backup.location.azure.accountKey: test-key
+    asserts:
+      - failedTemplate:
+          errorMessage: "backup.cronjob requires exactly one storage backend: location.s3 (or legacy location.aws), location.azure, or location.persistentVolume"

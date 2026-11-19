@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.5.0
+- Update the bundled Stardog chart to `4.4.0`.
+- Add guarded, opt-in initialization of an empty Stardog data volume from a
+  server backup stored on an existing PVC, Amazon S3, or Azure Blob Storage.
+- Make restores safe and repeatable with required backup identifiers, pinned
+  Stardog images, explicit empty-volume acknowledgement, path validation,
+  per-volume completion markers, and protection from post-install credential
+  changes.
+- Decouple restore storage from backup configuration. Restore-only S3 and
+  Azure credentials can use dedicated existing Kubernetes Secrets, and Azure
+  restores can provision a dedicated Blob CSI PV and PVC without enabling the
+  backup CronJob.
+- Support existing Kubernetes Secrets for backup and restore storage
+  credentials while retaining mutually exclusive plain-value compatibility
+  settings. S3 Secrets use `bucketName`, `region`, `accessKey`, and
+  `secretKey`; Azure Secrets use `accountname` and `accountkey`.
+- Improve backup operations with `backup.cronjob.suspend`, strict validation
+  that exactly one destination is configured, legacy
+  `backup.location.aws` compatibility, and correct `us-east-1` S3 bucket
+  creation behavior.
+- Report the configured backend and non-secret destination details in backup
+  Job logs. Successful backups also write copy-ready, non-secret restore values
+  beside the backup; S3 metadata includes the backup ID and discovered Stardog
+  node ID.
+- Add destination-oriented backup and restore documentation for existing PVC,
+  Amazon S3, and Azure Blob Storage, plus a complete destructive-recovery
+  runbook covering ZooKeeper cleanup, monitoring, validation, and exit steps.
+
 ## 1.4.0
 - Update the bundled Stardog chart to `4.3.0`.
 - Add replica cluster support (Stardog 12.2.0+, beta) through `stardog.replicaCluster.*`: deploy a

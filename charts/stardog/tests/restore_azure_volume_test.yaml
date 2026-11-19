@@ -1,0 +1,58 @@
+suite: Azure restore-only volume
+values:
+  - values/values-stardog.yaml
+templates:
+  - restore-azure-volume.yaml
+tests:
+  - it: creates a static Azure Blob PV and PVC without enabling backup
+    set:
+      image.tag: 12.2.1
+      backup.enabled: false
+      restore:
+        enabled: true
+        id: azure-backup-10
+        source:
+          type: azure
+          path: backups
+          backupId: "10"
+          azure:
+            accountName: restoreaccount
+            containerName: restore-container
+            credentialsSecret: restore-azure-credentials
+        safety:
+          confirmEmptyVolumes: true
+    documentSelector:
+      path: kind
+      value: PersistentVolume
+    asserts:
+      - equal:
+          path: spec.csi.nodeStageSecretRef.name
+          value: restore-azure-credentials
+      - equal:
+          path: spec.csi.volumeAttributes.containerName
+          value: restore-container
+
+  - it: binds the Azure restore PVC to the static restore PV
+    set:
+      image.tag: 12.2.1
+      backup.enabled: false
+      restore:
+        enabled: true
+        id: azure-backup-10
+        source:
+          type: azure
+          path: backups
+          backupId: "10"
+          azure:
+            accountName: restoreaccount
+            containerName: restore-container
+            credentialsSecret: restore-azure-credentials
+        safety:
+          confirmEmptyVolumes: true
+    documentSelector:
+      path: kind
+      value: PersistentVolumeClaim
+    asserts:
+      - equal:
+          path: spec.volumeName
+          value: stardog-RELEASE-NAME-restore-azure-pv

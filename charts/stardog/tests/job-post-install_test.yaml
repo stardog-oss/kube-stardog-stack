@@ -80,3 +80,25 @@ tests:
   asserts:
   - failedTemplate:
       errorMessage: "Secret NAMESPACE/custom-admin-secret not found. Please create it or choose an existing secret."
+
+- it: skips credential initialization while restore mode is enabled
+  values:
+    - values/values-stardog.yaml
+  set:
+    image.tag: 12.1.0
+    restore:
+      enabled: true
+      id: incident-2026-11-04
+      source:
+        existingClaim: backup-pvc
+        path: backups/{podName}
+        backupId: "3"
+      safety:
+        confirmEmptyVolumes: true
+  asserts:
+    - matchRegex:
+        path: spec.template.spec.containers[0].command[2]
+        pattern: "Restore mode is enabled; skipping post-install initialization"
+    - notMatchRegex:
+        path: spec.template.spec.containers[0].command[2]
+        pattern: "change_pw.*HOST"

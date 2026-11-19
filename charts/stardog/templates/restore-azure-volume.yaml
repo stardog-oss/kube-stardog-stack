@@ -1,0 +1,42 @@
+{{- if and .Values.restore.enabled (eq .Values.restore.source.type "azure") }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "sdcommon.fullname" . }}-restore-azure-pv
+  labels:
+    {{ include "sdcommon.labels.standard" . | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.restore.source.azure.capacity }}
+  accessModes:
+    {{- toYaml .Values.restore.source.azure.accessModes | nindent 4 }}
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    {{- toYaml .Values.restore.source.azure.mountOptions | nindent 4 }}
+  csi:
+    driver: blob.csi.azure.com
+    volumeHandle: {{ .Values.restore.source.azure.accountName }}-{{ .Values.restore.source.azure.containerName }}-restore
+    volumeAttributes:
+      containerName: {{ .Values.restore.source.azure.containerName }}
+      protocol: {{ .Values.restore.source.azure.protocol }}
+    nodeStageSecretRef:
+      name: {{ .Values.restore.source.azure.credentialsSecret | default (printf "%s-restore-azure-secret" .Release.Name) }}
+      namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "sdcommon.fullname" . }}-restore-azure-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{ include "sdcommon.labels.standard" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.restore.source.azure.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.restore.source.azure.capacity }}
+  volumeName: {{ include "sdcommon.fullname" . }}-restore-azure-pv
+  storageClassName: ""
+{{- end }}

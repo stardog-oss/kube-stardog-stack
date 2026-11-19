@@ -118,6 +118,24 @@ tests:
           path: spec.mountOptions
           content: "-o allow_other"
 
+  - it: references an independent Azure credential Secret
+    values:
+      - values/values-stardog.yaml
+    set:
+      backup:
+        enabled: true
+        location:
+          azure:
+            enabled: true
+            accountName: mystorage
+            credentialsSecret: azure-backup-storage
+            containerName: backups
+            protocol: fuse
+    asserts:
+      - equal:
+          path: spec.csi.nodeStageSecretRef.name
+          value: azure-backup-storage
+
 ---
 suite: Stardog Azure Backup PersistentVolumeClaim
 templates:

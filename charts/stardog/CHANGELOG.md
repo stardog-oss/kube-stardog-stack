@@ -1,5 +1,44 @@
 # Changelog
 
+## 4.4.0
+- Support independent existing Secrets for backup storage credentials: AWS S3
+  preserves `bucketName`/`region`/`accessKey`/`secretKey`, while Azure
+  preserves `accountname`/`accountkey`; mutually exclusive plain-value
+  compatibility options remain available.
+- Add a structured backup and restore guide organized by existing PVC, Amazon
+  S3, and Azure Storage Account destinations, with complete setup,
+  verification, restore, validation, and troubleshooting steps.
+- Decouple restore storage from backup configuration: S3 restores can create a
+  restore-only credential Secret, and Azure restores can provision a dedicated
+  Blob CSI PV/PVC and Secret without enabling backup or reusing its PVC.
+- Add a complete step-by-step backup and restore runbook for S3, Azure Blob,
+  and generic PVC storage, including verification, destructive recovery,
+  ZooKeeper reset, monitoring, validation, and exit procedures.
+- Add guarded, opt-in initialization of empty Stardog data PVCs from an explicit
+  server backup on an existing PVC.
+- Require a pinned Stardog image, restore identifier, backup ID, safe relative
+  backup path, and explicit empty-volume acknowledgement in restore mode.
+- Make restore retries idempotent with per-PVC completion markers and prevent
+  the normal post-install job from changing restored credentials.
+- Add `backup.cronjob.suspend` and a restore operations guide.
+- Write non-secret, copy-ready Helm restore values beside each successful Azure
+  or PersistentVolume backup, including its ID, path, PVC, image tag, and safety
+  settings.
+- Report the configured storage backend and non-secret destination details in
+  backup Job logs, including Azure account/container, S3 bucket/region/prefix,
+  or the PersistentVolumeClaim and mounted path.
+- Accept the legacy `backup.location.aws` S3 configuration and fail chart
+  rendering when a backup CronJob has zero or multiple storage backends,
+  preventing no-op Jobs from being reported as successful backups.
+- Omit the S3 `LocationConstraint` when the configured region is `us-east-1`,
+  matching AWS's special bucket-creation requirement.
+- Support guarded initialization of empty Stardog data PVCs directly from an
+  S3 server backup using an explicit backup ID, node ID, bucket, prefix, region,
+  and Secret-based AWS credentials.
+- Upload versioned and `latest` non-secret restore values beside every
+  successful S3 backup, including the exact backup ID and discovered Stardog
+  node ID needed for a restore.
+
 ## 4.3.0
 - Quote replica usernames and credential file paths as literal shell arguments in startup and preStop.
 - Mount the outbound truststore and private CA even when inbound TLS is disabled.

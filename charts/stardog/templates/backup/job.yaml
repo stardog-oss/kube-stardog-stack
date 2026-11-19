@@ -1,5 +1,14 @@
 
 {{- if and .Values.backup.enabled .Values.backup.cronjob.enabled (or (ne (include "stardog.replicaClusterEnabled" .) "true") .Values.replicaCluster.backup.allow) }}
+{{- $s3 := include "stardog.backupS3Config" . | fromJson -}}
+{{- include "stardog.validateBackupStorageCredentials" . }}
+{{- $backendCount := 0 -}}
+{{- if $s3.enabled }}{{- $backendCount = add1 $backendCount }}{{- end -}}
+{{- if .Values.backup.location.azure.enabled }}{{- $backendCount = add1 $backendCount }}{{- end -}}
+{{- if .Values.backup.location.persistentVolume.enabled }}{{- $backendCount = add1 $backendCount }}{{- end -}}
+{{- if ne (int $backendCount) 1 -}}
+{{- fail "backup.cronjob requires exactly one storage backend: location.s3 (or legacy location.aws), location.azure, or location.persistentVolume" -}}
+{{- end -}}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -12,6 +21,7 @@ metadata:
     cronjob.kubernetes.io/timezone: {{ .Values.backup.cronjob.timeZone | quote }}
   {{- end }}
 spec:
+  suspend: {{ or .Values.restore.enabled .Values.backup.cronjob.suspend }}
   schedule: {{ .Values.backup.cronjob.schedule | quote }}
   jobTemplate:
     spec:
@@ -28,6 +38,12 @@ spec:
           {{- if .Values.backup.credentialsSecret }}
           {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" .Values.backup.credentialsSecret "namespace" .Release.Namespace) }}
           {{- end }}
+          {{- if and $s3.enabled $s3.credentialsSecret }}
+          {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" $s3.credentialsSecret "namespace" .Release.Namespace) }}
+          {{- end }}
+          {{- if and .Values.backup.location.azure.enabled .Values.backup.location.azure.credentialsSecret }}
+          {{- include "sdcommon.ensureSecretExists" (dict "context" $ "name" .Values.backup.location.azure.credentialsSecret "namespace" .Release.Namespace) }}
+          {{- end }}
           containers:
           - name: stardog-backup
             image: {{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
@@ -41,6 +57,12 @@ spec:
               limits:
                 memory: 250Mi
                 cpu: 300m
+            {{- if and .Values.backup.restoreMetadata.enabled (or .Values.backup.location.azure.enabled .Values.backup.location.persistentVolume.enabled) }}
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /var/opt/stardog/backups
+              readOnly: false
+            {{- end }}
             env:
             - name: STARDOG_HOST
               value: "http://{{ include "sdcommon.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.ports.server }}"
@@ -54,23 +76,40 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.backup.credentialsSecret | default ((include "sdcommon.fullname" .) | printf "%s-backup-credentials") }}
                   key: password
-            {{- if .Values.backup.location.s3.enabled }}
+            {{- if .Values.backup.location.azure.enabled }}
+            - name: AZURE_STORAGE_ACCOUNT
+              value: {{ .Values.backup.location.azure.accountName | quote }}
+            - name: AZURE_STORAGE_CONTAINER
+              value: {{ .Values.backup.location.azure.containerName | quote }}
+            - name: AZURE_STORAGE_PROTOCOL
+              value: {{ .Values.backup.location.azure.protocol | quote }}
+            - name: BACKUP_DIRECTORY
+              value: {{ .Values.backup.location.azure.backupDir | quote }}
+            - name: BACKUP_PVC
+              value: {{ include "sdcommon.pvcName" (dict "context" . "chart" "stardog" "id" "backup-azure") | quote }}
+            {{- else if .Values.backup.location.persistentVolume.enabled }}
+            - name: BACKUP_DIRECTORY
+              value: {{ .Values.backup.location.persistentVolume.backupDir | quote }}
+            - name: BACKUP_PVC
+              value: {{ .Values.backup.location.persistentVolume.customPersitentVolumeClaim | quote }}
+            {{- end }}
+            {{- if $s3.enabled }}
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-backup-s3-secret
+                  name: {{ $s3.credentialsSecret | default (printf "%s-backup-s3-secret" .Release.Name) }}
                   key: accessKey
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-backup-s3-secret
+                  name: {{ $s3.credentialsSecret | default (printf "%s-backup-s3-secret" .Release.Name) }}
                   key: secretKey
             - name: AWS_REGION
-              value: {{ .Values.backup.location.s3.region }}
+              value: {{ $s3.region | quote }}
             - name: AWS_BUCKET
-              value: {{ .Values.backup.location.s3.bucketName }}
+              value: {{ $s3.bucketName | quote }}
             - name: AWS_BUCKET_DIR
-              value: {{ .Values.backup.location.s3.bucketDir }}
+              value: {{ $s3.bucketDir | quote }}
             {{- end }}
             command:
             - /bin/bash
@@ -103,20 +142,179 @@ spec:
                 exit 1
               fi
               echo "Stardog Server is healthy for backup"
-              {{ if .Values.backup.location.s3.enabled }}
+              {{ if $s3.enabled }}
+              STORAGE_TYPE="Amazon S3"
+              STORAGE_LOCATION="s3://${AWS_BUCKET}/${AWS_BUCKET_DIR}"
               echo "Starting Stardog Backup to S3"
-              BACKUP_DIR="s3:///${AWS_BUCKET}/${AWS_BUCKET_DIR}?region=${AWS_REGION}&AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}&AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
-              /opt/stardog/bin/stardog-admin --server $STARDOG_HOST server backup -u $STARDOG_USERNAME -p $STARDOG_PASSWORD -- $BACKUP_DIR
-              {{ else if or .Values.backup.location.azure.enabled .Values.backup.location.persistentVolume.enabled }}
+              printf 'Configured storage type: %s\n' "$STORAGE_TYPE"
+              printf 'Configured bucket: %s\n' "$AWS_BUCKET"
+              printf 'Configured region: %s\n' "$AWS_REGION"
+              printf 'Configured prefix: %s\n' "$AWS_BUCKET_DIR"
+              # AWS rejects a CreateBucket LocationConstraint of us-east-1.
+              # Omitting region from the Stardog URI preserves AWS's special
+              # default-region behavior when the bucket must be created.
+              if [ "$AWS_REGION" = "us-east-1" ]; then
+                echo "Using the AWS us-east-1 bucket-creation compatibility mode"
+                BACKUP_DIR="s3:///${AWS_BUCKET}/${AWS_BUCKET_DIR}?AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}&AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
+              else
+                BACKUP_DIR="s3:///${AWS_BUCKET}/${AWS_BUCKET_DIR}?region=${AWS_REGION}&AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}&AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}"
+              fi
+              BACKUP_OUTPUT="$(/opt/stardog/bin/stardog-admin --server "$STARDOG_HOST" server backup -u "$STARDOG_USERNAME" -p "$STARDOG_PASSWORD" -- "$BACKUP_DIR" 2>&1)"
+              {{ else if .Values.backup.location.azure.enabled }}
+              STORAGE_TYPE="Azure Blob Storage"
+              STORAGE_LOCATION="/var/opt/stardog/backups/${BACKUP_DIRECTORY}/{{ .Release.Name }}"
+              echo "Starting Stardog Backup to Azure Blob Storage"
+              printf 'Configured storage type: %s\n' "$STORAGE_TYPE"
+              printf 'Configured storage account: %s\n' "$AZURE_STORAGE_ACCOUNT"
+              printf 'Configured container: %s\n' "$AZURE_STORAGE_CONTAINER"
+              printf 'Configured protocol: %s\n' "$AZURE_STORAGE_PROTOCOL"
+              printf 'Configured PVC: %s\n' "$BACKUP_PVC"
+              printf 'Configured mount: %s\n' '/var/opt/stardog/backups'
+              BACKUP_OUTPUT="$(/opt/stardog/bin/stardog-admin --server "$STARDOG_HOST" server backup -u "$STARDOG_USERNAME" -p "$STARDOG_PASSWORD" 2>&1)"
+              {{ else if .Values.backup.location.persistentVolume.enabled }}
+              STORAGE_TYPE="Kubernetes PersistentVolumeClaim"
+              STORAGE_LOCATION="/var/opt/stardog/backups/${BACKUP_DIRECTORY}/{{ .Release.Name }}"
               echo "Starting Stardog Backup to External Storage"
-              /opt/stardog/bin/stardog-admin --server $STARDOG_HOST server backup -u $STARDOG_USERNAME -p $STARDOG_PASSWORD
+              printf 'Configured storage type: %s\n' "$STORAGE_TYPE"
+              printf 'Configured PVC: %s\n' "$BACKUP_PVC"
+              printf 'Configured mount: %s\n' '/var/opt/stardog/backups'
+              BACKUP_OUTPUT="$(/opt/stardog/bin/stardog-admin --server "$STARDOG_HOST" server backup -u "$STARDOG_USERNAME" -p "$STARDOG_PASSWORD" 2>&1)"
               {{- end }}
               rc=$?
+              printf '%s\n' "$BACKUP_OUTPUT"
+              BACKUP_ABSOLUTE_PATH="$(printf '%s\n' "$BACKUP_OUTPUT" | sed -n 's/.*saved to \(.*\) in [0-9].*/\1/p' | tail -1)"
               if [ $rc -ne 0 ]; then
                   echo "Backup failed"
+                  printf 'Storage type: %s\n' "$STORAGE_TYPE"
+                  printf 'Storage location: %s\n' "$STORAGE_LOCATION"
                   exit $rc
               else
-                  echo "Backup succeded"
+                  {{- if .Values.backup.restoreMetadata.enabled }}
+                  BACKUP_ID="$(printf '%s\n' "$BACKUP_OUTPUT" | sed -n 's/.*BackupId: \([^ ]*\).*/\1/p' | tail -1)"
+                  if [ -z "$BACKUP_ID" ]; then
+                    echo "Backup succeeded, but its backup ID could not be parsed from Stardog output" >&2
+                    exit 1
+                  fi
+                  {{- if $s3.enabled }}
+                  S3_PREFIX="${AWS_BUCKET_DIR%/}"
+                  S3_ENDPOINT="https://${AWS_BUCKET}.s3.${AWS_REGION}.amazonaws.com"
+                  if ! S3_LIST_XML="$(curl --fail --silent --show-error \
+                    --aws-sigv4 "aws:amz:${AWS_REGION}:s3" \
+                    --user "${AWS_ACCESS_KEY_ID}:${AWS_SECRET_ACCESS_KEY}" \
+                    --get --data-urlencode 'list-type=2' \
+                    --data-urlencode "prefix=${S3_PREFIX}/" \
+                    "${S3_ENDPOINT}/")"; then
+                    echo "Backup succeeded, but S3 could not be listed to generate restore metadata" >&2
+                    exit 1
+                  fi
+                  RESTORE_NODE_ID="$(printf '%s' "$S3_LIST_XML" \
+                    | sed 's#</Contents>#</Contents>\n#g' \
+                    | grep "<Key>${S3_PREFIX}/.*/meta/${BACKUP_ID}</Key>" \
+                    | tail -1 \
+                    | sed -n "s#.*<Key>${S3_PREFIX}/\\([^/]*\\)/meta/${BACKUP_ID}</Key>.*#\\1#p")"
+                  if [ -z "$RESTORE_NODE_ID" ]; then
+                    echo "Backup succeeded, but its Stardog node ID could not be discovered in S3" >&2
+                    exit 1
+                  fi
+                  RESTORE_VALUES="$(printf '%s\n' \
+                    '# Generated by the {{ include "stardog.fullname" . }} backup CronJob.' \
+                    '# This file contains no credentials. Reset ZooKeeper data before a clustered restore.' \
+                    'stardog:' \
+                    '  image:' \
+                    '    tag: {{ .Values.image.tag }}' \
+                    '  persistence:' \
+                    '    size: {{ .Values.persistence.size }}' \
+                    '  backup:' \
+                    '    cronjob:' \
+                    '      suspend: true' \
+                    '  restore:' \
+                    '    enabled: true' \
+                    "    id: backup-${BACKUP_ID}" \
+                    '    source:' \
+                    '      type: s3' \
+                    "      path: ${S3_PREFIX}" \
+                    "      backupId: \"${BACKUP_ID}\"" \
+                    "      nodeId: ${RESTORE_NODE_ID}" \
+                    '      s3:' \
+                    "        bucketName: ${AWS_BUCKET}" \
+                    "        region: ${AWS_REGION}" \
+                    '        credentialsSecret: {{ $s3.credentialsSecret | default (printf "%s-restore-s3-secret" .Release.Name) }}' \
+                    '    timeoutSeconds: {{ .Values.restore.timeoutSeconds }}' \
+                    '    safety:' \
+                    '      confirmEmptyVolumes: true' \
+                    '      failIfDataExists: true')"
+                  METADATA_PREFIX="${S3_PREFIX}/{{ .Values.backup.restoreMetadata.directory }}"
+                  VERSIONED_KEY="${METADATA_PREFIX}/backup-${BACKUP_ID}-values.yaml"
+                  LATEST_KEY="${METADATA_PREFIX}/{{ .Values.backup.restoreMetadata.latestFileName }}"
+                  RESTORE_VALUES_LENGTH="$(printf '%s\n' "$RESTORE_VALUES" | wc -c | tr -d ' ')"
+                  for object_key in "$VERSIONED_KEY" "$LATEST_KEY"; do
+                    if ! printf '%s\n' "$RESTORE_VALUES" | curl --fail --silent --show-error \
+                      --aws-sigv4 "aws:amz:${AWS_REGION}:s3" \
+                      --user "${AWS_ACCESS_KEY_ID}:${AWS_SECRET_ACCESS_KEY}" \
+                      --request PUT \
+                      --header "Content-Length: ${RESTORE_VALUES_LENGTH}" \
+                      --data-binary @- "${S3_ENDPOINT}/${object_key}"; then
+                      echo "Backup succeeded, but restore metadata upload failed for s3://${AWS_BUCKET}/${object_key}" >&2
+                      exit 1
+                    fi
+                  done
+                  echo "Restore values written to s3://${AWS_BUCKET}/${VERSIONED_KEY} and s3://${AWS_BUCKET}/${LATEST_KEY}"
+                  {{- else if or .Values.backup.location.azure.enabled .Values.backup.location.persistentVolume.enabled }}
+                  BACKUP_RELATIVE_PATH="${BACKUP_ABSOLUTE_PATH#/var/opt/stardog/backups/}"
+                  if [ -z "$BACKUP_RELATIVE_PATH" ] || [ "$BACKUP_RELATIVE_PATH" = "$BACKUP_ABSOLUTE_PATH" ]; then
+                    echo "Backup succeeded, but restore metadata could not be parsed from Stardog output" >&2
+                    exit 1
+                  fi
+                  METADATA_DIR="/var/opt/stardog/backups/{{ .Values.backup.restoreMetadata.directory }}"
+                  VERSIONED_FILE="${METADATA_DIR}/backup-${BACKUP_ID}-values.yaml"
+                  LATEST_FILE="${METADATA_DIR}/{{ .Values.backup.restoreMetadata.latestFileName }}"
+                  mkdir -p "$METADATA_DIR"
+                  printf '%s\n' \
+                    '# Generated by the {{ include "stardog.fullname" . }} backup CronJob.' \
+                    '# This file contains no credentials. Reset ZooKeeper data before a clustered restore.' \
+                    'stardog:' \
+                    '  image:' \
+                    '    tag: {{ .Values.image.tag }}' \
+                    '  persistence:' \
+                    '    size: {{ .Values.persistence.size }}' \
+                    '  backup:' \
+                    '    cronjob:' \
+                    '      suspend: true' \
+                    '  restore:' \
+                    '    enabled: true' \
+                    "    id: backup-${BACKUP_ID}" \
+                    '    source:' \
+                    {{- if .Values.backup.location.persistentVolume.enabled }}
+                    '      type: persistentVolume' \
+                    '      existingClaim: {{ .Values.backup.location.persistentVolume.customPersitentVolumeClaim }}' \
+                    {{- else }}
+                    '      type: azure' \
+                    {{- end }}
+                    "      path: ${BACKUP_RELATIVE_PATH}" \
+                    "      backupId: \"${BACKUP_ID}\"" \
+                    {{- if .Values.backup.location.azure.enabled }}
+                    '      azure:' \
+                    '        accountName: {{ .Values.backup.location.azure.accountName }}' \
+                    '        containerName: {{ .Values.backup.location.azure.containerName }}' \
+                    '        protocol: {{ .Values.backup.location.azure.protocol }}' \
+                    '        credentialsSecret: {{ .Values.backup.location.azure.credentialsSecret | default (printf "%s-restore-azure-secret" .Release.Name) }}' \
+                    {{- end }}
+                    '    timeoutSeconds: {{ .Values.restore.timeoutSeconds }}' \
+                    '    safety:' \
+                    '      confirmEmptyVolumes: true' \
+                    > "${VERSIONED_FILE}.tmp"
+                  mv "${VERSIONED_FILE}.tmp" "$VERSIONED_FILE"
+                  cp "$VERSIONED_FILE" "${LATEST_FILE}.tmp"
+                  mv "${LATEST_FILE}.tmp" "$LATEST_FILE"
+                  echo "Restore values written to ${VERSIONED_FILE} and ${LATEST_FILE}"
+                  {{- end }}
+                  {{- end }}
+                  echo "Backup succeeded"
+                  printf 'Storage type: %s\n' "$STORAGE_TYPE"
+                  printf 'Storage location: %s\n' "$STORAGE_LOCATION"
+                  if [ -n "${BACKUP_ABSOLUTE_PATH:-}" ]; then
+                    printf 'Stardog backup path: %s\n' "$BACKUP_ABSOLUTE_PATH"
+                  fi
                   exit 0
               fi
           {{- if and (hasKey .Values "image") .Values.image.pullSecrets }}
@@ -126,6 +324,16 @@ spec:
           {{- if and (hasKey .Values "image") .Values.image.username .Values.image.password }}
           imagePullSecrets:
             - name: {{ .Release.Name }}-image-pull-secret
+          {{- end }}
+          {{- if and .Values.backup.restoreMetadata.enabled (or .Values.backup.location.azure.enabled .Values.backup.location.persistentVolume.enabled) }}
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              {{- if .Values.backup.location.persistentVolume.enabled }}
+              claimName: {{ .Values.backup.location.persistentVolume.customPersitentVolumeClaim }}
+              {{- else }}
+              claimName: {{ include "sdcommon.pvcName" (dict "context" . "chart" "stardog" "id" "backup-azure") }}
+              {{- end }}
           {{- end }}
 
 {{- end }}
