@@ -1,0 +1,55 @@
+suite: Umbrella CacheTarget deprecation acknowledgement
+templates:
+  - charts/cachetarget/templates/service.yaml
+  - charts/cachetarget/templates/validate.yaml
+set:
+  stardog.image.tag: 12.2.0
+  cachetarget.image.tag: 12.2.0
+  cachetarget.primary.version: 12.2.0
+  global:
+    skipSecretValidation: true
+    cachetarget:
+      enabled: true
+tests:
+  - it: blocks enabled CacheTarget without acknowledgement
+    template: charts/cachetarget/templates/validate.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: &deprecationError >-
+            WARNING: The CacheTarget chart is deprecated. Continued use requires explicit acknowledgement.
+            Cache targets will be removed in Stardog 13. Deployment is blocked for Stardog 13 or later, even with allowDeprecated=true.
+            Standalone chart: set allowDeprecated=true. Umbrella chart: set cachetarget.allowDeprecated=true.
+            Pin image.tag and set primary.version to explicit Stardog versions below 13; latest and unversioned tags are not accepted.
+            More details: https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management
+
+  - it: requires acknowledgement on upgrades too
+    template: charts/cachetarget/templates/validate.yaml
+    release:
+      upgrade: true
+    asserts:
+      - failedTemplate:
+          errorMessage: *deprecationError
+
+  - it: rejects the standalone flag at the umbrella root
+    template: charts/cachetarget/templates/validate.yaml
+    set:
+      allowDeprecated: true
+    asserts:
+      - failedTemplate:
+          errorMessage: *deprecationError
+
+  - it: rejects string acknowledgement in umbrella values
+    template: charts/cachetarget/templates/validate.yaml
+    set:
+      cachetarget.allowDeprecated: "true"
+    asserts:
+      - failedTemplate:
+          errorMessage: *deprecationError
+
+  - it: deploys CacheTarget when explicitly acknowledged under its subchart values
+    template: charts/cachetarget/templates/service.yaml
+    set:
+      cachetarget.allowDeprecated: true
+    asserts:
+      - isKind:
+          of: Service

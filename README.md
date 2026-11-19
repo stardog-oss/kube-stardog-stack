@@ -44,7 +44,7 @@ Related architecture note:
 The core graph database component. Enable with `global.stardog.enabled: true`
 
 ### Cache Target
-Installs cache target nodes and runs a post-install job that registers them against the primary Stardog cluster or an external endpoint. Enable with `global.cachetarget.enabled: true`.
+**Deprecated; removed in Stardog 13.** Installs cache target nodes and runs a post-install job that registers them against the primary Stardog cluster or an external endpoint. Starting with umbrella chart `1.5.0`, continued use requires both `global.cachetarget.enabled: true` and `cachetarget.allowDeprecated: true`, plus explicit versions below 13 in `cachetarget.image.tag`, `cachetarget.primary.version`, and `stardog.image.tag` when Stardog is enabled. Stardog 13 or later is rejected regardless of acknowledgement. See the [CacheTarget upgrade requirement](charts/cachetarget/README.md#deprecation-and-upgrade-requirement) and [Stardog cache management](https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management).
 
 ### Launchpad
 Web-based UI to access Stardog applications (Designer, Explorer, Studio). Enable with `global.launchpad.enabled: true`
@@ -196,9 +196,17 @@ When multiple components are enabled, you may need to configure them to communic
 When the cache target subchart is enabled it automatically registers itself against the Stardog cluster in the same release. To point it at another release/namespace or an external endpoint, tune the following values:
 
 ```yaml
+global:
+  stardog:
+    enabled: false # This example uses a primary in another release
+  cachetarget:
+    enabled: true
 cachetarget:
-  enabled: true
+  allowDeprecated: true
+  image:
+    tag: 12.2.0
   primary:
+    version: 12.2.0
     name: stardog-secondary         # defaults to stardog-<release>
     namespace: shared-services      # defaults to the release namespace
     port: 5820
@@ -265,7 +273,8 @@ In external mode, subcharts such as Stardog and Launchpad automatically reuse th
 | Component | Default | Description |
 |-----------|---------|-------------|
 | `global.stardog.enabled` | `true` | Deploy Stardog |
-| `global.cachetarget.enabled` | `false` | Deploy cache target nodes that register with Stardog |
+| `global.cachetarget.enabled` | `false` | Deploy deprecated cache target nodes; also requires `cachetarget.allowDeprecated: true` |
+| `cachetarget.allowDeprecated` | `false` | Acknowledge continued use of the deprecated CacheTarget chart when enabled |
 | `global.launchpad.enabled` | `false` | Deploy Launchpad |
 | `global.voicebox.enabled` | `false` | Deploy Voicebox |
 | `global.zookeeper.enabled` | `false` | Deploy a shared ZooKeeper ensemble. Convenience only; for production, use a commercially supported or internally hardened ZooKeeper deployment. |
@@ -302,10 +311,15 @@ global:
     enabled: true
 
 stardog:
-  # Stardog configuration here
+  image:
+    tag: 12.2.0
 
 cachetarget:
+  allowDeprecated: true # Required acknowledgement for the deprecated chart
+  image:
+    tag: 12.2.0
   primary:
+    version: 12.2.0
     validateConnectivity: true
     skipTLSVerify: false
 

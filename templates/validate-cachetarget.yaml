@@ -1,0 +1,3 @@
+{{- if and .Values.global.cachetarget.enabled .Values.global.stardog.enabled (kindIs "bool" .Values.cachetarget.allowDeprecated) .Values.cachetarget.allowDeprecated -}}
+{{- include "cachetarget.validateVersion" (dict "field" "stardog.image.tag" "version" .Subcharts.stardog.Values.image.tag) -}}
+{{- end -}}

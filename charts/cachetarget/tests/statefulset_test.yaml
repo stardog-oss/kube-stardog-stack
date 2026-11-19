@@ -21,7 +21,7 @@ tests:
           pattern: "^cachetarget-.+-cache$"
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "stardog/stardog:latest"
+          value: "stardog/stardog:12.2.0"
       - equal:
           path: spec.template.spec.containers[0].ports[0].containerPort
           value: 5820

@@ -85,6 +85,11 @@
 
 ** Please be patient while the chart is being deployed **
 
+{{- if (default false (index (default (dict) (index $global "cachetarget")) "enabled")) }}
+
+{{ include "cachetarget.deprecationNotice" . }}
+{{- end }}
+
 Your application is now deployed and can be accessed via:
 
 {{- if ne $stardogEndpoint "" }}
