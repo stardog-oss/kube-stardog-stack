@@ -119,7 +119,12 @@ global:
       # Optional trust for Vault's TLS, base64-encoded PEM (or leave empty to use system roots)
       caBundle: ""
 
-  # The umbrealla helm chart gives the convenience of installaling a a cache target from the umbrella charts.
-  # if you need more than one cache target, you can install additional cache target charts separately.
+  # CacheTarget is deprecated and disabled by default. Enabling it also requires
+  # cachetarget.allowDeprecated=true (outside global) to acknowledge continued use.
   cachetarget:
     enabled: false
+
+# Required only when global.cachetarget.enabled=true. Acknowledges continued use
+# of the deprecated CacheTarget chart; does not suppress its warning.
+cachetarget:
+  allowDeprecated: false

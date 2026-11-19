@@ -1,0 +1,50 @@
+suite: Umbrella CacheTarget deprecation acknowledgement
+templates:
+  - charts/cachetarget/templates/service.yaml
+  - charts/cachetarget/templates/validate.yaml
+set:
+  global:
+    skipSecretValidation: true
+    cachetarget:
+      enabled: true
+tests:
+  - it: blocks enabled CacheTarget without acknowledgement
+    template: charts/cachetarget/templates/validate.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: &deprecationError >-
+            WARNING: The CacheTarget chart is deprecated. Continued use requires explicit acknowledgement.
+            Standalone chart: set allowDeprecated=true. Umbrella chart: set cachetarget.allowDeprecated=true.
+            The acknowledgement allows deployment but does not remove this deprecation warning.
+
+  - it: requires acknowledgement on upgrades too
+    template: charts/cachetarget/templates/validate.yaml
+    release:
+      upgrade: true
+    asserts:
+      - failedTemplate:
+          errorMessage: *deprecationError
+
+  - it: rejects the standalone flag at the umbrella root
+    template: charts/cachetarget/templates/validate.yaml
+    set:
+      allowDeprecated: true
+    asserts:
+      - failedTemplate:
+          errorMessage: *deprecationError
+
+  - it: rejects string acknowledgement in umbrella values
+    template: charts/cachetarget/templates/validate.yaml
+    set:
+      cachetarget.allowDeprecated: "true"
+    asserts:
+      - failedTemplate:
+          errorMessage: *deprecationError
+
+  - it: deploys CacheTarget when explicitly acknowledged under its subchart values
+    template: charts/cachetarget/templates/service.yaml
+    set:
+      cachetarget.allowDeprecated: true
+    asserts:
+      - isKind:
+          of: Service

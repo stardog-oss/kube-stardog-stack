@@ -50,6 +50,8 @@ tests:
   - it: rejects the bundled cachetarget alongside a replica cluster
     template: charts/stardog/templates/statefulset.yaml
     set:
+      cachetarget:
+        allowDeprecated: true
       global:
         cachetarget:
           enabled: true

@@ -1,3 +1,4 @@
+allowDeprecated: true
 global:
   stardog:
     enabled: false

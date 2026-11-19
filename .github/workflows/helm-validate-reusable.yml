@@ -183,10 +183,10 @@ jobs:
         run: helm dependency build
       - name: Lint
         working-directory: ${{ matrix.chart }}
-        run: helm lint . -f "$GITHUB_WORKSPACE/values.skip-secret-validation.yaml"
+        run: helm lint . -f "$GITHUB_WORKSPACE/values.skip-secret-validation.yaml" ${{ matrix.chart == 'charts/cachetarget' && '--set allowDeprecated=true' || '' }}
       - name: Template dry-run
         working-directory: ${{ matrix.chart }}
-        run: helm template unittest "$PWD" --dry-run -f "$GITHUB_WORKSPACE/values.skip-secret-validation.yaml"
+        run: helm template unittest "$PWD" --dry-run -f "$GITHUB_WORKSPACE/values.skip-secret-validation.yaml" ${{ matrix.chart == 'charts/cachetarget' && '--set allowDeprecated=true' || '' }}
       - name: Run unit tests
         if: ${{ matrix.chart != '.' }}
         working-directory: ${{ matrix.chart }}

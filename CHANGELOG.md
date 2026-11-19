@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.0
+- SAT-905: deprecate the CacheTarget subchart and update it to `1.1.0`.
+- Breaking upgrade requirement: when `global.cachetarget.enabled=true`, explicitly set `cachetarget.allowDeprecated=true`. Installs, upgrades, and rendering fail without boolean acknowledgement; disabled CacheTarget deployments are unaffected.
+- Keep the deprecation warning visible in umbrella install/upgrade NOTES after acknowledgement.
+
 ## 1.4.0
 - Update the bundled Stardog chart to `4.3.0`.
 - Add replica cluster support (Stardog 12.2.0+, beta) through `stardog.replicaCluster.*`: deploy a

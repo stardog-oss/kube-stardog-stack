@@ -1,4 +1,8 @@
 ---
+# The CacheTarget chart is deprecated. Installs and upgrades require explicit
+# acknowledgement. In the umbrella chart, set cachetarget.allowDeprecated=true.
+allowDeprecated: false
+
 # The namespace for Stardog cache target resources that override the release namespace
 # namespaceOverride: stardog
 

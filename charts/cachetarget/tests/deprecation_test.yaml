@@ -1,0 +1,71 @@
+suite: CacheTarget deprecation acknowledgement
+templates:
+  - validate.yaml
+  - service.yaml
+tests:
+  - it: blocks installs when acknowledgement is omitted
+    template: validate.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: &deprecationError >-
+            WARNING: The CacheTarget chart is deprecated. Continued use requires explicit acknowledgement.
+            Standalone chart: set allowDeprecated=true. Umbrella chart: set cachetarget.allowDeprecated=true.
+            The acknowledgement allows deployment but does not remove this deprecation warning.
+
+  - it: blocks upgrades without acknowledgement
+    template: validate.yaml
+    release:
+      upgrade: true
+    asserts:
+      - failedTemplate:
+          errorMessage: *deprecationError
+
+  - it: blocks explicit false
+    template: validate.yaml
+    set:
+      allowDeprecated: false
+    asserts:
+      - failedTemplate:
+          errorMessage: *deprecationError
+
+  - it: rejects a string true rather than treating it as acknowledgement
+    template: validate.yaml
+    set:
+      allowDeprecated: "true"
+    asserts:
+      - failedTemplate:
+          errorMessage: *deprecationError
+
+  - it: rejects a numeric acknowledgement
+    template: validate.yaml
+    set:
+      allowDeprecated: 1
+    asserts:
+      - failedTemplate:
+          errorMessage: *deprecationError
+
+  - it: cannot bypass acknowledgement with global secret validation disabled
+    template: validate.yaml
+    set:
+      global.skipSecretValidation: true
+    asserts:
+      - failedTemplate:
+          errorMessage: *deprecationError
+
+  - it: allows an explicitly acknowledged install
+    template: service.yaml
+    set:
+      allowDeprecated: true
+    asserts:
+      - isKind:
+          of: Service
+
+  - it: allows an explicitly acknowledged upgrade
+    template: service.yaml
+    release:
+      upgrade: true
+    set:
+      allowDeprecated: true
+    asserts:
+      - isKind:
+          of: Service

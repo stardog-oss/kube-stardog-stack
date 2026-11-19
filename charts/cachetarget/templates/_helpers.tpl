@@ -2,6 +2,18 @@
 Cache target helper overrides.
 */}}
 
+{{- define "cachetarget.deprecationNotice" -}}
+WARNING: The CacheTarget chart is deprecated. Continued use requires explicit acknowledgement.
+Standalone chart: set allowDeprecated=true. Umbrella chart: set cachetarget.allowDeprecated=true.
+The acknowledgement allows deployment but does not remove this deprecation warning.
+{{- end -}}
+
+{{- define "cachetarget.validateDeprecation" -}}
+{{- if not (and (kindIs "bool" .Values.allowDeprecated) .Values.allowDeprecated) -}}
+{{- fail (include "cachetarget.deprecationNotice" . | replace "\n" " ") -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "cachetarget.primaryName" -}}
 {{- if .Values.primary.name -}}
 {{- .Values.primary.name -}}

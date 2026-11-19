@@ -4,6 +4,46 @@ Stardog Cache Target Helm Chart
 This chart installs a Stardog Cache Target. You must deploy a Stardog cluster
 before deploying the cache target.
 
+Deprecation and upgrade requirement
+----------------------------------
+
+**This chart is deprecated.** Starting with CacheTarget chart `1.1.0` (bundled in
+`kube-stardog-stack` `1.5.0`), installation, upgrade, and template rendering stop
+unless you explicitly acknowledge continued use.
+
+For a standalone release, add this to your values file:
+
+```yaml
+allowDeprecated: true
+```
+
+Or pass the flag when installing or upgrading:
+
+```bash
+helm upgrade --install my-cache ./charts/cachetarget \
+  -f my-cache-values.yaml --set allowDeprecated=true
+```
+
+For the umbrella chart, the acknowledgement belongs under `cachetarget`, outside
+`global`:
+
+```yaml
+global:
+  cachetarget:
+    enabled: true
+cachetarget:
+  allowDeprecated: true
+```
+
+Only boolean `true` is accepted; a quoted string such as `"true"` is rejected.
+Keep the acknowledgement in the values used by subsequent upgrades. Install and
+upgrade NOTES continue to show the warning after acknowledgement, including in
+the umbrella chart without `--render-subchart-notes`. The umbrella's default
+`global.cachetarget.enabled: false` needs no acknowledgement or warning.
+
+An upgrade rejected by this render-time gate does not uninstall the existing
+CacheTarget. Plan any removal separately, including data and storage handling.
+
 Chart Details
 -------------
 
@@ -15,6 +55,7 @@ Configuration Parameters
 
 | Parameter                                    | Description |
 | ---                                          | --- |
+| `allowDeprecated`                            | Defaults to `false`; must be boolean `true` to deploy this deprecated chart |
 | `fullnameOverride`                           | The k8s name for the Stardog deployment |
 | `namespaceOverride`                          | The k8s namespace for the Stardog deployment (single node only) |
 | `admin.password`                             | Stardog admin password |
