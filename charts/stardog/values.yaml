@@ -169,6 +169,68 @@ persistence:
   annotations: {}
   size: 10Gi
 
+# Restore a server backup into newly provisioned, empty Stardog data PVCs before
+# starting Stardog. This mode never deletes or overwrites PVCs. Keep it disabled
+# for normal installs and upgrades.
+restore:
+  enabled: false
+  # Unique identifier for this restore operation. A matching marker on the data
+  # volume makes pod restarts idempotent.
+  id: ""
+  # allReplicas restores each StatefulSet replica from its corresponding backup.
+  strategy: allReplicas
+  source:
+    # persistentVolume, azure, or s3
+    type: persistentVolume
+    # Existing PVC containing a server backup. It is mounted read-only.
+    existingClaim: ""
+    # Path below the mounted PVC. The literal {podName} token is replaced with
+    # the current pod name, which supports the chart's per-node backup layout.
+    path: ""
+    # Explicit server backup ID passed to `stardog-admin server restore -b`.
+    backupId: ""
+    # Required for S3 restores. Obtain it with `server restore --list`; this is
+    # the UUID shown in the node-id column, not a Kubernetes pod name.
+    nodeId: ""
+    s3:
+      # Optional when credentialsSecret also contains bucketName and region.
+      bucketName: ""
+      region: ""
+      # Recommended: reference an existing Secret with accessKey and secretKey.
+      # When empty, accessKey and secretKey below create a restore-only Secret.
+      credentialsSecret: ""
+      accessKey: ""
+      secretKey: ""
+    # Self-contained Azure Blob restore. The chart creates a restore-only
+    # static PV/PVC; it does not require backup.enabled=true.
+    azure:
+      accountName: ""
+      containerName: ""
+      protocol: fuse
+      # Recommended: reference an existing Secret with accountname/accountkey,
+      # matching the chart-managed Azure Secret schema.
+      # When empty, accountKey below creates a restore-only Secret.
+      credentialsSecret: ""
+      accountKey: ""
+      capacity: 1Ti
+      accessModes:
+        - ReadWriteMany
+      mountOptions:
+        - -o allow_other
+        - --file-cache-timeout-in-seconds=120
+  timeoutSeconds: 1800
+  safety:
+    # Must be explicitly acknowledged whenever restore.enabled=true.
+    confirmEmptyVolumes: false
+    failIfDataExists: true
+  resources:
+    requests:
+      cpu: 300m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
 nodeSelector: {}
 tolerations: []
 #  - key: key1
@@ -562,9 +624,15 @@ backup:
 
   cronjob:
     enabled: false # Enable the cron job for Stardog backup
+    suspend: false # Suspend scheduled backups during a restore or maintenance window
     schedule: "0 0 * * *" # Cron job schedule
     timeZone: ""  #America/New_York Time zone for the cron job
     ttlSecondsAfterFinished: 86400 # Time to live for the job after it finishes 86,400 seconds = 1 day
+
+  restoreMetadata:
+    enabled: true # Write non-secret, copy-ready restore values after PVC-backed backups
+    directory: ".restore"
+    latestFileName: "latest-values.yaml"
 
   credentialsSecret: ""  # Stardog backup credentials secret
   credentials:  # Stardog backup credentials
@@ -575,7 +643,10 @@ backup:
     azure:
       enabled: false
       accountName: ""  # name of the storage account
-      accountKey: "" # key of the storage account
+      # Choose one credential source. An existing Secret uses the same schema
+      # as the chart-managed Secret: accountname and accountkey.
+      credentialsSecret: ""
+      accountKey: "" # Plain-value compatibility option; prefer credentialsSecret
       containerName: "" # name of the blob container
       protocol: fuse # protocol to use for the blob storage fuse or nfs
       backupDir: "stardog-backups" # directory for the backup
@@ -621,8 +692,22 @@ backup:
       bucketName: "" # name of the s3 bucket
       bucketDir: "stardog-backups" #directory
       region: "" # region of the s3 bucket
-      accessKey: "" # access key for the s3 bucket
-      secretKey: "" # secret key for the s3 bucket
+      # Choose one credential source. An existing Secret must contain
+      # accessKey and secretKey.
+      credentialsSecret: ""
+      accessKey: "" # Plain-value compatibility option; prefer credentialsSecret
+      secretKey: "" # Plain-value compatibility option; prefer credentialsSecret
+
+    # Compatibility alias for existing values files. New configurations should
+    # use location.s3 above.
+    aws:
+      enabled: false
+      bucketName: ""
+      backupDir: "stardog-backups"
+      region: ""
+      credentialsSecret: ""
+      accessKeyId: ""
+      secretAccessKey: ""
 
     persistentVolume:
       enabled: false

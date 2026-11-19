@@ -3,6 +3,56 @@
 {{- end -}}
 
 {{/*
+Normalize the current backup.location.s3 values and the legacy
+backup.location.aws naming used by earlier deployment values.
+*/}}
+{{- define "stardog.backupS3Config" -}}
+{{- $s3 := .Values.backup.location.s3 -}}
+{{- $aws := .Values.backup.location.aws -}}
+{{- $config := dict
+  "enabled" $s3.enabled
+  "bucketName" $s3.bucketName
+  "bucketDir" $s3.bucketDir
+  "region" $s3.region
+  "credentialsSecret" $s3.credentialsSecret
+  "accessKey" $s3.accessKey
+  "secretKey" $s3.secretKey
+-}}
+{{- if $aws.enabled -}}
+  {{- $config = dict
+    "enabled" true
+    "bucketName" $aws.bucketName
+    "bucketDir" $aws.backupDir
+    "region" $aws.region
+    "credentialsSecret" $aws.credentialsSecret
+    "accessKey" $aws.accessKeyId
+    "secretKey" $aws.secretAccessKey
+  -}}
+{{- end -}}
+{{- $config | toJson -}}
+{{- end -}}
+
+{{/* Validate mutually exclusive external or plain backup storage credentials. */}}
+{{- define "stardog.validateBackupStorageCredentials" -}}
+{{- if .Values.backup.enabled -}}
+  {{- $s3 := include "stardog.backupS3Config" . | fromJson -}}
+  {{- if $s3.enabled -}}
+    {{- $secret := trim (default "" $s3.credentialsSecret) -}}
+    {{- $access := trim (default "" $s3.accessKey) -}}
+    {{- $secretKey := trim (default "" $s3.secretKey) -}}
+    {{- if and (ne $secret "") (or (ne $access "") (ne $secretKey "")) }}{{- fail "S3 backup credentials must use either credentialsSecret or plain accessKey/secretKey, not both." -}}{{- end -}}
+    {{- if and (eq $secret "") (or (eq $access "") (eq $secretKey "")) }}{{- fail "S3 backup requires credentialsSecret or both plain accessKey and secretKey." -}}{{- end -}}
+  {{- end -}}
+  {{- if .Values.backup.location.azure.enabled -}}
+    {{- $secret := trim (default "" .Values.backup.location.azure.credentialsSecret) -}}
+    {{- $key := trim (default "" .Values.backup.location.azure.accountKey) -}}
+    {{- if and (ne $secret "") (ne $key "") }}{{- fail "Azure backup credentials must use either credentialsSecret or plain accountKey, not both." -}}{{- end -}}
+    {{- if and (eq $secret "") (eq $key "") }}{{- fail "Azure backup requires credentialsSecret or plain accountKey." -}}{{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Compute the redirect configuration for gateway root path handling.
 */}}
 {{- define "stardog.launchpadRedirectConfig" -}}
@@ -181,6 +231,7 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- if regexMatch `(?m)^\s*upgrade\.automatic\s*=` $properties -}}
 {{- fail "Do not set upgrade.automatic in stardogProperties; use upgrade.approval.targetVersion instead." -}}
 {{- end -}}
+
 {{- if regexMatch `(?m)^\s*pack\.rejoin\.shutdown\s*=` $properties -}}
 {{- fail "Do not set pack.rejoin.shutdown in stardogProperties; use cluster.zookeeperSessionTolerance.rejoinShutdown instead." -}}
 {{- end -}}
@@ -359,6 +410,58 @@ pack.replicaCluster.sync.interval={{ $rc.syncInterval }}
 {{- if ne (toString (default "" $rc.promoteQuiesceTimeout)) "" }}
 pack.replicaCluster.promote.quiesce.timeout={{ $rc.promoteQuiesceTimeout }}
 {{- end }}
+{{- end -}}
+{{- end -}}
+
+{{- define "stardog.validateRestoreConfig" -}}
+{{- $restore := default (dict) .Values.restore -}}
+{{- $enabled := or (eq (index $restore "enabled") true) (eq (toString (index $restore "enabled")) "true") -}}
+{{- if $enabled -}}
+{{- $source := default (dict) (index $restore "source") -}}
+{{- $safety := default (dict) (index $restore "safety") -}}
+{{- $image := default (dict) .Values.image -}}
+{{- $restoreID := trim (default "" (index $restore "id")) -}}
+{{- $strategy := trim (default "" (index $restore "strategy")) -}}
+{{- $sourceType := trim (default "" (index $source "type")) -}}
+{{- $claim := trim (default "" (index $source "existingClaim")) -}}
+{{- $path := trim (default "" (index $source "path")) -}}
+{{- $backupID := trim (default "" (index $source "backupId")) -}}
+{{- $nodeID := trim (default "" (index $source "nodeId")) -}}
+{{- $s3 := default (dict) (index $source "s3") -}}
+{{- $confirmed := or (eq (index $safety "confirmEmptyVolumes") true) (eq (toString (index $safety "confirmEmptyVolumes")) "true") -}}
+{{- $failIfDataExists := or (eq (index $safety "failIfDataExists") true) (eq (toString (index $safety "failIfDataExists")) "true") -}}
+{{- $imageTag := trim (default "" (index $image "tag")) -}}
+{{- if eq $restoreID "" }}{{- fail "restore.id is required when restore.enabled=true." -}}{{- end -}}
+{{- if not (regexMatch `^[A-Za-z0-9][A-Za-z0-9._-]*$` $restoreID) }}{{- fail "restore.id may contain only letters, numbers, dots, underscores, and hyphens." -}}{{- end -}}
+{{- if ne $strategy "allReplicas" }}{{- fail "restore.strategy must be allReplicas." -}}{{- end -}}
+{{- if not (or (eq $sourceType "persistentVolume") (eq $sourceType "azure") (eq $sourceType "s3")) }}{{- fail "restore.source.type must be persistentVolume, azure, or s3." -}}{{- end -}}
+{{- if eq $path "" }}{{- fail "restore.source.path is required when restore.enabled=true." -}}{{- end -}}
+{{- if or (hasPrefix "/" $path) (regexMatch `(^|/)\.\.(/|$)` $path) }}{{- fail "restore.source.path must be relative and cannot contain '..'." -}}{{- end -}}
+{{- if eq $backupID "" }}{{- fail "restore.source.backupId is required; implicit latest-backup selection is not allowed." -}}{{- end -}}
+{{- if eq $sourceType "persistentVolume" -}}
+  {{- if eq $claim "" }}{{- fail "restore.source.existingClaim is required for a persistentVolume restore." -}}{{- end -}}
+  {{- $dataClaimPrefix := printf "%s-%s-" (include "sdcommon.pvcName" (dict "context" . "chart" "stardog" "withRelease" false)) (include "sdcommon.fullname" .) -}}
+  {{- if hasPrefix $dataClaimPrefix $claim }}{{- fail "restore.source.existingClaim cannot reference a Stardog data PVC from this release." -}}{{- end -}}
+{{- else if eq $sourceType "s3" -}}
+  {{- $s3Secret := trim (default "" (index $s3 "credentialsSecret")) -}}
+  {{- $s3AccessKey := trim (default "" (index $s3 "accessKey")) -}}
+  {{- $s3SecretKey := trim (default "" (index $s3 "secretKey")) -}}
+  {{- if and (eq (trim (default "" (index $s3 "bucketName"))) "") (eq $s3Secret "") }}{{- fail "restore.source.s3.bucketName is required unless credentialsSecret provides bucketName." -}}{{- end -}}
+  {{- if and (eq (trim (default "" (index $s3 "region"))) "") (eq $s3Secret "") }}{{- fail "restore.source.s3.region is required unless credentialsSecret provides region." -}}{{- end -}}
+  {{- if and (eq $s3Secret "") (or (eq $s3AccessKey "") (eq $s3SecretKey "")) }}{{- fail "restore.source.s3 requires credentialsSecret or both accessKey and secretKey." -}}{{- end -}}
+  {{- if eq $nodeID "" }}{{- fail "restore.source.nodeId is required for an S3 restore; obtain it with server restore --list." -}}{{- end -}}
+  {{- if not (regexMatch `^[0-9a-fA-F-]{36}$` $nodeID) }}{{- fail "restore.source.nodeId must be a UUID." -}}{{- end -}}
+{{- else -}}
+  {{- $azure := default (dict) (index $source "azure") -}}
+  {{- if eq (trim (default "" (index $azure "accountName"))) "" }}{{- fail "restore.source.azure.accountName is required for an Azure restore." -}}{{- end -}}
+  {{- if eq (trim (default "" (index $azure "containerName"))) "" }}{{- fail "restore.source.azure.containerName is required for an Azure restore." -}}{{- end -}}
+  {{- $azureSecret := trim (default "" (index $azure "credentialsSecret")) -}}
+  {{- $azureKey := trim (default "" (index $azure "accountKey")) -}}
+  {{- if and (eq $azureSecret "") (eq $azureKey "") }}{{- fail "restore.source.azure requires credentialsSecret or accountKey." -}}{{- end -}}
+{{- end -}}
+{{- if not $confirmed }}{{- fail "restore.safety.confirmEmptyVolumes must be true when restore.enabled=true." -}}{{- end -}}
+{{- if not $failIfDataExists }}{{- fail "restore.safety.failIfDataExists must remain true; restoring over existing data is not supported." -}}{{- end -}}
+{{- if or (eq $imageTag "") (eq (lower $imageTag) "latest") }}{{- fail "restore requires image.tag to be pinned to a specific Stardog version, not latest." -}}{{- end -}}
 {{- end -}}
 {{- end -}}
 

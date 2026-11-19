@@ -5,6 +5,13 @@ This chart installs Stardog, either single node or a cluster that connects to a 
 The chart pulls the latest version of Stardog from
 Docker Hub and does not support rolling upgrades.
 
+Operational documentation:
+
+- [Backup and restore by destination](BACKUP_RESTORE_BY_DESTINATION.md)
+- [Complete backup and restore runbook](BACKUP_RESTORE_RUNBOOK.md)
+- [Backup configuration reference](BACKUP.md)
+- [Restore configuration reference](RESTORE.md)
+
 Chart Details
 -------------
 
@@ -81,6 +88,18 @@ Configuration Parameters
 | `headlessService.*`                          | Configures the headless Service used for clustered pod DNS and stable `pack.node.address` values |
 | `clusterDomain`                              | Kubernetes DNS cluster domain used when building per-pod Stardog addresses. Defaults to `cluster.local`. |
 | `upgrade.approval.targetVersion`             | One-time version-scoped approval for storage upgrades; when it matches `image.tag`, the chart injects `upgrade.automatic=true` |
+| `restore.enabled`                            | Restore an explicit server backup into new, empty data PVCs before Stardog starts |
+| `restore.id`                                 | Unique restore-operation identifier used for the completion marker |
+| `restore.source.existingClaim`               | Existing PVC containing the server backup; mounted read-only |
+| `restore.source.path`                        | Backup path within the source PVC; supports the literal `{podName}` token |
+| `restore.source.backupId`                    | Explicit server backup ID; required to prevent implicit latest-backup selection |
+| `restore.source.nodeId`                      | Stardog server node UUID required for S3 restores; obtain it with `server restore --list` |
+| `restore.source.s3.*`                        | S3 bucket, region, and credentials Secret used when `restore.source.type=s3` |
+| `restore.safety.confirmEmptyVolumes`         | Required explicit acknowledgement that destination PVCs are empty |
+| `backup.cronjob.suspend`                     | Suspend scheduled backup Jobs without removing the CronJob |
+| `backup.restoreMetadata.enabled`             | Write a non-secret, copy-ready umbrella restore values fragment beside each PVC-backed backup |
+| `backup.restoreMetadata.directory`           | Directory on the backup PVC that stores generated restore values (default `.restore`) |
+| `backup.restoreMetadata.latestFileName`      | Stable filename for the newest generated restore values (default `latest-values.yaml`) |
 | `javaArgs`                                   | Java args for Stardog server |
 | `log4jConfig.content`                        | New Log4j configuration when overriding the default |
 | `log4jConfig.override`                       | Whether to override the default Log4j config |

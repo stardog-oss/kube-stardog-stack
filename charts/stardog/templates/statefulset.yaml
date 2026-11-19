@@ -14,6 +14,7 @@
 {{- include "stardog.validateUpgradeConfig" . }}
 {{- include "stardog.validateReplicaClusterConfig" . }}
 {{- $replicaCluster := eq (include "stardog.replicaClusterEnabled" .) "true" -}}
+{{- include "stardog.validateRestoreConfig" . }}
 {{- if and $sparqlTlsRequired (not $sparqlTlsEnabled) }}
   {{- fail "tls.sparql.required=true requires tls.sparql.enabled=true." -}}
 {{- end }}
@@ -82,6 +83,90 @@ spec:
               topologyKey: topology.kubernetes.io/zone
       {{- end }}
       initContainers:
+      {{- if .Values.restore.enabled }}
+      - name: restore-stardog
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        securityContext:
+          {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+        resources:
+          {{- toYaml .Values.restore.resources | nindent 10 }}
+        env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: STARDOG_HOME
+            value: {{ .Values.stardogHome | quote }}
+          - name: STARDOG_LICENSE_PATH
+            value: "/etc/stardog-license/stardog-license-key.bin"
+          - name: STARDOG_JAVA_ARGS
+            value: "-Djava.io.tmpdir=/tmp"
+          - name: RESTORE_ID
+            value: {{ .Values.restore.id | quote }}
+          - name: RESTORE_SOURCE_TYPE
+            value: {{ .Values.restore.source.type | quote }}
+          - name: RESTORE_BACKUP_PATH
+            value: {{ .Values.restore.source.path | quote }}
+          - name: RESTORE_BACKUP_ID
+            value: {{ .Values.restore.source.backupId | quote }}
+          - name: RESTORE_SOURCE_ROOT
+            value: "/mnt/stardog-restore"
+          - name: RESTORE_TIMEOUT_SECONDS
+            value: {{ .Values.restore.timeoutSeconds | quote }}
+          {{- if eq .Values.restore.source.type "s3" }}
+          - name: RESTORE_S3_BUCKET
+            {{- if .Values.restore.source.s3.bucketName }}
+            value: {{ .Values.restore.source.s3.bucketName | quote }}
+            {{- else }}
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.restore.source.s3.credentialsSecret }}
+                key: bucketName
+            {{- end }}
+          - name: RESTORE_S3_REGION
+            {{- if .Values.restore.source.s3.region }}
+            value: {{ .Values.restore.source.s3.region | quote }}
+            {{- else }}
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.restore.source.s3.credentialsSecret }}
+                key: region
+            {{- end }}
+          - name: RESTORE_S3_NODE_ID
+            value: {{ .Values.restore.source.nodeId | quote }}
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.restore.source.s3.credentialsSecret | default (printf "%s-restore-s3-secret" .Release.Name) }}
+                key: accessKey
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.restore.source.s3.credentialsSecret | default (printf "%s-restore-s3-secret" .Release.Name) }}
+                key: secretKey
+          {{- end }}
+        command:
+          - /bin/bash
+          - -c
+          - |
+            {{- .Files.Get "files/restore.sh" | indent 12 }}
+        volumeMounts:
+          - name: {{ include "sdcommon.pvcName" (dict "context" . "chart" "stardog" "withRelease" false) }}
+            mountPath: {{ .Values.stardogHome }}
+            readOnly: false
+          {{- if or (eq .Values.restore.source.type "persistentVolume") (eq .Values.restore.source.type "azure") }}
+          - name: restore-source
+            mountPath: /mnt/stardog-restore
+            readOnly: true
+          {{- end }}
+          - name: stardog-license
+            mountPath: /etc/stardog-license
+            readOnly: true
+          - name: restore-tmp
+            mountPath: /tmp
+            readOnly: false
+      {{- end }}
       - name: pre-start-hook
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -188,7 +273,7 @@ spec:
           readOnly: true
         {{- end }}
         {{- end }}
-        {{- if and .Values.backup.enabled }}
+        {{- if and .Values.backup.enabled (not .Values.restore.enabled) }}
         {{- if or .Values.backup.location.azure.enabled .Values.backup.location.persistentVolume.enabled }}
         - name: {{ include "sdcommon.fullname" . }}-backup
           mountPath: /var/opt/stardog/backups
@@ -394,6 +479,20 @@ spec:
       {{- end }}
       volumes:
 {{ include "sdcommon.stardogBaseVolumes" (dict "fullname" (include "sdcommon.fullname" .) "tmpDirLocal" $tmpDirLocal) | indent 6 }}
+      {{- if .Values.restore.enabled }}
+      {{- if or (eq .Values.restore.source.type "persistentVolume") (eq .Values.restore.source.type "azure") }}
+      - name: restore-source
+        persistentVolumeClaim:
+          {{- if eq .Values.restore.source.type "azure" }}
+          claimName: {{ include "sdcommon.fullname" . }}-restore-azure-pvc
+          {{- else }}
+          claimName: {{ .Values.restore.source.existingClaim }}
+          {{- end }}
+          readOnly: true
+      {{- end }}
+      - name: restore-tmp
+        emptyDir: {}
+      {{- end }}
       - name: stardog-keystore
       {{- if ( ne .Values.tls.keystore.existingSecret "") }}
         secret:
@@ -447,7 +546,7 @@ spec:
             - key: jwt.yaml
               path: jwt.yaml
       {{- end }}
-      {{- if .Values.backup.enabled }}
+      {{- if and .Values.backup.enabled (not .Values.restore.enabled) }}
       {{- if .Values.backup.location.persistentVolume.enabled }}
       - name: {{ include "stardog.fullname" . }}-backup
         persistentVolumeClaim:

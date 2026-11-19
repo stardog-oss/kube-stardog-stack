@@ -15,5 +15,6 @@ doc/private-notes/*
 kube-stardog-stack*
 
 package/*
+/dist/
 local/
 .helm-hook/

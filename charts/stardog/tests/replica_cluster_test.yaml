@@ -466,6 +466,9 @@ tests:
       backup.enabled: true
       backup.credentialsSecret: backup-creds
       backup.cronjob.enabled: true
+      backup.location.s3.enabled: true
+      backup.location.s3.accessKey: test-access
+      backup.location.s3.secretKey: test-secret
       replicaCluster.backup.allow: true
       global.__secretFixtures:
         - metadata:

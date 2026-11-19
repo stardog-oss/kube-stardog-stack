@@ -1,0 +1,304 @@
+suite: Validate Stardog restore configuration
+values:
+  - values/values-stardog.yaml
+templates:
+  - statefulset.yaml
+tests:
+  - it: does not render a restore init container by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.initContainers
+          content:
+            name: restore-stardog
+
+  - it: rejects restore mode without a restore ID
+    set:
+      image.tag: 12.1.0
+      restore:
+        enabled: true
+        source:
+          existingClaim: backup-pvc
+          path: backups/{podName}
+          backupId: "3"
+        safety:
+          confirmEmptyVolumes: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "restore.id is required when restore.enabled=true."
+
+  - it: rejects implicit latest backup selection
+    set:
+      image.tag: 12.1.0
+      restore:
+        enabled: true
+        id: incident-2026-11-04
+        source:
+          existingClaim: backup-pvc
+          path: backups/{podName}
+        safety:
+          confirmEmptyVolumes: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "restore.source.backupId is required; implicit latest-backup selection is not allowed."
+
+  - it: requires explicit empty-volume acknowledgement
+    set:
+      image.tag: 12.1.0
+      restore:
+        enabled: true
+        id: incident-2026-11-04
+        source:
+          existingClaim: backup-pvc
+          path: backups/{podName}
+          backupId: "3"
+    asserts:
+      - failedTemplate:
+          errorMessage: "restore.safety.confirmEmptyVolumes must be true when restore.enabled=true."
+
+  - it: rejects the latest image tag in restore mode
+    set:
+      restore:
+        enabled: true
+        id: incident-2026-11-04
+        source:
+          existingClaim: backup-pvc
+          path: backups/{podName}
+          backupId: "3"
+        safety:
+          confirmEmptyVolumes: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "restore requires image.tag to be pinned to a specific Stardog version, not latest."
+
+  - it: rejects paths that can escape the restore source PVC
+    set:
+      image.tag: 12.1.0
+      restore:
+        enabled: true
+        id: incident-2026-11-04
+        source:
+          existingClaim: backup-pvc
+          path: ../stardog-data
+          backupId: "3"
+        safety:
+          confirmEmptyVolumes: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "restore.source.path must be relative and cannot contain '..'."
+
+  - it: rejects a data PVC from the same release as the backup source
+    set:
+      image.tag: 12.1.0
+      restore:
+        enabled: true
+        id: incident-2026-11-04
+        source:
+          existingClaim: stardog-data-stardog-RELEASE-NAME-0
+          path: backups
+          backupId: "3"
+        safety:
+          confirmEmptyVolumes: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "restore.source.existingClaim cannot reference a Stardog data PVC from this release."
+
+  - it: renders a guarded restore init container
+    set:
+      image.tag: 12.1.0
+      restore:
+        enabled: true
+        id: incident-2026-11-04
+        source:
+          existingClaim: backup-pvc
+          path: backups/{podName}
+          backupId: "3"
+        safety:
+          confirmEmptyVolumes: true
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: restore-stardog
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: pre-start-hook
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: restore-source
+            mountPath: /mnt/stardog-restore
+            readOnly: true
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: stardog-data
+            mountPath: /var/opt/stardog
+            readOnly: false
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: restore-source
+            persistentVolumeClaim:
+              claimName: backup-pvc
+              readOnly: true
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: RELEASE-NAME-stardog-backup
+            mountPath: /var/opt/stardog/backups
+            readOnly: false
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: 'STARDOG_ADMIN.*server restore'
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: 'Refusing to restore into non-empty STARDOG_HOME'
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: 'rmdir "\$\{STARDOG_HOME\}/lost\+found"'
+      - equal:
+          path: spec.template.spec.initContainers[0].env[8].value
+          value: /mnt/stardog-restore
+
+  - it: renders an S3 restore without a source PVC
+    set:
+      image.tag: 12.2.1
+      restore:
+        enabled: true
+        id: s3-backup-11
+        source:
+          type: s3
+          path: backups
+          backupId: "11"
+          nodeId: 881a39ca-cb9e-49eb-ba30-f99efac9ccf7
+          s3:
+            bucketName: stardog-cmc-training
+            region: us-east-1
+            credentialsSecret: restore-s3-credentials
+        safety:
+          confirmEmptyVolumes: true
+    asserts:
+      - notContains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: restore-source
+            mountPath: /mnt/stardog-restore
+            readOnly: true
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: restore-source
+            persistentVolumeClaim:
+              claimName: ""
+              readOnly: true
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: RESTORE_S3_NODE_ID
+            value: 881a39ca-cb9e-49eb-ba30-f99efac9ccf7
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: restore-s3-credentials
+                key: accessKey
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: 'restore_args\+=\(--node-id'
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].command[2]
+          pattern: 's3:///\$\{RESTORE_S3_BUCKET\}/\$\{relative_backup_path\}\?region='
+
+  - it: requires a node ID for S3 restore
+    set:
+      image.tag: 12.2.1
+      restore:
+        enabled: true
+        id: s3-backup-11
+        source:
+          type: s3
+          path: backups
+          backupId: "11"
+          s3:
+            bucketName: stardog-cmc-training
+            region: us-east-1
+            credentialsSecret: restore-s3-credentials
+        safety:
+          confirmEmptyVolumes: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "restore.source.nodeId is required for an S3 restore; obtain it with server restore --list."
+
+  - it: reads S3 bucket region and credentials from one shared Secret
+    set:
+      image.tag: 12.2.1
+      restore:
+        enabled: true
+        id: s3-backup-11
+        source:
+          type: s3
+          path: backups
+          backupId: "11"
+          nodeId: 881a39ca-cb9e-49eb-ba30-f99efac9ccf7
+          s3:
+            credentialsSecret: shared-s3-storage
+        safety:
+          confirmEmptyVolumes: true
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: RESTORE_S3_BUCKET
+            valueFrom:
+              secretKeyRef:
+                name: shared-s3-storage
+                key: bucketName
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: RESTORE_S3_REGION
+            valueFrom:
+              secretKeyRef:
+                name: shared-s3-storage
+                key: region
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: shared-s3-storage
+                key: accessKey
+
+  - it: renders a self-contained Azure restore without backup enabled
+    set:
+      image.tag: 12.2.1
+      backup.enabled: false
+      restore:
+        enabled: true
+        id: azure-backup-10
+        source:
+          type: azure
+          path: cmc-backups/sd-stack/stardog-sd-stack-0
+          backupId: "10"
+          azure:
+            accountName: restoreaccount
+            containerName: restore-container
+            credentialsSecret: restore-azure-credentials
+        safety:
+          confirmEmptyVolumes: true
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: restore-source
+            persistentVolumeClaim:
+              claimName: stardog-RELEASE-NAME-restore-azure-pvc
+              readOnly: true
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            name: restore-source
+            mountPath: /mnt/stardog-restore
+            readOnly: true

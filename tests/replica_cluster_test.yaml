@@ -5,11 +5,17 @@ templates:
 set:
   global:
     skipSecretValidation: true
+    __storageClassFixtures:
+      - metadata:
+          name: standard
     zookeeper:
       enabled: true
   stardog:
     image:
       tag: 12.2.0
+    persistence:
+      # Avoid a live StorageClass lookup in the helm-unittest fake client.
+      storageClass: standard
     cluster:
       enabled: true
       replicaCount: 3
