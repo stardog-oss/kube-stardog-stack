@@ -3,6 +3,9 @@
 # Requires Helm and Python 3; build chart dependencies before running.
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# The umbrella CI job builds only root dependencies. Its standalone source chart
+# needs its own common archive, independently of the umbrella's packaged copy.
+helm dependency build "$REPO_ROOT/charts/cachetarget" --skip-refresh >/dev/null
 python3 - "$REPO_ROOT" <<'PY'
 from pathlib import Path
 import re
