@@ -1,3 +1,7 @@
+## Project-wide guidelines
+
+Follow the root `AGENTS.md` throughout this repository. References such as `SAT-894` are Jira tickets; read the ticket before planning or implementing work.
+
 ## What this repo is
 
 This repository is an umbrella Helm chart named `stardog-stack` that composes three main subcharts:
