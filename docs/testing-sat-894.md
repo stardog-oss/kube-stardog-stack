@@ -20,7 +20,8 @@ bash charts/cachetarget/tests/scripts/secret_helpers_test.sh
 bash charts/stardog/tests/scripts/replica_cluster_test.sh
 
 helm lint charts/stardog -f values.skip-secret-validation.yaml
-helm lint charts/cachetarget -f values.skip-secret-validation.yaml
+helm lint charts/cachetarget -f values.skip-secret-validation.yaml \
+  --set allowDeprecated=true,image.tag=12.2.0,primary.version=12.2.0
 helm lint . -f values.skip-secret-validation.yaml
 git diff --check
 ```
@@ -112,7 +113,9 @@ storage configuration. Create the required `stardog-license` Secret in namespace
   registry credentials actually allow the image to pull. Test `clusterDomain`
   using the real domain of your test cluster, not an arbitrary hostname.
 - Deploy CacheTarget against the test primary using your existing working
-  CacheTarget values and the matching primary/cache password Secrets. Capture
+  CacheTarget values and the matching primary/cache password Secrets. Set
+  `allowDeprecated=true`, a versioned `image.tag`, and the actual `primary.version`
+  below Stardog 13 as required by the CacheTarget deprecation gate. Capture
   the post-install Job logs while it runs, or render and apply its hook as an
   ordinary retained Job as above. Confirm registration succeeds without either
   password in the logs; repeat registration to exercise the already-registered

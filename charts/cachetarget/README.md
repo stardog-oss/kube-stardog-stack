@@ -4,6 +4,70 @@ Stardog Cache Target Helm Chart
 This chart installs a Stardog Cache Target. You must deploy a Stardog cluster
 before deploying the cache target.
 
+Deprecation and upgrade requirement
+----------------------------------
+
+**This chart is deprecated.** Starting with CacheTarget chart `1.1.0` (bundled in
+`kube-stardog-stack` `1.5.0`), installation, upgrade, and template rendering stop
+unless you explicitly acknowledge continued use.
+
+Cache targets will be removed in **Stardog 13**. Acknowledgement permits only
+Stardog versions below 13; version 13 prereleases and later majors are also
+rejected. See [Stardog cache management](https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management)
+for details about cache targets and primary-version compatibility.
+
+Pin `image.tag` to an explicit version such as `12.2.0` and set `primary.version`
+to the actual version of the primary. `latest`, empty values, and unversioned
+aliases are rejected because their major version cannot be established at render
+time. The umbrella also checks `stardog.image.tag` when its Stardog component is
+enabled. Helm validates these configured versions; it does not query an external
+primary to verify its running version. Cache targets should use the same Stardog
+version as their primary, as described in the linked documentation.
+
+For a standalone release, add this to your values file:
+
+```yaml
+allowDeprecated: true
+image:
+  tag: 12.2.0
+primary:
+  version: 12.2.0
+```
+
+Or pass the flag when installing or upgrading:
+
+```bash
+helm upgrade --install my-cache ./charts/cachetarget \
+  -f my-cache-values.yaml --set allowDeprecated=true
+```
+
+For the umbrella chart, the acknowledgement belongs under `cachetarget`, outside
+`global`:
+
+```yaml
+global:
+  cachetarget:
+    enabled: true
+cachetarget:
+  allowDeprecated: true
+  image:
+    tag: 12.2.0
+  primary:
+    version: 12.2.0
+stardog:
+  image:
+    tag: 12.2.0
+```
+
+Only boolean `true` is accepted; a quoted string such as `"true"` is rejected.
+Keep the acknowledgement in the values used by subsequent upgrades. Install and
+upgrade NOTES continue to show the warning after acknowledgement, including in
+the umbrella chart without `--render-subchart-notes`. The umbrella's default
+`global.cachetarget.enabled: false` needs no acknowledgement or warning.
+
+An upgrade rejected by this render-time gate does not uninstall the existing
+CacheTarget. Plan any removal separately, including data and storage handling.
+
 Chart Details
 -------------
 
@@ -15,6 +79,8 @@ Configuration Parameters
 
 | Parameter                                    | Description |
 | ---                                          | --- |
+| `allowDeprecated`                            | Defaults to `false`; must be boolean `true` to deploy this deprecated chart |
+| `primary.version`                            | Required actual Stardog version of the primary, below 13; cannot be overridden by acknowledgement |
 | `fullnameOverride`                           | The k8s name for the Stardog deployment |
 | `namespaceOverride`                          | The k8s namespace for the Stardog deployment (single node only) |
 | `admin.password`                             | Stardog admin password |

@@ -1,0 +1,55 @@
+suite: Umbrella CacheTarget Stardog version boundary
+templates:
+  - validate-cachetarget.yaml
+  - charts/cachetarget/templates/service.yaml
+set:
+  global.skipSecretValidation: true
+  global.cachetarget.enabled: true
+  cachetarget.allowDeprecated: true
+  cachetarget.image.tag: 12.2.0
+  cachetarget.primary.version: 12.2.0
+  stardog.image.tag: 12.2.0
+tests:
+  - it: rejects a bundled Stardog 13 primary
+    template: validate-cachetarget.yaml
+    set:
+      stardog.image.tag: "13.0.0"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Cache targets are removed in Stardog 13. stardog.image.tag=13.0.0 is not supported, even with allowDeprecated=true. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management"
+  - it: rejects prerelease Stardog 13 primaries
+    template: validate-cachetarget.yaml
+    set:
+      stardog.image.tag: "v13.0.0-rc.1"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Cache targets are removed in Stardog 13. stardog.image.tag=v13.0.0-rc.1 is not supported, even with allowDeprecated=true. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management"
+  - it: rejects future bundled primary versions
+    template: validate-cachetarget.yaml
+    set:
+      stardog.image.tag: "14.0.0"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Cache targets are removed in Stardog 13. stardog.image.tag=14.0.0 is not supported, even with allowDeprecated=true. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management"
+  - it: rejects an unverifiable bundled primary
+    template: validate-cachetarget.yaml
+    set:
+      stardog.image.tag: "latest"
+    asserts:
+      - failedTemplate:
+          errorMessage: "stardog.image.tag must be an explicit Stardog version below 13 (for example, 12.2.0); got \"latest\". Mutable or unversioned tags cannot establish compatibility. See https://docs.stardog.com/high-availability-cluster/operating-the-cluster/cache-management"
+  - it: leaves Stardog 13 deployments alone when CacheTarget is disabled
+    template: validate-cachetarget.yaml
+    set:
+      global.cachetarget.enabled: false
+      stardog.image.tag: 13.0.0
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: supports external primaries when the bundled Stardog is disabled
+    template: charts/cachetarget/templates/service.yaml
+    set:
+      global.stardog.enabled: false
+    asserts:
+      - isKind:
+          of: Service

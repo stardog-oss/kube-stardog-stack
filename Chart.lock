@@ -19,6 +19,6 @@ dependencies:
   version: 1.2.1
 - name: cachetarget
   repository: file://charts/cachetarget
-  version: 1.0.7
-digest: sha256:8fd6424da18a044a83bfe7f54e3be5dccd98ef8876712b62cd02028468e3f18d
-generated: "2026-11-18T12:54:52.792109-05:00"
+  version: 1.1.1
+digest: sha256:99b88c96320b51498c430ab7ca89b77dc076bef5ebb11ed6256513b6a478c850
+generated: "2026-11-24T11:16:11.007601-05:00"
