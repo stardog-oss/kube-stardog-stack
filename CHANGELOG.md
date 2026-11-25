@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.1
+- SAT-894: fix password disclosure in hook and TLS-init logs, authenticate backup-user provisioning with the configured admin password, and fail the hook when provisioning fails.
+- Fix Stardog post-install pull-secret placement and honor the configured cluster domain.
+- Configure outbound truststores independently of inbound TLS; retain regression coverage for explicit JWT `autoCreateUsers: false`.
+- Update bundled Stardog to `4.3.1` and CacheTarget to `1.1.1`.
+
 ## 1.5.0
 - Block CacheTarget on Stardog 13 and later regardless of opt-in. Require versioned CacheTarget/primary settings, validate the bundled primary image, and include the removal version and cache-management documentation link in warnings.
 - SAT-905: deprecate the CacheTarget subchart and update it to `1.1.0`.

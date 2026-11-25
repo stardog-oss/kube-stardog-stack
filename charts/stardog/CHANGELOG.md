@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.3.1
+- SAT-894: disable tracing before secret handling in post-install and TLS-init scripts, remove password echoes, and preserve passwords containing whitespace or shell metacharacters.
+- Authenticate every backup provisioning command with the mounted admin password, propagate failures, and resume partially completed role/user setup on retries.
+- Render explicit and generated image pull secrets together under the hook pod spec and use `clusterDomain` in its hostname.
+- Emit outbound truststore JVM arguments and properties whenever trust is enabled, independently of inbound TLS. Keep keystore arguments scoped to inbound TLS.
+- Add regression coverage for outbound-only trust, JWT false/default values, hook configuration, and credential secrecy.
+
 ## 4.3.0
 - Quote replica usernames and credential file paths as literal shell arguments in startup and preStop.
 - Mount the outbound truststore and private CA even when inbound TLS is disabled.

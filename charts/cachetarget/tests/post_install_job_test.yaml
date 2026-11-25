@@ -5,6 +5,18 @@ templates:
   - post-install-job.yaml
 
 tests:
+  - it: keeps tracing off throughout password changes and cache registration
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '^\{ set \+x; \} 2>/dev/null\nset -e\n'
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'set -[^\n]*x'
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'echo[^\n]*\$\{?(THIS_PW|PRIMARY_PW|NEW_PW)'
+
   - it: renders post-install job with default primary secret
     set:
       primary:

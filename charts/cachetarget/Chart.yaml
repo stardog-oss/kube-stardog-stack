@@ -1,7 +1,7 @@
 apiVersion: v2
 name: cachetarget
 description: Helm chart to deploy Stardog Cache Targets
-version: 1.1.0
+version: 1.1.1
 deprecated: true
 appVersion: latest
 home: https://stardog-union.github.io/kube-stardog-stack/
